@@ -848,9 +848,9 @@ h2 {
 }
 
 .btn {
-  padding: 10px 15px;
+  padding: 10px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -858,27 +858,28 @@ h2 {
 }
 
 .btn-primary {
-  background: #888;
+  background: #666;
   color: white;
 }
 
 .btn-primary:hover {
-  background: #666;
+  background: #555;
 }
 
 .btn-primary:disabled {
   background: #ccc;
   cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .btn-secondary {
-  background: #f0f0f0;
+  background: white;
   color: #333;
   border: 1px solid #ddd;
 }
 
 .btn-secondary:hover {
-  background: #e8e8e8;
+  background: #f5f5f5;
 }
 
 .btn-tracking {
@@ -906,17 +907,38 @@ h2 {
 
 .btn-csv:hover {
   background: #5a7a5e;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(107, 142, 111, 0.4);
 }
 
 .btn-pagination, .btn-page {
-  padding: 8px 12px;
+  padding: 10px 15px;
   margin: 0 2px;
-  font-size: 12px;
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.btn-pagination:hover:not(:disabled), .btn-page:hover {
+  background: #e0e0e0;
+}
+
+.btn-pagination:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .btn-page.active {
-  background: #888;
+  background: #777;
   color: white;
+  border-color: #777;
+  font-weight: bold;
 }
 
 .trades-table {

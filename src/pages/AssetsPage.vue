@@ -97,10 +97,6 @@ const sortedAssets = computed(() => {
 });
 
 const handleSort = (column) => {
-  console.log('Sort clicked on column:', column);
-  console.log('Current sortColumn:', sortColumn.value);
-  console.log('Current sortDirection:', sortDirection.value);
-  
   if (sortColumn.value === column) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
   } else {
@@ -108,10 +104,6 @@ const handleSort = (column) => {
     sortDirection.value = 'asc';
   }
   currentPage.value = 1; // 정렬 후 첫 페이지로 이동
-  
-  console.log('After sort - sortColumn:', sortColumn.value);
-  console.log('After sort - sortDirection:', sortDirection.value);
-  console.log('Sorted data length:', sortedAssets.value.length);
 };
 
 const getSortIcon = (column) => {
@@ -175,8 +167,6 @@ const fetchAssets = async () => {
     
     if (result.success) {
       assets.value = result.data;
-      console.log('First asset:', assets.value[0]);
-      console.log('Asset keys:', Object.keys(assets.value[0] || {}));
     } else {
       error.value = result.error;
     }
