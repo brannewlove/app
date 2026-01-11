@@ -1,0 +1,1171 @@
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue';
+import AutocompleteSearch from '../components/AutocompleteSearch.vue';
+
+const trades = ref([]);
+const loading = ref(false);
+const error = ref(null);
+const currentPage = ref(1);
+const itemsPerPage = 20;
+const sortColumn = ref(null);
+const sortDirection = ref('desc');
+const searchQuery = ref('');
+
+// 테이블 컬럼 순서 정의
+const columnOrder = ['trade_id', 'timestamp', 'work_type', 'asset_id', 'model', 'cj_id', 'user_name'];
+
+// 추적 기능 관련
+const isTrackingOpen = ref(false);
+const selectedAsset = ref(null);
+const trackingLogs = ref([]);
+const trackingLoading = ref(false);
+const trackingError = ref(null);
+
+// 변경 Export 관련
+const isExportModalOpen = ref(false);
+const exportAssets = ref([]);
+const exportLoading = ref(false);
+const exportError = ref(null);
+const excludedAssets = ref(new Set());
+
+// 확인 모달 관련
+const isConfirmModalOpen = ref(false);
+const confirmMessage = ref('');
+const confirmCallback = ref(null);
+
+const filteredTrades = computed(() => {
+  if (!searchQuery.value) {
+    return sortedTrades.value;
+  }
+  
+  const query = searchQuery.value.toLowerCase();
+  return sortedTrades.value.filter(trade => {
+    return Object.values(trade).some(value => 
+      String(value).toLowerCase().includes(query)
+    );
+  });
+});
+
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
+
+const sortedTrades = computed(() => {
+  // sortColumn이 null이면 timestamp 기준으로 정렬 (버튼 표시는 안함)
+  const activeSort = sortColumn.value || 'timestamp';
+  const sortDir = sortColumn.value ? sortDirection.value : 'desc';
+  
+  const sorted = [...trades.value].sort((a, b) => {
+    let aValue = a[activeSort];
+    let bValue = b[activeSort];
+    
+    if (aValue === null || aValue === undefined) aValue = '';
+    if (bValue === null || bValue === undefined) bValue = '';
+    
+    if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
+      aValue = parseFloat(aValue);
+      bValue = parseFloat(bValue);
+      return sortDir === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    
+    aValue = String(aValue).toLowerCase();
+    bValue = String(bValue).toLowerCase();
+    
+    if (sortDir === 'asc') {
+      return aValue.localeCompare(bValue);
+    } else {
+      return bValue.localeCompare(aValue);
+    }
+  });
+  
+  return sorted;
+});
+
+const handleSort = (column) => {
+  if (sortColumn.value === column) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortColumn.value = column;
+    sortDirection.value = 'asc';
+  }
+  currentPage.value = 1;
+};
+
+const getSortIcon = (column) => {
+  if (sortColumn.value !== column) {
+    return '⇳';
+  }
+  return sortDirection.value === 'asc' ? '⇧' : '⇩';
+};
+
+// 정렬된 컬럼 리스트 (columnOrder 순서 + 나머지 컬럼, memo는 맨뒤)
+const orderedColumns = computed(() => {
+  if (!trades.value[0]) return [];
+  const allHeaders = Object.keys(trades.value[0]);
+  // columnOrder에 있는 것들을 먼저 정렬
+  const ordered = columnOrder.filter(h => h in trades.value[0]);
+  // columnOrder에 없는 것들을 뒤에 추가 (memo 제외)
+  const remaining = allHeaders.filter(h => !columnOrder.includes(h) && h !== 'memo');
+  // memo를 맨뒤에 추가
+  if (allHeaders.includes('memo')) {
+    remaining.push('memo');
+  }
+  return [...ordered, ...remaining];
+});
+
+const paginatedTrades = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredTrades.value.slice(start, end);
+});
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredTrades.value.length / itemsPerPage);
+});
+
+const pageNumbers = computed(() => {
+  const pages = [];
+  const maxPages = 5;
+  let start = Math.max(1, currentPage.value - 2);
+  let end = Math.min(totalPages.value, start + maxPages - 1);
+  
+  if (end - start < maxPages - 1) {
+    start = Math.max(1, end - maxPages + 1);
+  }
+  
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+  return pages;
+});
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--;
+  }
+};
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++;
+  }
+};
+
+const goToPage = (page) => {
+  currentPage.value = page;
+};
+
+const fetchTrades = async () => {
+  loading.value = true;
+  error.value = null;
+  currentPage.value = 1;
+  
+  try {
+    const response = await fetch('http://localhost:3000/trades');
+    const result = await response.json();
+    
+    if (result.success) {
+      trades.value = result.data;
+    } else {
+      error.value = result.message || '거래 로드 실패';
+    }
+  } catch (err) {
+    error.value = '거래 로드 중 오류 발생: ' + err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const openTrackingModal = () => {
+  isTrackingOpen.value = true;
+};
+
+const closeTrackingModal = () => {
+  isTrackingOpen.value = false;
+  selectedAsset.value = null;
+  trackingLogs.value = [];
+  trackingError.value = null;
+};
+
+const openExportModal = async () => {
+  isExportModalOpen.value = true;
+  await fetchExportAssets();
+};
+
+const closeExportModal = () => {
+  isExportModalOpen.value = false;
+  exportError.value = null;
+};
+
+// 제외 상태를 localStorage에 저장
+const saveExcludedAssets = () => {
+  const excludedArray = Array.from(excludedAssets.value);
+  localStorage.setItem('excludedAssets', JSON.stringify(excludedArray));
+};
+
+// localStorage에서 제외 상태 로드
+const loadExcludedAssets = () => {
+  const saved = localStorage.getItem('excludedAssets');
+  if (saved) {
+    try {
+      excludedAssets.value = new Set(JSON.parse(saved));
+    } catch (err) {
+      console.error('제외 자산 로드 실패:', err);
+      excludedAssets.value = new Set();
+    }
+  }
+};
+
+const fetchExportAssets = async () => {
+  exportLoading.value = true;
+  exportError.value = null;
+
+  try {
+    const response = await fetch('http://localhost:3000/api/assetLogs/currentUsers');
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || data.message || '데이터 조회 실패');
+    }
+    
+    // 시간 오래된 순으로 정렬 (오름차순)
+    const sortedData = (data.data || []).sort((a, b) => {
+      return new Date(a.timestamp) - new Date(b.timestamp);
+    });
+    
+    exportAssets.value = sortedData.filter(asset => 
+      !excludedAssets.value.has(asset.asset_id)
+    );
+  } catch (err) {
+    console.error('Export 데이터 조회 에러:', err);
+    exportError.value = err.message || 'Export 데이터 조회 중 오류 발생';
+  } finally {
+    exportLoading.value = false;
+  }
+};
+
+const toggleAssetExclude = (assetId) => {
+  const isCurrentlyExcluded = excludedAssets.value.has(assetId);
+  const message = isCurrentlyExcluded 
+    ? '이 자산을 포함시키겠습니까?' 
+    : '이 자산을 제외하겠습니까?';
+  
+  confirmMessage.value = message;
+  confirmCallback.value = () => {
+    if (isCurrentlyExcluded) {
+      excludedAssets.value.delete(assetId);
+    } else {
+      excludedAssets.value.add(assetId);
+    }
+    
+    // 제외 상태 저장
+    saveExcludedAssets();
+    
+    // 화면 업데이트
+    exportAssets.value = exportAssets.value.filter(asset => 
+      !excludedAssets.value.has(asset.asset_id)
+    );
+  };
+  isConfirmModalOpen.value = true;
+};
+
+const toggleAllExclude = (event) => {
+  if (event.target.checked) {
+    confirmMessage.value = '모든 자산을 제외하겠습니까?';
+    confirmCallback.value = () => {
+      exportAssets.value.forEach(asset => {
+        excludedAssets.value.add(asset.asset_id);
+      });
+      exportAssets.value = [];
+      saveExcludedAssets();
+    };
+    isConfirmModalOpen.value = true;
+  } else {
+    confirmMessage.value = '모든 자산을 포함시키겠습니까?';
+    confirmCallback.value = () => {
+      excludedAssets.value.clear();
+      saveExcludedAssets();
+      fetchExportAssets();
+    };
+    isConfirmModalOpen.value = true;
+  }
+};
+
+const handleConfirmYes = () => {
+  if (confirmCallback.value) {
+    confirmCallback.value();
+  }
+  isConfirmModalOpen.value = false;
+};
+
+const handleConfirmNo = () => {
+  isConfirmModalOpen.value = false;
+};
+
+const handleTrackingWheel = (event) => {
+  const container = event.currentTarget;
+  container.scrollLeft += event.deltaY > 0 ? 200 : -200;
+};
+
+const downloadExportData = () => {
+  if (exportAssets.value.length === 0) {
+    alert('다운로드할 데이터가 없습니다.');
+    return;
+  }
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const date = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
+  const filename = `AssetCurrentUsers_${timestamp}.csv`;
+
+  const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
+  const csvContent = [
+    headers.join(','),
+    ...exportAssets.value.map(asset => {
+      const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
+      return [
+        asset.asset_id || '',
+        asset.cj_id || '',
+        asset.user_name || '',
+        dateStr
+      ].map(value => {
+        if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(',');
+    })
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const fetchTrackingLogs = async () => {
+  if (!selectedAsset.value || !selectedAsset.value.asset_number) {
+    trackingError.value = '자산을 선택해주세요.';
+    return;
+  }
+
+  trackingLoading.value = true;
+  trackingError.value = null;
+
+  try {
+    const response = await fetch(`http://localhost:3000/api/assetLogs?asset_id=${selectedAsset.value.asset_number}`);
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || data.message || '추적 로그 조회 실패');
+    }
+    
+    trackingLogs.value = data.data || [];
+  } catch (err) {
+    console.error('추적 로그 조회 에러:', err);
+    trackingError.value = err.message || '추적 로그 조회 중 오류 발생';
+  } finally {
+    trackingLoading.value = false;
+  }
+};
+
+const downloadCSV = () => {
+  if (trades.value.length === 0) {
+    error.value = '다운로드할 데이터가 없습니다.';
+    return;
+  }
+  
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const date = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
+  const filename = `TradePage_${timestamp}.csv`;
+  
+  const headers = trades.value.length > 0 ? Object.keys(trades.value[0]) : [];
+  const csvContent = [
+    headers.join(','),
+    ...trades.value.map(trade => 
+      headers.map(header => {
+        const value = trade[header] || '';
+        if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      }).join(',')
+    )
+  ].join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// 날짜 및 시간 포맷팅
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+onMounted(() => {
+  fetchTrades();
+  loadExcludedAssets();
+});
+</script>
+
+<template>
+  <div class="page-content">
+    <h1>거래 관리</h1>
+    
+    <div v-if="error" class="alert alert-error">
+      ❌ {{ error }}
+    </div>
+    
+    <div v-if="loading" class="alert alert-info">
+      ⏳ 로딩 중...
+    </div>
+    
+    <div v-if="trades.length > 0" class="trades-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>거래 목록 ({{ filteredTrades.length }}개)</h2>
+        <div style="display: flex; gap: 10px;">
+          <button @click="openTrackingModal" class="btn btn-tracking">추적</button>
+          <button @click="openExportModal" class="btn btn-export">변경 Export</button>
+          <button @click="downloadCSV" class="btn btn-csv">csv</button>
+        </div>
+      </div>
+
+      <div class="search-container">
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="검색..." 
+          class="search-input"
+        />
+      </div>
+
+      <table class="trades-table">
+        <thead>
+          <tr>
+            <th 
+              v-for="header in orderedColumns"
+              :key="header"
+              @click="handleSort(header)"
+              class="sortable-header" 
+              :class="{ active: sortColumn === header }"
+            >
+              <div class="header-content">
+                <span>{{ header === 'trade_id' ? '순번' : header }}</span>
+                <span class="sort-icon">{{ getSortIcon(header) }}</span>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr 
+            v-for="(trade, index) in paginatedTrades" 
+            :key="`${trade.trade_id}-${index}`"
+            :class="{ 'stripe': index % 2 === 1 }"
+          >
+            <td v-for="header in orderedColumns" :key="header">
+              <template v-if="header === 'timestamp'">
+                {{ formatDateTime(trade[header]) }}
+              </template>
+              <template v-else>
+                {{ trade[header] || '-' }}
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 20px; text-align: center;">
+        <button 
+          v-if="currentPage > 1" 
+          @click="prevPage"
+          class="btn btn-pagination"
+        >
+          이전
+        </button>
+        <button 
+          v-for="page in pageNumbers"
+          :key="page"
+          @click="goToPage(page)"
+          :class="{ active: currentPage === page }"
+          class="btn btn-page"
+        >
+          {{ page }}
+        </button>
+        <button 
+          v-if="currentPage < totalPages"
+          @click="nextPage"
+          class="btn btn-pagination"
+        >
+          다음
+        </button>
+      </div>
+    </div>
+
+    <div v-else-if="!loading" class="empty-state">
+      거래가 없습니다.
+    </div>
+
+    <!-- 추적 모달 -->
+    <div v-if="isTrackingOpen" class="modal-overlay" @click.self="closeTrackingModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>자산 추적</h2>
+          <button class="modal-close-btn" @click="closeTrackingModal">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: bold;">자산 선택</label>
+            <AutocompleteSearch 
+              :initial-value="selectedAsset?.asset_number || ''"
+              placeholder="자산번호로 검색..."
+              api-table="assets"
+              api-column="asset_number"
+              @select="(item) => {
+                if (item && typeof item === 'object') {
+                  selectedAsset = {
+                    asset_id: item.asset_id,
+                    asset_number: item.asset_number,
+                    model: item.model,
+                    state: item.state
+                  };
+                  fetchTrackingLogs();
+                }
+              }"
+            />
+          </div>
+
+          <div v-if="selectedAsset" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
+            <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
+            <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
+          </div>
+
+          <div v-if="trackingError" class="alert alert-error">
+            ❌ {{ trackingError }}
+          </div>
+
+          <div v-if="trackingLoading" class="alert alert-info">
+            ⏳ 로딩 중...
+          </div>
+
+          <div v-else-if="trackingLogs.length > 0">
+            <h3>사용자 변경 로그</h3>
+            <div class="tracking-flow" @wheel.prevent="handleTrackingWheel">
+              <div v-for="(log, index) in trackingLogs" :key="`${log.trade_id}-${log.timestamp}`" class="flow-item">
+                <div class="flow-content">
+                  <div class="flow-header">
+                    <span class="flow-work-type">{{ log.work_type }}</span>
+                    <span class="flow-user">{{ log.user_name || log.cj_id || '-' }}</span>
+                  </div>
+                  <div class="flow-date">{{ new Date(log.timestamp).toLocaleString('ko-KR') }}</div>
+                </div>
+                <div v-if="index < trackingLogs.length - 1" class="flow-arrow">→</div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="selectedAsset && !trackingLoading" class="tracking-logs-empty">
+            추적 로그가 없습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 변경 Export 모달 -->
+    <div v-if="isExportModalOpen" class="modal-overlay" @click.self="closeExportModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>변경 Export</h2>
+          <button class="modal-close-btn" @click="closeExportModal">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="exportLoading" class="alert alert-info">
+            ⏳ 데이터 로딩 중...
+          </div>
+
+          <div v-else-if="exportError" class="alert alert-error">
+            ❌ {{ exportError }}
+          </div>
+
+          <div v-else-if="exportAssets.length > 0">
+            <div style="margin-bottom: 15px;">
+              <p style="color: #666; font-size: 14px;">
+                총 {{ exportAssets.length }}개 자산 (제외: {{ excludedAssets.size }})
+              </p>
+            </div>
+
+            <table class="export-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">
+                    <input 
+                      type="checkbox" 
+                      :checked="exportAssets.length === 0"
+                      @change="toggleAllExclude"
+                    />
+                  </th>
+                  <th>자산ID</th>
+                  <th>사용자ID</th>
+                  <th>사용자명</th>
+                  <th>최종변경시간</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr 
+                  v-for="asset in exportAssets" 
+                  :key="asset.asset_id"
+                  :class="{ excluded: excludedAssets.has(asset.asset_id) }"
+                >
+                  <td style="text-align: center;">
+                    <input 
+                      type="checkbox"
+                      :checked="excludedAssets.has(asset.asset_id)"
+                      @change="toggleAssetExclude(asset.asset_id)"
+                    />
+                  </td>
+                  <td>{{ asset.asset_id }}</td>
+                  <td>{{ asset.cj_id }}</td>
+                  <td>{{ asset.user_name || '-' }}</td>
+                  <td>{{ new Date(asset.timestamp).toLocaleString('ko-KR') }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+              <button 
+                class="btn btn-secondary"
+                @click="closeExportModal"
+              >
+                취소
+              </button>
+              <button 
+                class="btn btn-primary"
+                @click="downloadExportData"
+                :disabled="exportAssets.length === 0"
+              >
+                CSV 다운로드
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="tracking-logs-empty">
+            데이터가 없습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 확인 모달 -->
+    <div v-if="isConfirmModalOpen" class="modal-overlay" @click.self="handleConfirmNo">
+      <div class="confirm-modal-content">
+        <div class="confirm-modal-body">
+          <p>{{ confirmMessage }}</p>
+        </div>
+        <div class="confirm-modal-footer">
+          <button class="btn btn-secondary" @click="handleConfirmNo">
+            취소
+          </button>
+          <button class="btn btn-primary" @click="handleConfirmYes">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.page-content {
+  padding: 20px;
+}
+
+h1 {
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 28px;
+  border-bottom: 3px solid #999;
+  padding-bottom: 10px;
+}
+
+.alert {
+  padding: 15px 20px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  font-size: 16px;
+}
+
+.alert-error {
+  background: #fef2f2;
+  color: #e74c3c;
+  border-left: 4px solid #e74c3c;
+}
+
+.alert-info {
+  background: #f5f5f5;
+  color: #666;
+  border-left: 4px solid #999;
+}
+
+.trades-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  color: #555;
+  margin: 0 0 15px 0;
+  font-size: 20px;
+}
+
+.search-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #999;
+  box-shadow: 0 0 0 3px rgba(153, 153, 153, 0.1);
+}
+
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: #888;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #666;
+}
+
+.btn-primary:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-secondary:hover {
+  background: #e8e8e8;
+}
+
+.btn-tracking {
+  background: #777;
+  color: white;
+}
+
+.btn-tracking:hover {
+  background: #555;
+}
+
+.btn-export {
+  background: #777;
+  color: white;
+}
+
+.btn-export:hover {
+  background: #555;
+}
+
+.btn-csv {
+  background: #6b8e6f;
+  color: white;
+}
+
+.btn-csv:hover {
+  background: #5a7a5e;
+}
+
+.btn-pagination, .btn-page {
+  padding: 8px 12px;
+  margin: 0 2px;
+  font-size: 12px;
+}
+
+.btn-page.active {
+  background: #888;
+  color: white;
+}
+
+.trades-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: white;
+  table-layout: auto;
+  margin: 20px 0;
+}
+
+.trades-table thead {
+  background: #4a4a4a;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sortable-header {
+  padding: 0;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background 0.3s ease;
+  color: white;
+  background: #4a4a4a;
+}
+
+.sortable-header:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sortable-header.active {
+  background: #3a3a3a;
+  color: #ffeb3b;
+}
+
+.sortable-header.active:hover {
+  background: #3a3a3a;
+}
+
+.header-content {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sort-icon {
+  opacity: 0.6;
+  font-size: 12px;
+  min-width: 16px;
+  text-align: right;
+}
+
+.sortable-header.active .sort-icon {
+  opacity: 1;
+  font-weight: bold;
+}
+
+.trades-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #d8d8d8;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: middle;
+}
+
+.trades-table tbody tr {
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.trades-table tbody tr.stripe {
+  background: #f0f0f0;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 1200px;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-modal-content {
+  background: white;
+  border-radius: 8px;
+  min-width: 350px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirm-modal-body {
+  padding: 30px 20px;
+  text-align: center;
+  color: #333;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.confirm-modal-footer {
+  padding: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  border-top: 1px solid #eee;
+}
+
+.confirm-modal-footer .btn {
+  padding: 10px 30px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  background: #f9f9f9;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #999;
+}
+
+.modal-close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #999;
+  font-size: 16px;
+}
+
+.tracking-flow {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 20px 0;
+  scroll-behavior: smooth;
+}
+
+.tracking-flow::-webkit-scrollbar {
+  height: 8px;
+}
+
+.tracking-flow::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.tracking-flow::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.tracking-flow::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.flow-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: max-content;
+  position: relative;
+}
+
+.flow-content {
+  padding: 15px 20px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 5px;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.flow-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+
+.flow-work-type {
+  font-weight: bold;
+  color: #333;
+  padding: 3px 8px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.flow-user {
+  color: #667eea;
+  font-weight: bold;
+}
+
+.flow-date {
+  font-size: 12px;
+  color: #999;
+}
+
+.flow-arrow {
+  font-size: 20px;
+  color: #ddd;
+  flex-shrink: 0;
+  min-width: 20px;
+  text-align: center;
+}
+
+.tracking-logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+}
+
+.tracking-logs-table thead {
+  background: #f5f5f5;
+}
+
+.tracking-logs-table th {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+}
+
+.tracking-logs-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.tracking-logs-table tr:hover {
+  background: #f5f5f5;
+}
+
+.tracking-logs-empty {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+}
+
+/* Export 테이블 스타일 */
+.export-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+.export-table th {
+  background: #f5f5f5;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+  font-weight: bold;
+  color: #333;
+}
+
+.export-table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.export-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.export-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.export-table tbody tr.excluded {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.export-table input[type="checkbox"] {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+</style>
