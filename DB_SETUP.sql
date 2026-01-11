@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS assetLogs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='자산 작업 로그 테이블';
 
 -- ============================================
+-- 5. confirmed_assets 테이블 - 확인된 자산 목록
+-- ============================================
+CREATE TABLE IF NOT EXISTS confirmed_assets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  asset_id VARCHAR(100) NOT NULL COMMENT '자산ID',
+  cj_id VARCHAR(50) NOT NULL COMMENT '사원ID(확인 시점의 사용자)',
+  confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '확인 시간',
+  UNIQUE KEY unique_asset_user (asset_id, cj_id),
+  INDEX idx_asset_id (asset_id),
+  INDEX idx_cj_id (cj_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자 변경 확인 테이블';
+
+-- ============================================
 -- 테스트용 샘플 데이터 (선택사항)
 -- ============================================
 -- INSERT INTO users (cj_id, password, name, part) VALUES 

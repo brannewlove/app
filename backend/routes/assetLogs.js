@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
       FROM trde t
       LEFT JOIN users u ON t.cj_id = u.cj_id
       WHERE t.asset_id = ?
-      ORDER BY t.timestamp DESC
+      ORDER BY t.timestamp ASC
     `;
 
     console.log('쿼리 실행:', query);
@@ -71,12 +71,20 @@ router.get('/currentUsers', async (req, res) => {
   try {
     const conn = await pool.getConnection();
     
-    // 각 자산별로 가장 최근 거래의 사용자를 조회 (대여, 수리, 대여반납, 수리반납 제외)
+    // 각 자산별로 가장 최근 사용자변경 작업을 조회
+    // (이동, 입고만 포함 - 사용자 변경 작업)
+    // (1단계: 사용자변경 작업에서 마지막 찾기)
     const query = `
       SELECT 
         t.asset_id,
         t.cj_id,
-        u.name as user_name,
+        COALESCE(u.name, 
+          CASE 
+            WHEN t.cj_id = 'cjenc_inno' THEN '건설경영혁신'
+            WHEN t.cj_id = 'aj_rent' THEN 'AJ랜탈'
+            ELSE t.cj_id 
+          END
+        ) as user_name,
         t.timestamp,
         t.work_type
       FROM (
@@ -87,11 +95,11 @@ router.get('/currentUsers', async (req, res) => {
           work_type,
           ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY timestamp DESC) as rn
         FROM trde
-        WHERE work_type NOT IN ('대여', '수리', '대여반납', '수리반납')
+        WHERE work_type IN ('이동', '입고')
       ) t
       LEFT JOIN users u ON t.cj_id = u.cj_id
       WHERE t.rn = 1
-      ORDER BY t.asset_id ASC
+      ORDER BY t.timestamp ASC
     `;
 
     console.log('현재 사용자 조회 쿼리 실행');
@@ -99,6 +107,7 @@ router.get('/currentUsers', async (req, res) => {
     const [rows] = await conn.query(query);
     
     console.log('현재 사용자 조회 결과:', rows.length, '개');
+    console.log('반환 데이터:', JSON.stringify(rows.slice(0, 2), null, 2));
     
     conn.release();
 

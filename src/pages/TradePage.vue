@@ -26,7 +26,8 @@ const isExportModalOpen = ref(false);
 const exportAssets = ref([]);
 const exportLoading = ref(false);
 const exportError = ref(null);
-const excludedAssets = ref(new Set());
+// excludedAssets: { assetId: { checked: true, cj_id: 'user' } } (메모리에만 유지)
+const excludedAssets = ref({});
 
 // 확인 모달 관련
 const isConfirmModalOpen = ref(false);
@@ -187,6 +188,78 @@ const closeTrackingModal = () => {
   trackingError.value = null;
 };
 
+// DB API에서 확인된 자산 로드
+const loadConfirmedAssets = async () => {
+  try {
+    const response = await fetch('http://localhost:3000/api/confirmedAssets');
+    const result = await response.json();
+    
+    if (result.success && result.data && result.data.length > 0) {
+      // API 데이터를 excludedAssets 객체 형태로 변환
+      excludedAssets.value = {};
+      result.data.forEach(item => {
+        excludedAssets.value[String(item.asset_id)] = {
+          checked: true,
+          cj_id: item.cj_id
+        };
+      });
+    } else {
+      excludedAssets.value = {};
+    }
+  } catch (err) {
+    console.error('확인된 자산 로드 실패:', err);
+    excludedAssets.value = {};
+  }
+};
+
+// DB에 자산 확인 저장
+const saveConfirmedAsset = async (assetId, cj_id) => {
+  try {
+    const response = await fetch('http://localhost:3000/api/confirmedAssets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        asset_id: assetId,
+        cj_id: cj_id
+      })
+    });
+    
+    const result = await response.json();
+    if (!result.success) {
+      console.error('자산 확인 저장 실패:', result.error);
+    }
+  } catch (err) {
+    console.error('자산 확인 저장 에러:', err);
+  }
+};
+
+// DB에서 자산 확인 삭제
+const deleteConfirmedAsset = async (assetId, cj_id) => {
+  try {
+    const response = await fetch(`http://localhost:3000/api/confirmedAssets/${assetId}/${cj_id}`, {
+      method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    if (!result.success) {
+      console.error('자산 확인 삭제 실패:', result.error);
+    }
+  } catch (err) {
+    console.error('자산 확인 삭제 에러:', err);
+  }
+};
+
+// localStorage 호환성 유지 (레거시 함수는 제거)
+const saveExcludedAssets = () => {
+  // DB 기반으로 변경되었으므로 사용 안 함
+};
+
+const loadExcludedAssets = async () => {
+  await loadConfirmedAssets();
+};
+
 const openExportModal = async () => {
   isExportModalOpen.value = true;
   await fetchExportAssets();
@@ -195,25 +268,6 @@ const openExportModal = async () => {
 const closeExportModal = () => {
   isExportModalOpen.value = false;
   exportError.value = null;
-};
-
-// 제외 상태를 localStorage에 저장
-const saveExcludedAssets = () => {
-  const excludedArray = Array.from(excludedAssets.value);
-  localStorage.setItem('excludedAssets', JSON.stringify(excludedArray));
-};
-
-// localStorage에서 제외 상태 로드
-const loadExcludedAssets = () => {
-  const saved = localStorage.getItem('excludedAssets');
-  if (saved) {
-    try {
-      excludedAssets.value = new Set(JSON.parse(saved));
-    } catch (err) {
-      console.error('제외 자산 로드 실패:', err);
-      excludedAssets.value = new Set();
-    }
-  }
 };
 
 const fetchExportAssets = async () => {
@@ -233,9 +287,21 @@ const fetchExportAssets = async () => {
       return new Date(a.timestamp) - new Date(b.timestamp);
     });
     
-    exportAssets.value = sortedData.filter(asset => 
-      !excludedAssets.value.has(asset.asset_id)
-    );
+    // 사용자 변경 감지: 저장된 사용자와 현재 사용자가 다른 경우 체크 해제
+    for (const current of sortedData) {
+      const savedInfo = excludedAssets.value[current.asset_id];
+      if (savedInfo?.checked) {
+        if (savedInfo.cj_id !== current.cj_id) {
+          // 메모리에서 삭제
+          delete excludedAssets.value[current.asset_id];
+          // DB에서도 삭제
+          await deleteConfirmedAsset(current.asset_id, savedInfo.cj_id);
+        }
+      }
+    }
+    
+    // 모든 데이터 표시
+    exportAssets.value = sortedData;
   } catch (err) {
     console.error('Export 데이터 조회 에러:', err);
     exportError.value = err.message || 'Export 데이터 조회 중 오류 발생';
@@ -245,49 +311,52 @@ const fetchExportAssets = async () => {
 };
 
 const toggleAssetExclude = (assetId) => {
-  const isCurrentlyExcluded = excludedAssets.value.has(assetId);
-  const message = isCurrentlyExcluded 
-    ? '이 자산을 포함시키겠습니까?' 
-    : '이 자산을 제외하겠습니까?';
-  
-  confirmMessage.value = message;
-  confirmCallback.value = () => {
-    if (isCurrentlyExcluded) {
-      excludedAssets.value.delete(assetId);
+  try {
+    const asset = exportAssets.value.find(a => a.asset_id === assetId);
+    if (!asset) return;
+    
+    if (excludedAssets.value[assetId]?.checked) {
+      // 체크 해제 - DB에서 삭제
+      const cj_id = excludedAssets.value[assetId].cj_id;
+      delete excludedAssets.value[assetId];
+      deleteConfirmedAsset(assetId, cj_id);
     } else {
-      excludedAssets.value.add(assetId);
+      // 체크 - DB에 저장
+      excludedAssets.value[assetId] = {
+        checked: true,
+        cj_id: asset.cj_id
+      };
+      saveConfirmedAsset(assetId, asset.cj_id);
     }
-    
-    // 제외 상태 저장
-    saveExcludedAssets();
-    
-    // 화면 업데이트
-    exportAssets.value = exportAssets.value.filter(asset => 
-      !excludedAssets.value.has(asset.asset_id)
-    );
-  };
-  isConfirmModalOpen.value = true;
+  } catch (err) {
+    console.error('toggleAssetExclude 에러:', err);
+  }
 };
 
 const toggleAllExclude = (event) => {
-  if (event.target.checked) {
-    confirmMessage.value = '모든 자산을 제외하겠습니까?';
-    confirmCallback.value = () => {
+  try {
+    if (event.target.checked) {
+      // 모두 체크
       exportAssets.value.forEach(asset => {
-        excludedAssets.value.add(asset.asset_id);
+        if (!excludedAssets.value[asset.asset_id]?.checked) {
+          excludedAssets.value[asset.asset_id] = {
+            checked: true,
+            cj_id: asset.cj_id
+          };
+          saveConfirmedAsset(asset.asset_id, asset.cj_id);
+        }
       });
-      exportAssets.value = [];
-      saveExcludedAssets();
-    };
-    isConfirmModalOpen.value = true;
-  } else {
-    confirmMessage.value = '모든 자산을 포함시키겠습니까?';
-    confirmCallback.value = () => {
-      excludedAssets.value.clear();
-      saveExcludedAssets();
-      fetchExportAssets();
-    };
-    isConfirmModalOpen.value = true;
+    } else {
+      // 모두 해제
+      Object.entries(excludedAssets.value).forEach(([assetId, info]) => {
+        if (info.checked) {
+          deleteConfirmedAsset(assetId, info.cj_id);
+        }
+      });
+      excludedAssets.value = {};
+    }
+  } catch (err) {
+    console.error('toggleAllExclude 에러:', err);
   }
 };
 
@@ -308,7 +377,12 @@ const handleTrackingWheel = (event) => {
 };
 
 const downloadExportData = () => {
-  if (exportAssets.value.length === 0) {
+  // 체크된 asset만 필터링해서 다운로드 (체크 안 된 것들만 다운로드)
+  const filteredAssets = exportAssets.value.filter(asset => 
+    !excludedAssets.value[asset.asset_id]?.checked
+  );
+  
+  if (filteredAssets.length === 0) {
     alert('다운로드할 데이터가 없습니다.');
     return;
   }
@@ -326,7 +400,7 @@ const downloadExportData = () => {
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
   const csvContent = [
     headers.join(','),
-    ...exportAssets.value.map(asset => {
+    ...filteredAssets.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
       return [
         asset.asset_id || '',
@@ -433,9 +507,9 @@ const formatDateTime = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-onMounted(() => {
+onMounted(async () => {
   fetchTrades();
-  loadExcludedAssets();
+  await loadExcludedAssets();
 });
 </script>
 
@@ -632,7 +706,7 @@ onMounted(() => {
                   <th style="width: 40px;">
                     <input 
                       type="checkbox" 
-                      :checked="exportAssets.length === 0"
+                      :checked="Object.keys(excludedAssets).length > 0 && Object.keys(excludedAssets).length === exportAssets.length"
                       @change="toggleAllExclude"
                     />
                   </th>
@@ -646,13 +720,13 @@ onMounted(() => {
                 <tr 
                   v-for="asset in exportAssets" 
                   :key="asset.asset_id"
-                  :class="{ excluded: excludedAssets.has(asset.asset_id) }"
+                  :class="{ excluded: excludedAssets[asset.asset_id]?.checked }"
                 >
                   <td style="text-align: center;">
                     <input 
                       type="checkbox"
-                      :checked="excludedAssets.has(asset.asset_id)"
-                      @change="toggleAssetExclude(asset.asset_id)"
+                      :checked="excludedAssets[asset.asset_id]?.checked || false"
+                      @change="(e) => toggleAssetExclude(asset.asset_id)"
                     />
                   </td>
                   <td>{{ asset.asset_id }}</td>

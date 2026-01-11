@@ -77,6 +77,8 @@ router.put('/:id', async (req, res, next) => {
     const { id } = req.params;
     const updateData = req.body;
     
+    console.log(`PUT /assets/${id} - updateData:`, JSON.stringify(updateData));
+    
     const connection = await pool.getConnection();
     
     // 자산 존재 확인
@@ -89,8 +91,16 @@ router.put('/:id', async (req, res, next) => {
       });
     }
     
-    // 업데이트 실행
-    const { asset_id, ...dataToUpdate } = updateData;
+    // 업데이트 실행 (생성 열 contract_month 제외, 날짜 형식 변환)
+    const { asset_id, contract_month, ...dataToUpdate } = updateData;
+    
+    // 날짜 형식 변환 (ISO 8601 -> MySQL DATE)
+    if (dataToUpdate.day_of_start && typeof dataToUpdate.day_of_start === 'string') {
+      dataToUpdate.day_of_start = dataToUpdate.day_of_start.split('T')[0];
+    }
+    if (dataToUpdate.day_of_end && typeof dataToUpdate.day_of_end === 'string') {
+      dataToUpdate.day_of_end = dataToUpdate.day_of_end.split('T')[0];
+    }
     
     const updateFields = Object.keys(dataToUpdate)
       .map(key => `${key} = ?`)
@@ -117,6 +127,8 @@ router.put('/:id', async (req, res, next) => {
       });
     }
   } catch (err) {
+    console.error(`PUT /assets/${req.params.id} - Error:`, err.message);
+    console.error(err);
     res.status(500).json({
       success: false,
       error: err.message

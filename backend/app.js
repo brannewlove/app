@@ -11,6 +11,7 @@ var tradesRouter = require('./routes/trades');
 var selectBarRouter = require('./routes/selectBar');
 var assetLogsRouter = require('./routes/assetLogs');
 var dbTestRouter = require('./routes/db-test');
+var confirmedAssetsRouter = require('./routes/confirmedAssets');
 
 var app = express();
 
@@ -41,6 +42,7 @@ app.use('/assets', assetsRouter);
 app.use('/trades', tradesRouter);
 app.use('/api/selectBar', selectBarRouter);
 app.use('/api/assetLogs', assetLogsRouter);
+app.use('/api/confirmedAssets', confirmedAssetsRouter);
 app.use('/db-test', dbTestRouter);
 app.use('/', indexRouter);
 
