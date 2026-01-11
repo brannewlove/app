@@ -26,12 +26,23 @@ const filteredUsers = computed(() => {
     return sortedUsers.value;
   }
   
-  const query = searchQuery.value.toLowerCase();
+  // 공백으로 구분된 여러 키워드를 모두 포함하는 행만 검색 (AND 검색)
+  const keywords = searchQuery.value
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(k => k.length > 0);
+  
+  if (keywords.length === 0) {
+    return sortedUsers.value;
+  }
+  
   return sortedUsers.value.filter(user => {
-    // 모든 컬럼에서 검색
-    return Object.values(user).some(value => 
-      String(value).toLowerCase().includes(query)
-    );
+    const userString = Object.values(user)
+      .map(value => String(value).toLowerCase())
+      .join(' ');
+    
+    // 모든 키워드가 포함되어야 함
+    return keywords.every(keyword => userString.includes(keyword));
   });
 });
 
