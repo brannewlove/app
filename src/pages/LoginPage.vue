@@ -67,7 +67,11 @@ const handleLogin = async () => {
   loading.value = true;
   
   try {
+<<<<<<< HEAD
     const response = await fetch('http://localhost:3000/users/login', {
+=======
+    const response = await fetch('http://localhost:3000/api/users/login', {
+>>>>>>> 7fff1db (회사설치)
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

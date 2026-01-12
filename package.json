@@ -12,7 +12,13 @@
     "preview": "vite preview",
     "dev:backend": "cd backend && node server.js",
     "dev:frontend": "vite",
+<<<<<<< HEAD
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+=======
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:all": "npm run build && cd backend && npm install --omit=dev",
+    "start": "cd backend && set NODE_ENV=production& node server.js"
+>>>>>>> 7fff1db (회사설치)
   },
   "dependencies": {
     "vue-router": "^4.6.4"
@@ -20,6 +26,10 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
     "concurrently": "^9.2.1",
+<<<<<<< HEAD
+=======
+    "cross-env": "^10.1.0",
+>>>>>>> 7fff1db (회사설치)
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vue": "^3.5.26"

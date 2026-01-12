@@ -14,6 +14,18 @@ const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editedAsset = ref(null);
 const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
+<<<<<<< HEAD
+=======
+const stateOptions = computed(() => {
+  const defaults = ['useable', 'rent', 'repair'];
+  const set = new Set(defaults);
+  assets.value.forEach(a => {
+    if (a.state) set.add(a.state);
+  });
+  if (editedAsset.value?.state) set.add(editedAsset.value.state);
+  return Array.from(set);
+});
+>>>>>>> 7fff1db (회사설치)
 
 // 모든 가능한 컬럼 정의
 const allColumns = [
@@ -174,7 +186,11 @@ const fetchAssets = async () => {
   currentPage.value = 1;
   
   try {
+<<<<<<< HEAD
     const response = await fetch('http://localhost:3000/assets');
+=======
+    const response = await fetch('http://localhost:3000/api/assets');
+>>>>>>> 7fff1db (회사설치)
     const result = await response.json();
     
     if (result.success) {
@@ -194,7 +210,11 @@ const fetchAssetById = async (id) => {
   error.value = null;
   
   try {
+<<<<<<< HEAD
     const response = await fetch(`http://localhost:3000/assets/${id}`);
+=======
+    const response = await fetch(`http://localhost:3000/api/assets/${id}`);
+>>>>>>> 7fff1db (회사설치)
     const result = await response.json();
     
     if (result.success) {
@@ -356,7 +376,18 @@ const downloadCSV = () => {
     headers.map(h => getHeaderDisplayName(h)).join(','),
     ...filteredAssets.value.map(asset => 
       headers.map(header => {
+<<<<<<< HEAD
         const value = asset[header] || '';
+=======
+        let value = asset[header] || '';
+        // 날짜 필드 포맷팅 (YYYY-MM-DD)
+        if ((header === 'day_of_start' || header === 'day_of_end') && value) {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            value = date.toISOString().split('T')[0];
+          }
+        }
+>>>>>>> 7fff1db (회사설치)
         // 쉼표나 줄바꿈을 포함한 값을 큰따옴표로 감싸기
         if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
           return `"${value.replace(/"/g, '""')}"`;
@@ -366,8 +397,13 @@ const downloadCSV = () => {
     )
   ].join('\n');
   
+<<<<<<< HEAD
   // Blob 생성 및 다운로드
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+=======
+  // Blob 생성 및 다운로드 (UTF-8 BOM 추가로 엑셀 한글 깨짐 방지)
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+>>>>>>> 7fff1db (회사설치)
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
@@ -418,8 +454,20 @@ onMounted(() => {
           <div v-if="selectedAsset" class="form-grid">
             <div v-for="(value, key) in selectedAsset" :key="key" class="form-group">
               <label>{{ key }}</label>
+<<<<<<< HEAD
               <input 
                 v-if="isEditMode"
+=======
+              <select
+                v-if="isEditMode && key === 'state'"
+                v-model="editedAsset[key]"
+                class="form-input"
+              >
+                <option v-for="opt in stateOptions" :key="opt" :value="opt">{{ opt }}</option>
+              </select>
+              <input 
+                v-else-if="isEditMode"
+>>>>>>> 7fff1db (회사설치)
                 v-model="editedAsset[key]"
                 type="text"
                 class="form-input"

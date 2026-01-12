@@ -37,14 +37,41 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+<<<<<<< HEAD
 app.use('/users', usersRouter);
 app.use('/assets', assetsRouter);
 app.use('/trades', tradesRouter);
+=======
+// 프로덕션 환경: Vue 빌드 파일 서빙 (정적 파일 우선)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '..', 'dist')));
+}
+
+// API 라우터들
+app.use('/api/users', usersRouter);
+app.use('/api/assets', assetsRouter);
+app.use('/api/trades', tradesRouter);
+>>>>>>> 7fff1db (회사설치)
 app.use('/api/selectBar', selectBarRouter);
 app.use('/api/assetLogs', assetLogsRouter);
 app.use('/api/confirmedAssets', confirmedAssetsRouter);
 app.use('/db-test', dbTestRouter);
+<<<<<<< HEAD
 app.use('/', indexRouter);
+=======
+
+// 개발 환경에서만 Express 기본 라우터 사용
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/', indexRouter);
+}
+
+// 프로덕션 환경: Vue Router용 SPA fallback (모든 라우터 이후)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  });
+}
+>>>>>>> 7fff1db (회사설치)
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

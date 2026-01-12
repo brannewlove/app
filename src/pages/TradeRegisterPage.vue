@@ -99,6 +99,10 @@ const validateAssetForWorkType = (item, workType) => {
     case '입고':
     case '반납':
     case '수리':
+<<<<<<< HEAD
+=======
+    case '입고(재입사)':
+>>>>>>> 7fff1db (회사설치)
       // 이 작업들은 모든 자산 허용
       return { valid: true };
   }
@@ -110,6 +114,10 @@ const validateAssetForWorkType = (item, workType) => {
 const getFixedCjId = (workType) => {
   const fixedMap = {
     '입고': 'cjenc_inno',
+<<<<<<< HEAD
+=======
+    '입고(재입사)': 'cjenc_inno',
+>>>>>>> 7fff1db (회사설치)
     '반납': 'aj_rent',
     '수리': 'no-change',  // 사용자 변경 안 함
     '대여반납': 'cjenc_inno',
@@ -122,6 +130,10 @@ const getFixedCjId = (workType) => {
 const getFixedCjIdDisplay = (workType) => {
   const displayMap = {
     '입고': '회사 입고 (자동)',
+<<<<<<< HEAD
+=======
+    '입고(재입사)': '회사 입고 (재입사)',
+>>>>>>> 7fff1db (회사설치)
     '반납': '반납처 (자동)',
     '수리': '수리 대기 (자동)',
     '대여반납': '회사 반납 (자동)',
@@ -132,7 +144,11 @@ const getFixedCjIdDisplay = (workType) => {
 
 // 작업유형별 필드 비활성화 여부 확인
 const isCjIdDisabled = (workType) => {
+<<<<<<< HEAD
   const fixedFields = ['입고', '반납', '수리', '대여반납', '수리반납'];
+=======
+  const fixedFields = ['입고', '입고(재입사)', '반납', '수리', '대여반납', '수리반납'];
+>>>>>>> 7fff1db (회사설치)
   return fixedFields.includes(workType);
 };
 
@@ -208,8 +224,13 @@ const validateTrade = (trade) => {
         trade.cj_id = asset_in_user;
       }
     }
+<<<<<<< HEAD
     // 입고는 고정값으로 설정
     else if (work_type === '입고') {
+=======
+    // 입고/입고(재입사)는 고정값으로 설정
+    else if (['입고', '입고(재입사)'].includes(work_type)) {
+>>>>>>> 7fff1db (회사설치)
       const fixedValue = getFixedCjId(work_type);
       if (fixedValue) {
         trade.cj_id = fixedValue;
@@ -270,7 +291,11 @@ const submitTrades = async () => {
     error.value = null;
     successMessage.value = null;
 
+<<<<<<< HEAD
     const response = await fetch('http://localhost:3000/trades', {
+=======
+    const response = await fetch('http://localhost:3000/api/trades', {
+>>>>>>> 7fff1db (회사설치)
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -362,6 +387,10 @@ onMounted(() => {
                   <option value="">-- 선택 --</option>
                   <option value="이동">이동</option>
                   <option value="입고">입고</option>
+<<<<<<< HEAD
+=======
+                  <option value="입고(재입사)">입고(재입사)</option>
+>>>>>>> 7fff1db (회사설치)
                   <option value="반납">반납</option>
                   <option value="대여">대여</option>
                   <option value="수리">수리</option>
