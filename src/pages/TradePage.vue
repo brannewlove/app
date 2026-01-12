@@ -7,11 +7,7 @@ const loading = ref(false);
 const error = ref(null);
 const currentPage = ref(1);
 const itemsPerPage = 20;
-<<<<<<< HEAD
-const sortColumn = ref(null);
-=======
 const sortColumn = ref(null); // 기본은 trade_id desc 정렬 (헤더 하이라이트 없음)
->>>>>>> 7fff1db (회사설치)
 const sortDirection = ref('desc');
 const searchQuery = ref('');
 
@@ -68,13 +64,8 @@ watch(searchQuery, () => {
 });
 
 const sortedTrades = computed(() => {
-<<<<<<< HEAD
-  // sortColumn이 null이면 timestamp 기준으로 정렬 (버튼 표시는 안함)
-  const activeSort = sortColumn.value || 'timestamp';
-=======
   // sortColumn이 null이면 trade_id 기준으로 내림차순 정렬 (헤더 강조 없음)
   const activeSort = sortColumn.value || 'trade_id';
->>>>>>> 7fff1db (회사설치)
   const sortDir = sortColumn.value ? sortDirection.value : 'desc';
   
   const sorted = [...trades.value].sort((a, b) => {
@@ -183,11 +174,7 @@ const fetchTrades = async () => {
   currentPage.value = 1;
   
   try {
-<<<<<<< HEAD
-    const response = await fetch('http://localhost:3000/trades');
-=======
     const response = await fetch('http://localhost:3000/api/trades');
->>>>>>> 7fff1db (회사설치)
     const result = await response.json();
     
     if (result.success) {
@@ -508,11 +495,7 @@ const downloadCSV = () => {
     )
   ].join('\n');
   
-<<<<<<< HEAD
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-=======
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
->>>>>>> 7fff1db (회사설치)
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
