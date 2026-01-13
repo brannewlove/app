@@ -163,11 +163,7 @@ const fetchUsers = async () => {
   currentPage.value = 1;
   
   try {
-<<<<<<< HEAD
-    const response = await fetch('http://localhost:3000/users');
-=======
     const response = await fetch('http://localhost:3000/api/users');
->>>>>>> 7fff1db (회사설치)
     const result = await response.json();
     
     if (result.success) {
@@ -188,11 +184,7 @@ const fetchUserById = async (id) => {
   error.value = null;
   
   try {
-<<<<<<< HEAD
-    const response = await fetch(`http://localhost:3000/users/${id}`);
-=======
     const response = await fetch(`http://localhost:3000/api/users/${id}`);
->>>>>>> 7fff1db (회사설치)
     const result = await response.json();
     
     if (result.success) {
@@ -245,11 +237,7 @@ const saveUser = async () => {
     loading.value = true;
     error.value = null;
     
-<<<<<<< HEAD
-    const response = await fetch(`http://localhost:3000/users/${editedUser.value.user_id}`, {
-=======
     const response = await fetch(`http://localhost:3000/api/users/${editedUser.value.user_id}`, {
->>>>>>> 7fff1db (회사설치)
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -314,13 +302,8 @@ const downloadCSV = () => {
     )
   ].join('\n');
   
-<<<<<<< HEAD
-  // Blob 생성 및 다운로드
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-=======
   // Blob 생성 및 다운로드 (UTF-8 BOM 추가로 엑셀 한글 깨짐 방지)
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
->>>>>>> 7fff1db (회사설치)
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);

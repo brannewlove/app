@@ -174,8 +174,6 @@ router.post('/', async (req, res, next) => {
               console.log(`[입고] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-<<<<<<< HEAD
-=======
             case '입고(재입사)':
               // 재입사: in_user를 cjenc_inno로, state를 wait로 설정
               [result] = await connection.query(
@@ -185,7 +183,6 @@ router.post('/', async (req, res, next) => {
               console.log(`[입고(재입사)] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
->>>>>>> 7fff1db (회사설치)
             case '반납':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(

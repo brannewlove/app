@@ -29,13 +29,6 @@ router.post('/login', async (req, res) => {
     
     const connection = await pool.getConnection();
     
-<<<<<<< HEAD
-    // 테스트: 첫 번째 사용자 확인
-    const [testUsers] = await connection.query('SELECT * FROM users LIMIT 1');
-    console.log('Users table sample:', testUsers[0]);
-    
-=======
->>>>>>> 7fff1db (회사설치)
     const [users] = await connection.query(
       'SELECT * FROM users WHERE cj_id = ?',
       [cj_id]
