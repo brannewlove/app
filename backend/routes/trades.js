@@ -23,12 +23,14 @@ router.get('/', async (req, res, next) => {
       SELECT 
         t.*,
         a.model,
-        a.category,
         u.name,
-        u.part
+        u.part,
+        u2.name AS ex_user_name,
+        u2.part AS ex_user_part
       FROM trde t
       LEFT JOIN assets a ON t.asset_id = a.asset_number
       LEFT JOIN users u ON t.cj_id = u.cj_id
+      LEFT JOIN users u2 ON t.ex_user = u2.cj_id
     `);
     connection.release();
     

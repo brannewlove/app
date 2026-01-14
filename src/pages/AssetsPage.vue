@@ -16,7 +16,7 @@ const editedAsset = ref(null);
 const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
 
 const stateOptions = computed(() => {
-  const defaults = ['useable', 'rent', 'repair'];
+  const defaults = ['useable', 'rent', 'repair', ];
   const set = new Set(defaults);
   assets.value.forEach(a => {
     if (a.state) set.add(a.state);
@@ -185,7 +185,7 @@ const fetchAssets = async () => {
   currentPage.value = 1;
   
   try {    
-    const response = await fetch('http://localhost:3000/api/assets');
+    const response = await fetch('/api/assets');
     const result = await response.json();
     
     if (result.success) {
@@ -205,7 +205,7 @@ const fetchAssetById = async (id) => {
   error.value = null;
   
   try {
-    const response = await fetch(`http://localhost:3000/api/assets/${id}`);
+    const response = await fetch(`/api/assets/${id}`);
     const result = await response.json();
     
     if (result.success) {
@@ -252,7 +252,7 @@ const saveAsset = async () => {
     loading.value = true;
     error.value = null;
     
-    const response = await fetch(`http://localhost:3000/assets/${editedAsset.value.asset_id}`, {
+    const response = await fetch(`/api/assets/${editedAsset.value.asset_id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -335,8 +335,6 @@ const getHeaderDisplayName = (columnName) => {
     'user_part': '부서',
     'day_of_start': '시작일',
     'day_of_end': '종료일',
-    'cjenc_inno': 'CJ인증번호',
-    'aj_rent': '거래렌탈',
     'unit_price': '월단가',
     'contract_month': '계약월'
   };

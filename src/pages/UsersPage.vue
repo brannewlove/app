@@ -20,6 +20,14 @@ const getTableHeaders = (data) => {
   return Object.keys(data[0]).filter(key => !['user_id', 'password'].includes(key));
 };
 
+// 컬럼 라벨 매핑
+const columnLabels = {
+  'name': '이름',
+  'part': '부서',
+  'sec_level': '보안등급',
+  'state': '상태',
+};
+
 // 검색 필터링된 사용자 목록
 const filteredUsers = computed(() => {
   if (!searchQuery.value) {
@@ -163,7 +171,7 @@ const fetchUsers = async () => {
   currentPage.value = 1;
   
   try {
-    const response = await fetch('http://localhost:3000/api/users');
+    const response = await fetch('/api/users');
     const result = await response.json();
     
     if (result.success) {
@@ -184,7 +192,7 @@ const fetchUserById = async (id) => {
   error.value = null;
   
   try {
-    const response = await fetch(`http://localhost:3000/api/users/${id}`);
+    const response = await fetch(`/api/users/${id}`);
     const result = await response.json();
     
     if (result.success) {
@@ -237,7 +245,7 @@ const saveUser = async () => {
     loading.value = true;
     error.value = null;
     
-    const response = await fetch(`http://localhost:3000/api/users/${editedUser.value.user_id}`, {
+    const response = await fetch(`/api/users/${editedUser.value.user_id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -354,7 +362,7 @@ onMounted(() => {
         <div class="modal-body">
           <div v-if="selectedUser" class="form-grid">
             <div v-for="(value, key) in selectedUser" :key="key" v-show="!['user_id', 'password'].includes(key)" class="form-group">
-              <label>{{ key }}</label>
+              <label>{{ columnLabels[key] || key }}</label>
               <input 
                 v-if="isEditMode"
                 v-model="editedUser[key]"
@@ -400,7 +408,7 @@ onMounted(() => {
               <th v-for="key in getTableHeaders(users)" :key="key" @click="handleSort(key)"
                 class="sortable-header" :class="{ active: sortColumn === key }">
                 <div class="header-content">
-                  <span>{{ key }}</span>
+                  <span>{{ columnLabels[key] || key }}</span>
                   <span class="sort-icon">{{ getSortIcon(key) }}</span>
                 </div>
               </th>

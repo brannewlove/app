@@ -273,7 +273,7 @@ const submitTrades = async () => {
     error.value = null;
     successMessage.value = null;
 
-    const response = await fetch('http://localhost:3000/api/trades', {
+    const response = await fetch('/api/trades', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

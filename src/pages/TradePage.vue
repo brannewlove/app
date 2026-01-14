@@ -12,7 +12,32 @@ const sortDirection = ref('desc');
 const searchQuery = ref('');
 
 // 테이블 컬럼 순서 정의
-const columnOrder = ['trade_id', 'timestamp', 'work_type', 'asset_id', 'model', 'cj_id', 'user_name'];
+const columnOrder = [
+  'trade_id',
+  'timestamp', 
+  'work_type', 
+  'asset_id', 
+  'model', 
+  'ex_user',
+  'ex_user_name', 
+  'ex_user_part',
+  'cj_id', 
+  'user_name'];
+
+const columnLabels = {
+  'trade_id' : '순번',
+  'timestamp' : '작업시간',
+  'work_type': '작업유형',
+  'asset_id': '자산번호',
+  'model': '모델명',
+  'ex_user_name': '이전 이름',
+  'ex_user': '이전 사용자ID',
+  'ex_user_part': '이전 부서',
+  'cj_id': '사용자ID',
+  'name': '이름',
+  'part': '부서',
+  'memo': '메모'
+};
 
 // 추적 기능 관련
 const isTrackingOpen = ref(false);
@@ -174,7 +199,7 @@ const fetchTrades = async () => {
   currentPage.value = 1;
   
   try {
-    const response = await fetch('http://localhost:3000/api/trades');
+    const response = await fetch('/api/trades');
     const result = await response.json();
     
     if (result.success) {
@@ -203,7 +228,7 @@ const closeTrackingModal = () => {
 // DB API에서 확인된 자산 로드
 const loadConfirmedAssets = async () => {
   try {
-    const response = await fetch('http://localhost:3000/api/confirmedAssets');
+    const response = await fetch('/api/confirmedAssets');
     const result = await response.json();
     
     if (result.success && result.data && result.data.length > 0) {
@@ -227,7 +252,7 @@ const loadConfirmedAssets = async () => {
 // DB에 자산 확인 저장
 const saveConfirmedAsset = async (assetId, cj_id) => {
   try {
-    const response = await fetch('http://localhost:3000/api/confirmedAssets', {
+    const response = await fetch('/api/confirmedAssets', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -250,7 +275,7 @@ const saveConfirmedAsset = async (assetId, cj_id) => {
 // DB에서 자산 확인 삭제
 const deleteConfirmedAsset = async (assetId, cj_id) => {
   try {
-    const response = await fetch(`http://localhost:3000/api/confirmedAssets/${assetId}/${cj_id}`, {
+    const response = await fetch(`/api/confirmedAssets/${assetId}/${cj_id}`, {
       method: 'DELETE'
     });
     
@@ -287,7 +312,7 @@ const fetchExportAssets = async () => {
   exportError.value = null;
 
   try {
-    const response = await fetch('http://localhost:3000/api/assetLogs/currentUsers');
+    const response = await fetch('/api/assetLogs/currentUsers');
     const data = await response.json();
     
     if (!response.ok) {
@@ -449,7 +474,7 @@ const fetchTrackingLogs = async () => {
   trackingError.value = null;
 
   try {
-    const response = await fetch(`http://localhost:3000/api/assetLogs?asset_id=${selectedAsset.value.asset_number}`);
+    const response = await fetch(`/api/assetLogs?asset_id=${selectedAsset.value.asset_number}`);
     const data = await response.json();
     
     if (!response.ok) {
@@ -567,7 +592,7 @@ onMounted(async () => {
               :class="{ active: sortColumn === header }"
             >
               <div class="header-content">
-                <span>{{ header === 'trade_id' ? '순번' : header }}</span>
+                <span>{{ columnLabels[header] || header }}</span>              
                 <span class="sort-icon">{{ getSortIcon(header) }}</span>
               </div>
             </th>
