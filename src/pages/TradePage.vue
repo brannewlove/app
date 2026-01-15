@@ -1205,7 +1205,7 @@ h2 {
 
 .flow-work-type {
   font-weight: bold;
-  color: #333;
+  color: #5a6d8c;
   padding: 3px 8px;
   background: #f0f0f0;
   border-radius: 3px;
@@ -1213,7 +1213,7 @@ h2 {
 }
 
 .flow-user {
-  color: #667eea;
+  color: #3a424f;
   font-weight: bold;
 }
 
@@ -1224,7 +1224,7 @@ h2 {
 
 .flow-arrow {
   font-size: 20px;
-  color: #ddd;
+  color: #3a424f;
   flex-shrink: 0;
   min-width: 20px;
   text-align: center;

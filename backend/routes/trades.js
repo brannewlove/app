@@ -161,19 +161,19 @@ router.post('/', async (req, res, next) => {
             case '이동':
               // assets의 in_user를 선택한 사용자로 변경
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ? WHERE asset_number = ?',
-                [cj_id, asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                [cj_id, 'useable', asset_id]
               );
-              console.log(`[이동] asset_id=${asset_id}, in_user=${cj_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[이동] asset_id=${asset_id}, in_user=${cj_id}, state=useable, 영향받은 행=${result.affectedRows}`);
               break;
 
             case '입고':
               // assets의 in_user를 cjenc_inno로 변경
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ? WHERE asset_number = ?',
-                ['cjenc_inno', asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['cjenc_inno', 'useable', asset_id]
               );
-              console.log(`[입고] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[입고] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
               break;
 
             case '입고(재입사)':

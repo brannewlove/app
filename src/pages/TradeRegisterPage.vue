@@ -57,9 +57,9 @@ const validateAssetForWorkType = (item, workType) => {
   switch (workType) {
     case '이동':
       // 유효성체크: assets의 state가 useable
-      if (state !== 'useable') {
+      if (state !== 'useable' && state !== 'wait') {
         console.log(`❌ 이동: state="${state}", required="useable"`);
-        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태인 자산만 이동 가능합니다.` };
+        return { valid: false, message: `상태가 "${state}"입니다. "useable", "wait "  상태인 자산만 이동 가능합니다.` };
       }
       console.log(`✅ 이동: valid`);
       break;
@@ -147,6 +147,8 @@ const validateTrade = (trade) => {
     return { valid: false, message: '작업 유형을 선택해주세요.' };
   }
 
+  trade.ex_user = asset_in_user || '';
+
   // 반납, 수리는 자산 ID 선택 불필수
   if (!['반납', '수리'].includes(work_type) && !asset_id) {
     return { valid: false, message: '자산 ID를 선택해주세요.' };
@@ -155,17 +157,27 @@ const validateTrade = (trade) => {
   // 작업유형별 유효성 검사
   switch (work_type) {
     case '이동':
-      // 유효성체크: assets의 state가 useable
-      if (asset_state !== 'useable') {
-        return { valid: false, message: '이동 작업은 상태가 "useable"인 자산만 가능합니다.' };
-      }
-      if (!cj_id) {
-        return { valid: false, message: '이동 작업은 CJ ID를 선택해주세요.' };
-      }
-      // 이동 작업: 현재 사용자와 다른 사용자 선택 필수
-      if (asset_in_user && cj_id === asset_in_user) {
-        return { valid: false, message: '이동 작업은 현재 사용자와 다른 사용자를 선택해야 합니다.' };
-      }
+        // 1. 상태 유효성 체크: useable 또는 wait만 허용
+        if (asset_state !== 'useable' && asset_state !== 'wait') {
+          return { 
+            valid: false, 
+            message: '이동 작업은 상태가 "useable" 또는 "wait"인 자산만 가능합니다.' 
+          };
+        }
+
+        // 2. CJ ID 선택 여부 체크
+        if (!cj_id) {
+          return { valid: false, message: '이동 작업은 CJ ID를 선택해주세요.' };
+        }
+
+        // 3. 사용자 중복 체크 (수정된 부분)
+        // 상태가 'wait'가 아닐 때에만(즉, 실사용 중인 useable일 때만) 중복 체크를 수행합니다.
+        if (asset_state !== 'wait' && asset_in_user && cj_id === asset_in_user) {
+          return { 
+            valid: false, 
+            message: '이동 작업은 현재 사용자와 다른 사용자를 선택해야 합니다.' 
+          };
+        }
       break;
 
     case '대여':
