@@ -43,6 +43,11 @@ const allColumns = [
 
 const filteredAssets = computed(() => {
   let result = sortedAssets.value;
+
+  // [추가] 검색어가 없을 때만 'termination' 상태 제외
+  if (!searchQuery.value) {
+    result = result.filter(asset => asset.state !== 'termination');
+  }
   
   // 필터 적용 (상호 배타적)
   if (activeFilter.value === 'available') {

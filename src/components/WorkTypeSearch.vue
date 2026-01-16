@@ -31,14 +31,6 @@
       @blur="handleBlur"
     />
 
-    <!-- 유효성 검사 메시지 -->
-    <p
-      v-if="!isValid && inputValue && inputValue.length > 0 && !isOpen"
-      style="margin-top: 6px; font-size: 12px; color: #dc2626"
-    >
-      유효한 값을 입력해주세요
-    </p>
-
     <!-- 드롭다운 -->
     <Teleport to="body">
       <div
@@ -54,7 +46,7 @@
           border: '1px solid #cbd5e1',
           borderRadius: '6px',
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.2)',
-          fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans, sans-serif, Apple Color Emoji, Segoe UI Emoji',
+          fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans, sans-serif',
           overflowY: filteredData.length > 5 ? 'auto' : 'visible',
           zIndex: 999999,
           pointerEvents: 'auto'
@@ -62,19 +54,6 @@
         @mouseenter="isDropdownHover = true"
         @mouseleave="isDropdownHover = false"
       >
-        <!-- 로딩 상태 -->
-        <div
-          v-if="loading"
-          style="
-            padding: 12px 16px;
-            text-align: center;
-            color: #64748b;
-            font-size: 14px;
-          "
-        >
-          로딩 중...
-        </div>
-
         <!-- 검색 결과 목록 -->
         <div
           v-for="(item, index) in filteredData"
@@ -101,20 +80,9 @@
           }"
           @mousedown.prevent="handleItemClick(item)"
         >
-          <!-- 첫 번째 줄: cj_id/asset_id/asset_number 와 이름/model 정보 -->
-          <div
-            v-if="apiColumn && item[apiColumn]"
-            style="
-              width: 100%;
-              overflow: hidden;
-              display: flex;
-              align-items: baseline;
-              gap: 6px;
-            "
-          >
-            <!-- Users의 경우: name (bold) 먼저 표시 -->
+          <!-- 작업 유형명 -->
+          <div style="width: 100%; overflow: hidden; display: flex; align-items: baseline; gap: 6px;">
             <span
-              v-if="item['name']"
               style="
                 font-weight: 600;
                 line-height: 1.3;
@@ -123,75 +91,24 @@
                 white-space: nowrap;
               "
             >
-              {{ item['name'] }}
+              {{ item.work_type }}
             </span>
-            <!-- Assets의 경우: asset_number (bold) 먼저 표시 -->
             <span
-              v-else
-              style="
-                font-weight: 600;
-                line-height: 1.3;
-                font-size: 14px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
-                white-space: nowrap;
-              "
-            >
-              {{ String(item[apiColumn]) }}
-            </span>
-            <!-- Users의 경우: cj_id 두 번째 표시 -->
-            <span
-              v-if="item['name']"
               style="
                 font-size: 12px;
                 opacity: 0.75;
                 line-height: 1.2;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
                 white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
               "
               :style="{ opacity: highlightedIndex === index ? 0.9 : 0.75 }"
             >
-              {{ String(item[apiColumn]) }}
-            </span>
-            <!-- Assets의 경우: category 두 번째 표시 -->
-            <span
-              v-else-if="item['category']"
-              style="
-                font-size: 12px;
-                opacity: 0.75;
-                line-height: 1.2;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-              "
-              :style="{ opacity: highlightedIndex === index ? 0.9 : 0.75 }"
-            >
-              {{ item['category'] }}
+              {{ item.category }}
             </span>
           </div>
 
-          <!-- apiColumn이 없는 경우 -->
+          <!-- 설명 -->
           <span
-            v-if="!apiColumn || !item[apiColumn]"
-            style="
-              font-weight: 500;
-              width: 100%;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-              line-height: 1.3;
-              font-size: 14px;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
-            "
-          >
-            {{ String(Object.values(item)[0] || '') }}
-          </span>
-
-          <!-- 두 번째 줄: 부서(part) 또는 카테고리(category) 정보 -->
-          <span
-            v-if="item['part']"
             style="
               font-size: 11px;
               width: 100%;
@@ -203,28 +120,13 @@
             "
             :style="{ opacity: highlightedIndex === index ? 0.85 : 0.65 }"
           >
-            {{ item['part'] }}
-          </span>
-          <span
-            v-else-if="item['model']"
-            style="
-              font-size: 11px;
-              width: 100%;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              line-height: 1.2;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', sans-serif;
-            "
-            :style="{ opacity: highlightedIndex === index ? 0.85 : 0.65 }"
-          >
-            {{ item['model'] }}
+            {{ item.description }}
           </span>
         </div>
 
         <!-- 검색 결과 없음 -->
         <div
-          v-if="!loading && (!filteredData || filteredData.length === 0)"
+          v-if="filteredData.length === 0"
           style="
             padding: 12px 16px;
             text-align: center;
@@ -240,20 +142,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue';
 
 const props = defineProps({
   placeholder: {
     type: String,
-    default: '검색어를 입력하세요'
+    default: '작업 유형 검색'
   },
-  label: {
-    type: String,
-    default: '검색'
-  },
-  onSelect: Function,
-  onChange: Function,
-  onFocus: Function,
   initialValue: {
     type: String,
     default: ''
@@ -262,29 +157,40 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  id: String,
-  apiTable: {
-    type: String,
-    default: 'users'
-  },
-  apiColumn: String,
-  extraFields: {
-    type: Array,
-    default: () => []
-  },
-  validateItem: Function
+  id: String
 });
 
-const emit = defineEmits(['update:modelValue', 'select']);
+const emit = defineEmits(['select']);
+
+// 작업 유형 로컬 데이터
+const workTypes = [
+  { work_type: '출고-신규지급', description: '신규입고자산을 사용자에게 지급' },
+  { work_type: '출고-재고지급', description: '전산실재고를 사용자에게 지급' },
+  { work_type: '출고-사용자변경', description: '사용자에서 타사용자로 변경' },
+  { work_type: '출고-재고교체', description: '전산실재고를 교체요청자에게 출고' },
+  { work_type: '출고-신규교체', description: '신규입고자산을 교체요청자에게 출고' },
+  { work_type: '출고-대여', description: '자산 대여' },
+  { work_type: '출고-수리', description: '수리 보내기' },
+  { work_type: '입고-노후교체', description: '노후자산 교체 후 입고' },
+  { work_type: '입고-불량교체', description: '불량자산 교체 후 입고' },
+  { work_type: '입고-퇴사반납', description: '퇴사자 자산 반납' },
+  { work_type: '입고-휴직반납', description: '휴직자 자산 보관' },
+  { work_type: '입고-재입사예정', description: '재입사 예정자 자산 보관' },
+  { work_type: '입고-임의반납', description: '사용자 임의 반납' },
+  { work_type: '입고-대여반납', description: '대여자산 반납' },
+  { work_type: '입고-수리반납', description: '수리완료 반납' },
+  { work_type: '반납-노후반납', description: '노후자산 렌탈사 반납' },
+  { work_type: '반납-고장교체', description: '고장자산 교체 반납' },
+  { work_type: '반납-조기반납', description: '조기 반납' },
+  { work_type: '반납-폐기', description: '자산 폐기' }
+];
 
 // Ref 정의
 const inputRef = ref(null);
 const inputValue = ref(props.initialValue);
 const filteredData = ref([]);
-const loading = ref(false);
 const isOpen = ref(false);
 const highlightedIndex = ref(-1);
-const isValid = ref(true);
 const isDropdownHover = ref(false);
 const itemRefs = ref([]);
 
@@ -295,8 +201,6 @@ const dropdownStyle = reactive({
   maxHeight: 320
 });
 
-let loadingTimerRef = null;
-
 // 드롭박스 위치 업데이트
 const updateDropdownPosition = () => {
   if (!isOpen.value || !inputRef.value) return;
@@ -305,14 +209,12 @@ const updateDropdownPosition = () => {
   const viewportHeight = window.innerHeight;
   const bottomSpace = viewportHeight - rect.bottom;
   const topSpace = rect.top;
-  const itemHeight = 40;
+  const itemHeight = 52;
   const maxVisibleItems = 5;
   const maxDropdownHeight = itemHeight * maxVisibleItems;
 
   let contentHeight = 0;
-  if (loading.value) {
-    contentHeight = itemHeight;
-  } else if (filteredData.value.length > 0) {
+  if (filteredData.value.length > 0) {
     contentHeight = Math.min(itemHeight * filteredData.value.length, maxDropdownHeight);
   } else {
     contentHeight = itemHeight;
@@ -338,39 +240,18 @@ watch(highlightedIndex, (newIndex) => {
 
 // 값 선택
 const selectValue = (value, shouldMoveFocus = false) => {
-  let selectedDisplayValue = '';
-  
-  if (value && typeof value === 'object') {
-    // Users의 경우: name 표시, Assets의 경우: apiColumn 값 표시
-    if (value['name']) {
-      selectedDisplayValue = String(value['name']);
-    } else if (props.apiColumn && value[props.apiColumn]) {
-      selectedDisplayValue = String(value[props.apiColumn]);
-    } else {
-      selectedDisplayValue = String(Object.values(value)[0] || '');
-    }
-    inputValue.value = selectedDisplayValue;
-    if (inputRef.value) {
-      inputRef.value.value = selectedDisplayValue;
-    }
-  } else {
-    selectedDisplayValue = String(value || '');
-    inputValue.value = selectedDisplayValue;
-    if (inputRef.value) {
-      inputRef.value.value = selectedDisplayValue;
-    }
+  const selectedValue = value.work_type;
+  inputValue.value = selectedValue;
+  if (inputRef.value) {
+    inputRef.value.value = selectedValue;
   }
   
   isOpen.value = false;
-  isDropdownHover.value = false;  // 드롭다운 호버 상태 초기화
+  isDropdownHover.value = false;
   highlightedIndex.value = -1;
-  // 선택된 값이 유효한지 확인
-  isValid.value = selectedDisplayValue.trim().length > 0;
   
-  if (props.onSelect) props.onSelect(value);
   emit('select', value);
   
-  // shouldMoveFocus가 true면 다음 input 필드로 포커스 이동
   if (shouldMoveFocus) {
     setTimeout(() => {
       const currentInput = document.querySelector(`[data-id="${props.id}"]`);
@@ -381,7 +262,7 @@ const selectValue = (value, shouldMoveFocus = false) => {
           inputs[currentIndex + 1].focus();
         }
       }
-    }, 150); // 블러 처리가 완료될 때까지 충분한 지연
+    }, 150);
   }
 };
 
@@ -390,99 +271,62 @@ const handleItemClick = (value) => {
   selectValue(value);
 };
 
-// API 호출
-const fetchData = async (query) => {
-  if (loadingTimerRef) clearTimeout(loadingTimerRef);
-  loadingTimerRef = setTimeout(() => {
-    loading.value = true;
-  }, 400);
-
-  try {
-    let url = `/api/selectBar?query=${encodeURIComponent(query)}`;
-    if (props.apiTable) url += `&table=${encodeURIComponent(props.apiTable)}`;
-    if (props.apiColumn) url += `&column=${encodeURIComponent(props.apiColumn)}`;
-    
-    const res = await fetch(url);
-    const result = await res.json();
-
-    if (result.error) {
-      filteredData.value = [];
-      isValid.value = false;
-    } else {
-      let data = Array.isArray(result) ? result : [];
-
-      if (!query || query.trim().length === 0) {
-        data = data.sort((a, b) => {
-          const nameA = String(a[props.apiColumn || '이름'] || '').trim();
-          const nameB = String(b[props.apiColumn || '이름'] || '').trim();
-          if (!nameA) return 1;
-          if (!nameB) return -1;
-          return nameA.localeCompare(nameB, 'ko-KR', { sensitivity: 'base' });
-        });
-      }
-
-      // validateItem 함수가 있으면 유효한 아이템만 필터링
-      if (props.validateItem) {
-        console.log(`[${props.id}] validateItem filtering: before=${data.length}`);
-        data = data.filter(item => {
-          const validation = props.validateItem(item);
-          return validation.valid === true;
-        });
-        console.log(`[${props.id}] validateItem filtering: after=${data.length}`);
-      }
-
-      // 검색 결과를 10개로 제한
-      data = data.slice(0, 10);
-
-      filteredData.value = data;
-      isOpen.value = true;
-
-      // 검색 결과 유효성 판별
-      if (query.trim().length > 0) {
-        if (data.length === 1) {
-          highlightedIndex.value = 0;
-          isValid.value = true;  // 검색 결과가 1개 → 유효
-        } else if (data.length > 0) {
-          // 검색 결과가 여러 개 → 사용자가 선택 가능하므로 유효
-          isValid.value = true;
-        } else {
-          // 검색 결과가 0개 → 무효
-          isValid.value = false;
-        }
-      } else {
-        // 검색어 없음 → 사용자가 선택 가능
-        isValid.value = data.length > 0;
-      }
-    }
-  } catch (err) {
-    filteredData.value = [];
-    isValid.value = false;
-  } finally {
-    if (loadingTimerRef) clearTimeout(loadingTimerRef);
-    loading.value = false;
+// 데이터 필터링
+const filterData = (query) => {
+  console.log('Filtering with query:', query);
+  
+  if (!query || query.trim() === '') {
+    filteredData.value = [...workTypes];
+    console.log('No query - showing all:', filteredData.value.length);
+  } else {
+    const lowerQuery = query.toLowerCase().trim();
+    filteredData.value = workTypes.filter(item => {
+      // 안전성 체크 추가
+      const workType = (item.work_type || '').toLowerCase();
+      const category = (item.category || '').toLowerCase();
+      const description = (item.description || '').toLowerCase();
+      
+      const matchWorkType = workType.includes(lowerQuery);
+      const matchCategory = category.includes(lowerQuery);
+      const matchDescription = description.includes(lowerQuery);
+      
+      return matchWorkType || matchCategory || matchDescription;
+    });
+    console.log('Filtered results:', filteredData.value.length, 'for query:', lowerQuery);
   }
+  
+  nextTick(() => {
+    updateDropdownPosition();
+  });
 };
 
 // 입력값 변경
-const handleInputChange = async (e) => {
+const handleInputChange = (e) => {
   const value = e.target.value;
   inputValue.value = value;
   highlightedIndex.value = -1;
-  await fetchData(value);
-  if (props.onChange) props.onChange(value);
+  filterData(value);
+  isOpen.value = true; // 드롭다운 열기
 };
 
 // 포커스 핸들러
-const handleFocus = async () => {
-  if (props.onFocus) props.onFocus();
+const handleFocus = () => {
+  console.log('Focus - current value:', inputValue.value);
+  filterData(inputValue.value);
   isOpen.value = true;
-  await fetchData(inputValue.value);
+  nextTick(() => {
+    updateDropdownPosition();
+  });
 };
 
 // 클릭 핸들러
-const handleClick = async () => {
+const handleClick = () => {
+  console.log('Click - current value:', inputValue.value);
+  filterData(inputValue.value);
   isOpen.value = true;
-  await fetchData(inputValue.value);
+  nextTick(() => {
+    updateDropdownPosition();
+  });
 };
 
 // 블러 핸들러
@@ -522,7 +366,6 @@ const handleKeyDown = (e) => {
     case 'Tab':
       if (filteredData.value.length > 0) {
         e.preventDefault();
-        // 하이라이트가 없으면 첫 번째 항목 선택
         const indexToSelect = highlightedIndex.value >= 0 ? highlightedIndex.value : 0;
         selectValue(filteredData.value[indexToSelect], true);
       }
@@ -557,33 +400,6 @@ watch(filteredData, () => {
   });
 });
 
-// 로딩 상태 변경시
-watch(loading, () => {
-  nextTick(() => {
-    updateDropdownPosition();
-  });
-});
-
-// 초기화 메서드 (ref로 노출)
-const reset = () => {
-  inputValue.value = '';
-  filteredData.value = [];
-  isOpen.value = false;
-  isValid.value = true;
-  if (inputRef.value) inputRef.value.value = '';
-};
-
-const clearSearch = () => {
-  filteredData.value = [];
-  isOpen.value = false;
-};
-
-// expose 메서드
-defineExpose({
-  reset,
-  clearSearch
-});
-
 // 마운트
 onMounted(() => {
   window.addEventListener('resize', updateDropdownPosition);
@@ -594,7 +410,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', updateDropdownPosition);
   window.removeEventListener('scroll', updateDropdownPosition, true);
-  if (loadingTimerRef) clearTimeout(loadingTimerRef);
 });
 </script>
 

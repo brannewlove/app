@@ -1,12 +1,13 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
+import WorkTypeSearch from '../components/WorkTypeSearch.vue';
 
 const trades = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const successMessage = ref(null);
-const registeredTrades = ref([]); // 등록된 기록 임시 저장
+const registeredTrades = ref([]);
 
 // 자산 선택 시 처리
 const handleAssetSelect = (item, trade, index) => {
@@ -24,9 +25,11 @@ const initializeForm = () => {
   trades.value = Array.from({ length: 5 }, () => ({}));
 };
 
-// 입력 필드 추가
+// 입력 필드 추가 (5개씩)
 const addRow = () => {
-  trades.value.push({});
+  for (let i = 0; i < 5; i++) {
+    trades.value.push({});
+  }
 };
 
 // 행 제거
@@ -36,7 +39,6 @@ const removeRow = (index) => {
 
 // 작업유형별 자산 유효성 검사
 const validateAssetForWorkType = (item, workType) => {
-  // 작업유형이 선택되지 않으면 모든 자산 표시
   if (!workType || workType.trim() === '') {
     return { valid: true };
   }
@@ -46,61 +48,69 @@ const validateAssetForWorkType = (item, workType) => {
   }
 
   const { state, in_user, asset_number } = item;
-  console.log('validateAssetForWorkType:', { 
-    asset_number, 
-    workType, 
-    state, 
-    in_user,
-    itemKeys: Object.keys(item)
-  });
 
   switch (workType) {
-    case '이동':
-      // 유효성체크: assets의 state가 useable
-      if (state !== 'useable' && state !== 'wait') {
-        console.log(`❌ 이동: state="${state}", required="useable"`);
-        return { valid: false, message: `상태가 "${state}"입니다. "useable", "wait "  상태인 자산만 이동 가능합니다.` };
+    // 출고 그룹
+    case '출고-신규지급':
+    case '출고-신규교체':
+      if (state !== 'wait') {
+        return { valid: false, message: `상태가 "${state}"입니다. "wait" 상태만 가능합니다.` };
       }
-      console.log(`✅ 이동: valid`);
       break;
 
-    case '대여':
-      // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
-      console.log('대여 체크 - in_user:', in_user, 'state:', state, 'match:', in_user === 'cjenc_inno' && state === 'useable');
+    case '출고-사용자변경':
+    case '출고-수리':
+      if (state !== 'useable') {
+        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
+      }
+      break;
+
+    case '출고-재고교체':
+    case '출고-재고지급':
+    case '출고-대여':
       if (in_user !== 'cjenc_inno') {
-        console.log(`❌ 대여: in_user="${in_user}", required="cjenc_inno"`);
-        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"만 대여 가능합니다.` };
+        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"만 가능합니다.` };
       }
       if (state !== 'useable') {
-        console.log(`❌ 대여: state="${state}", required="useable"`);
-        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태인 자산만 대여 가능합니다.` };
+        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
       }
-      console.log(`✅ 대여: valid`);
       break;
 
-    case '수리반납':
-      // 유효성체크: assets의 state가 repair
-      if (state !== 'repair') {
-        console.log(`❌ 수리반납: state="${state}", required="repair"`);
-        return { valid: false, message: `상태가 "${state}"입니다. "repair" 상태인 자산만 수리반납 가능합니다.` };
+    // 입고 그룹
+    case '입고-노후교체':
+    case '입고-불량교체':
+    case '입고-퇴사반납':
+    case '입고-임의반납':
+    case '입고-휴직반납':
+    case '입고-재입사예정':
+      if (in_user === 'cjenc_inno') {
+        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"가 아닌 자산만 가능합니다.` };
       }
-      console.log(`✅ 수리반납: valid`);
+      if (state !== 'useable') {
+        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
+      }
       break;
 
-    case '대여반납':
-      // 유효성체크: assets의 state가 rent
+    case '입고-대여반납':
+      if (in_user === 'cjenc_inno') {
+        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"가 아닌 자산만 가능합니다.` };
+      }
       if (state !== 'rent') {
-        console.log(`❌ 대여반납: state="${state}", required="rent"`);
-        return { valid: false, message: `상태가 "${state}"입니다. "rent" 상태인 자산만 대여반납 가능합니다.` };
+        return { valid: false, message: `상태가 "${state}"입니다. "rent" 상태만 가능합니다.` };
       }
-      console.log(`✅ 대여반납: valid`);
       break;
 
-    case '입고':
-    case '반납':
-    case '수리':
-    case '입고(재입사)':
-      // 이 작업들은 모든 자산 허용
+    case '입고-수리반납':
+      if (state !== 'repair') {
+        return { valid: false, message: `상태가 "${state}"입니다. "repair" 상태만 가능합니다.` };
+      }
+      break;
+
+    // 반납 그룹 - 모든 자산 허용
+    case '반납-노후반납':
+    case '반납-고장교체':
+    case '반납-조기반납':
+    case '반납-폐기':
       return { valid: true };
   }
 
@@ -110,12 +120,19 @@ const validateAssetForWorkType = (item, workType) => {
 // 작업유형별 고정 사용자값 매핑
 const getFixedCjId = (workType) => {
   const fixedMap = {
-    '입고': 'cjenc_inno',
-    '입고(재입사)': 'cjenc_inno',
-    '반납': 'aj_rent',
-    '수리': 'no-change',  // 사용자 변경 안 함
-    '대여반납': 'cjenc_inno',
-    '수리반납': 'no-change'  // 사용자 변경 안 함
+    '입고-노후교체': 'cjenc_inno',
+    '입고-불량교체': 'cjenc_inno',
+    '입고-퇴사반납': 'cjenc_inno',
+    '입고-휴직반납': 'no-change',
+    '입고-재입사예정': 'no-change',
+    '입고-임의반납': 'cjenc_inno',
+    '입고-대여반납': 'cjenc_inno',
+    '입고-수리반납': 'no-change',
+    '반납-노후반납': 'aj_rent',
+    '반납-고장교체': 'aj_rent',
+    '반납-조기반납': 'aj_rent',
+    '반납-폐기': 'aj_rent',
+    '출고-수리': 'no-change'
   };
   return fixedMap[workType] || '';
 };
@@ -123,25 +140,37 @@ const getFixedCjId = (workType) => {
 // 작업유형별 고정 사용자 표시명 매핑
 const getFixedCjIdDisplay = (workType) => {
   const displayMap = {
-    '입고': '회사 입고 (자동)',
-    '입고(재입사)': '회사 입고 (재입사)',
-    '반납': '반납처 (자동)',
-    '수리': '수리 대기 (자동)',
-    '대여반납': '회사 반납 (자동)',
-    '수리반납': '수리 완료 (자동)'
+    '입고-노후교체': '회사 입고 (자동)',
+    '입고-불량교체': '회사 입고 (자동)',
+    '입고-퇴사반납': '회사 입고 (자동)',
+    '입고-휴직반납': '현재 보유자 유지 (자동)',
+    '입고-재입사예정': '현재 보유자 유지 (자동)',
+    '입고-임의반납': '회사 입고 (자동)',
+    '입고-대여반납': '회사 입고 (자동)',
+    '입고-수리반납': '현재 보유자 유지 (자동)',
+    '반납-노후반납': '반납처 (자동)',
+    '반납-고장교체': '반납처 (자동)',
+    '반납-조기반납': '반납처 (자동)',
+    '반납-폐기': '반납처 (자동)',
+    '출고-수리': '현재 보유자 유지 (자동)'
   };
   return displayMap[workType] || '';
 };
 
 // 작업유형별 필드 비활성화 여부 확인
 const isCjIdDisabled = (workType) => {
-  const fixedFields = ['입고', '입고(재입사)', '반납', '수리', '대여반납', '수리반납'];
+  const fixedFields = [
+    '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-휴직반납',
+    '입고-재입사예정', '입고-임의반납', '입고-대여반납', '입고-수리반납',
+    '반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기',
+    '출고-수리'
+  ];
   return fixedFields.includes(workType);
 };
 
 // 작업유형별 검증
 const validateTrade = (trade) => {
-  const { work_type, asset_id, cj_id, asset_state, asset_in_user, asset_current_user } = trade;
+  const { work_type, asset_id, cj_id, asset_state, asset_in_user } = trade;
 
   if (!work_type) {
     return { valid: false, message: '작업 유형을 선택해주세요.' };
@@ -149,86 +178,136 @@ const validateTrade = (trade) => {
 
   trade.ex_user = asset_in_user || '';
 
-  // 반납, 수리는 자산 ID 선택 불필수
-  if (!['반납', '수리'].includes(work_type) && !asset_id) {
+  // 자산 ID 필수 체크
+  if (!asset_id) {
     return { valid: false, message: '자산 ID를 선택해주세요.' };
   }
 
   // 작업유형별 유효성 검사
   switch (work_type) {
-    case '이동':
-        // 1. 상태 유효성 체크: useable 또는 wait만 허용
-        if (asset_state !== 'useable' && asset_state !== 'wait') {
-          return { 
-            valid: false, 
-            message: '이동 작업은 상태가 "useable" 또는 "wait"인 자산만 가능합니다.' 
-          };
-        }
-
-        // 2. CJ ID 선택 여부 체크
-        if (!cj_id) {
-          return { valid: false, message: '이동 작업은 CJ ID를 선택해주세요.' };
-        }
-
-        // 3. 사용자 중복 체크 (수정된 부분)
-        // 상태가 'wait'가 아닐 때에만(즉, 실사용 중인 useable일 때만) 중복 체크를 수행합니다.
-        if (asset_state !== 'wait' && asset_in_user && cj_id === asset_in_user) {
-          return { 
-            valid: false, 
-            message: '이동 작업은 현재 사용자와 다른 사용자를 선택해야 합니다.' 
-          };
-        }
-      break;
-
-    case '대여':
-      // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
-      if (asset_in_user !== 'cjenc_inno') {
-        return { valid: false, message: '대여 작업은 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
-      }
-      if (asset_state !== 'useable') {
-        return { valid: false, message: '대여 작업은 상태가 "useable"인 자산만 가능합니다.' };
+    // 출고 그룹
+    case '출고-신규지급':
+      if (asset_state !== 'wait') {
+        return { valid: false, message: '신규지급은 상태가 "wait"인 자산만 가능합니다.' };
       }
       if (!cj_id) {
-        return { valid: false, message: '대여 작업은 CJ ID를 선택해주세요.' };
+        return { valid: false, message: '신규지급은 CJ ID를 선택해주세요.' };
       }
       break;
 
-    case '수리반납':
-      // 유효성체크: assets의 state가 repair
-      if (asset_state !== 'repair') {
-        return { valid: false, message: '수리반납 작업은 상태가 "repair"인 자산만 가능합니다.' };
+    case '출고-사용자변경':
+      if (asset_state !== 'useable') {
+        return { valid: false, message: '사용자변경은 상태가 "useable"인 자산만 가능합니다.' };
+      }
+      if (!cj_id) {
+        return { valid: false, message: '사용자변경은 CJ ID를 선택해주세요.' };
+      }
+      if (asset_in_user && cj_id === asset_in_user) {
+        return { valid: false, message: '사용자변경은 현재 사용자와 다른 사용자를 선택해야 합니다.' };
       }
       break;
 
-    case '대여반납':
-      // 유효성체크: assets의 state가 rent
+    case '출고-재고교체':
+      if (asset_in_user !== 'cjenc_inno') {
+        return { valid: false, message: '재고교체는 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
+      }
+      if (asset_state !== 'useable') {
+        return { valid: false, message: '재고교체는 상태가 "useable"인 자산만 가능합니다.' };
+      }
+      if (!cj_id) {
+        return { valid: false, message: '재고교체는 CJ ID를 선택해주세요.' };
+      }
+      break;
+
+    case '출고-신규교체':
+      if (asset_state !== 'wait') {
+        return { valid: false, message: '신규교체는 상태가 "wait"인 자산만 가능합니다.' };
+      }
+      if (!cj_id) {
+        return { valid: false, message: '신규교체는 CJ ID를 선택해주세요.' };
+      }
+      break;
+
+    case '출고-재고지급':
+      if (asset_in_user !== 'cjenc_inno') {
+        return { valid: false, message: '재고지급은 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
+      }
+      if (asset_state !== 'useable') {
+        return { valid: false, message: '재고지급은 상태가 "useable"인 자산만 가능합니다.' };
+      }
+      if (!cj_id) {
+        return { valid: false, message: '재고지급은 CJ ID를 선택해주세요.' };
+      }
+      break;
+
+    case '출고-대여':
+      if (asset_in_user !== 'cjenc_inno') {
+        return { valid: false, message: '대여는 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
+      }
+      if (asset_state !== 'useable') {
+        return { valid: false, message: '대여는 상태가 "useable"인 자산만 가능합니다.' };
+      }
+      if (!cj_id) {
+        return { valid: false, message: '대여는 CJ ID를 선택해주세요.' };
+      }
+      break;
+
+    case '출고-수리':
+      if (asset_state !== 'useable') {
+        return { valid: false, message: '수리는 상태가 "useable"인 자산만 가능합니다.' };
+      }
+      break;
+
+    // 입고 그룹
+    case '입고-노후교체':
+    case '입고-불량교체':
+    case '입고-퇴사반납':
+    case '입고-임의반납':
+      if (asset_in_user === 'cjenc_inno') {
+        return { valid: false, message: `${work_type}은 in_user가 "cjenc_inno"가 아닌 자산만 가능합니다.` };
+      }
+      if (asset_state !== 'useable') {
+        return { valid: false, message: `${work_type}은 상태가 "useable"인 자산만 가능합니다.` };
+      }
+      break;
+
+    case '입고-휴직반납':
+    case '입고-재입사예정':
+      if (asset_in_user === 'cjenc_inno') {
+        return { valid: false, message: `${work_type}은 in_user가 "cjenc_inno"가 아닌 자산만 가능합니다.` };
+      }
+      if (asset_state !== 'useable') {
+        return { valid: false, message: `${work_type}은 상태가 "useable"인 자산만 가능합니다.` };
+      }
+      break;
+
+    case '입고-대여반납':
+      if (asset_in_user === 'cjenc_inno') {
+        return { valid: false, message: '대여반납은 in_user가 "cjenc_inno"가 아닌 자산만 가능합니다.' };
+      }
       if (asset_state !== 'rent') {
-        return { valid: false, message: '대여반납 작업은 상태가 "rent"인 자산만 가능합니다.' };
+        return { valid: false, message: '대여반납은 상태가 "rent"인 자산만 가능합니다.' };
       }
       break;
+
+    case '입고-수리반납':
+      if (asset_state !== 'repair') {
+        return { valid: false, message: '수리반납은 상태가 "repair"인 자산만 가능합니다.' };
+      }
+      break;
+
+    // 반납 그룹은 별도 검증 없음
   }
 
   // 사용자 선택이 불필요한 작업 유형 처리
   if (isCjIdDisabled(work_type)) {
-    // 반납, 대여반납은 고정값으로 설정
-    if (['반납', '대여반납'].includes(work_type)) {
-      const fixedValue = getFixedCjId(work_type);
-      if (fixedValue) {
-        trade.cj_id = fixedValue;
-      }
-    }
-    // 수리, 수리반납은 현재 자산의 in_user로 유지
-    else if (['수리', '수리반납'].includes(work_type)) {
+    const fixedValue = getFixedCjId(work_type);
+    if (fixedValue === 'no-change') {
       if (asset_in_user) {
         trade.cj_id = asset_in_user;
       }
-    }
-    // 입고/입고(재입사)는 고정값으로 설정
-    else if (['입고', '입고(재입사)'].includes(work_type)) {
-      const fixedValue = getFixedCjId(work_type);
-      if (fixedValue) {
-        trade.cj_id = fixedValue;
-      }
+    } else if (fixedValue) {
+      trade.cj_id = fixedValue;
     }
   }
 
@@ -237,7 +316,6 @@ const validateTrade = (trade) => {
 
 // 데이터 등록
 const submitTrades = async () => {
-  // 유효성 검사
   const validTrades = [];
   let hasError = false;
   let errorMsg = '';
@@ -245,12 +323,10 @@ const submitTrades = async () => {
   for (let i = 0; i < trades.value.length; i++) {
     const trade = trades.value[i];
     
-    // 빈 행 무시
     if (!Object.values(trade).some(value => value && String(value).trim() !== '')) {
       continue;
     }
 
-    // 각 거래 검증
     const validation = validateTrade(trade);
     if (!validation.valid) {
       hasError = true;
@@ -258,7 +334,6 @@ const submitTrades = async () => {
       break;
     }
 
-    // 유효성 검사용 필드 제거 후 등록 데이터에 추가
     const tradeForSubmit = { ...trade };
     delete tradeForSubmit.asset_current_user;
     delete tradeForSubmit.asset_state;
@@ -298,9 +373,7 @@ const submitTrades = async () => {
     if (result.success) {
       successMessage.value = result.message;
       error.value = null;
-      // 등록된 기록 저장 (유지)
       registeredTrades.value = validTrades;
-      // 폼 초기화
       setTimeout(() => {
         initializeForm();
         successMessage.value = null;
@@ -325,7 +398,6 @@ const resetForm = () => {
   registeredTrades.value = [];
 };
 
-// 마운트 시 초기 5개 행 생성
 onMounted(() => {
   initializeForm();
 });
@@ -370,20 +442,17 @@ onMounted(() => {
               :class="{ 'stripe': index % 2 === 1 }">
               <td class="row-number">{{ index + 1 }}</td>
               <td>
-                <select
-                  v-model="trade.work_type"
-                  class="form-input"
-                >
-                  <option value="">-- 선택 --</option>
-                  <option value="이동">이동</option>
-                  <option value="입고">입고</option>
-                  <option value="입고(재입사)">입고(재입사)</option>
-                  <option value="반납">반납</option>
-                  <option value="대여">대여</option>
-                  <option value="수리">수리</option>
-                  <option value="대여반납">대여반납</option>
-                  <option value="수리반납">수리반납</option>
-                </select>
+                <WorkTypeSearch
+                  :initial-value="trade.work_type || ''"
+                  placeholder="작업 유형 선택"
+                  :id="`work_type_${index}`"
+                  @select="(item) => {
+                    if (item && typeof item === 'object') {
+                      trade.work_type = String(item.work_type || '');
+                      console.log('선택된 작업 유형:', trade.work_type);
+                    }
+                  }"
+                />
               </td>
               <td>
                 <AutocompleteSearch
@@ -409,7 +478,6 @@ onMounted(() => {
                   :id="`cj_id_${index}`"
                   @select="(item) => {
                     if (item && typeof item === 'object') {
-                      // cj_id는 실제 ID, name은 표시명
                       trade.cj_id = String(item.cj_id || '');
                       trade.cj_name = String(item.name || '');
                       console.log('선택된 사용자:', { cj_id: trade.cj_id, cj_name: trade.cj_name });
@@ -447,7 +515,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 등록된 기록 표시 -->
     <div v-if="registeredTrades.length > 0" class="registered-trades-section">
       <h2>등록된 거래 기록</h2>
       <div class="registered-table-wrapper">

@@ -158,87 +158,301 @@ router.post('/', async (req, res, next) => {
         try {
           let result;
           switch (work_type) {
-            case '이동':
+            case '출고-신규지급':
+              // assets의 in_user를 선택한 사용자로 변경, state를 useable로 변경
+              // 유효성체크: assets의 state가 wait
+              console.log(`[출고-신규지급] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND state = ?',
+                [cj_id, 'useable', asset_id, 'wait']
+              );
+              console.log(`[출고-신규지급] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-신규지급] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: state=wait`);
+                }
+              }
+              break;
+
+              case '출고-사용자변경':
               // assets의 in_user를 선택한 사용자로 변경
+              // 유효성체크: assets의 state가 userable
+              console.log(`[출고-사용자변경] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
-                [cj_id, 'useable', asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND state = ?',
+                [cj_id, 'useable', asset_id, 'useable']
               );
-              console.log(`[이동] asset_id=${asset_id}, in_user=${cj_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              console.log(`[출고-사용자변경] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-사용자변경] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: state=useable`);
+                }
+              }
               break;
 
-            case '입고':
-              // assets의 in_user를 cjenc_inno로 변경
+              case '출고-재고교체':
+              // assets의 in_user를 선택한 사용자로 변경
+              // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 userable
+              console.log(`[출고-재고교체] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
-                ['cjenc_inno', 'useable', asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
+                [cj_id, 'useable', asset_id, 'cjenc_inno',  'useable']
               );
-              console.log(`[입고] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              console.log(`[출고-재고교체] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-재고교체] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user=cjenc_inno, state=useable`);
+                }
+              }
               break;
 
-            case '입고(재입사)':
-              // 재입사: in_user를 cjenc_inno로, state를 wait로 설정
+              case '출고-신규교체':
+              // assets의 in_user를 선택한 사용자로 변경, state를 useable로 변경
+              // 유효성체크: assets의 state가 wait
+              console.log(`[출고-신규교체] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
-                ['cjenc_inno', 'wait', asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND state = ?',
+                [cj_id, 'useable', asset_id, 'wait']
               );
-              console.log(`[입고(재입사)] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[출고-신규교체] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-신규교체] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: state=wait`);
+                }
+              }
               break;
 
-            case '반납':
+              case '출고-재고지급':
+              // assets의 in_user를 선택한 사용자로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
+              console.log(`[출고-재고지급] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
+                [cj_id, 'useable', asset_id, 'cjenc_inno',  'useable']
+              );
+              console.log(`[출고-재고지급] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-재고지급] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '출고-대여':
+              // assets의 in_user를 선택한 사용자로 변경, state를 rent로 변경
+              // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
+              console.log(`[출고-대여] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
+                [cj_id, 'rent', asset_id, 'cjenc_inno',  'useable']
+              );
+              console.log(`[출고-대여] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-대여] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '출고-수리':
+              // assets의 state를 repair로 변경
+              // 유효성체크: assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND state = ?',
+                ['repair', asset_id, 'useable']
+              );
+              console.log(`[출고-수리] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[출고-수리] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: state=useable`);
+                }
+              }
+              break;
+
+              case '입고-노후교체':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['cjenc_inno', 'useable', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-노후교체] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-노후교체] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-불량교체':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['cjenc_inno', 'useable', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-불량교체] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-불량교체] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-퇴사반납':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['cjenc_inno', 'useable', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-퇴사반납] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-퇴사반납] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-휴직반납':
+              // state를 wait로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['wait', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-휴직반납] asset_id=${asset_id}, state=wait, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-휴직반납] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-재입사예정':
+              // state를 wait로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['wait', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-재입사예정] asset_id=${asset_id}, state=wait, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-재입사예정] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-임의반납':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['cjenc_inno', 'useable', asset_id, 'cjenc_inno', 'useable']
+              );
+              console.log(`[입고-임의반납] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-임의반납] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=useable`);
+                }
+              }
+              break;
+
+              case '입고-대여반납':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 rent
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
+                ['cjenc_inno', 'useable', asset_id, 'cjenc_inno', 'rent']
+              );
+              console.log(`[입고-대여반납] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-대여반납] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user!=cjenc_inno, state=rent`);
+                }
+              }
+              break;
+
+              case '입고-수리반납':
+              // state를 useable로 변경
+              // 유효성체크:assets의 state가 repair
+              [result] = await connection.query(
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND state = ?',
+                ['useable', asset_id, 'repair']
+              );
+              console.log(`[입고-수리반납] asset_id=${asset_id}, state=useable, 영향받은 행=${result.affectedRows}`);
+              if (result.affectedRows === 0) {
+                // 조건을 만족하는 자산이 없으면 확인
+                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
+                if (asset.length > 0) {
+                  console.warn(`[입고-수리반납] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: state=repair`);
+                }
+              }
+              break;
+
+              case '반납-노후반납':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
                 ['aj_rent', 'termination', asset_id]
               );
-              console.log(`[반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[반납-노후반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-            case '대여':
-              // assets의 in_user를 선택한 사용자로 변경, state를 rent로 변경
-              // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
-              console.log(`[대여] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
+              case '반납-고장교체':
+              // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'rent', asset_id, 'cjenc_inno', 'useable']
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['aj_rent', 'termination', asset_id]
               );
-              console.log(`[대여] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
-              if (result.affectedRows === 0) {
-                // 조건을 만족하는 자산이 없으면 확인
-                const [asset] = await connection.query('SELECT asset_number, state, in_user FROM assets WHERE asset_number = ?', [asset_id]);
-                if (asset.length > 0) {
-                  console.warn(`[대여] 조건 불일치: asset=${JSON.stringify(asset[0])}, required: in_user=cjenc_inno, state=useable`);
-                }
-              }
+              console.log(`[반납-고장교체] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-            case '수리':
-              // assets의 state를 repair로 변경
+              case '반납-조기반납':
+              // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
-                'UPDATE assets SET state = ? WHERE asset_number = ?',
-                ['repair', asset_id]
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['aj_rent', 'termination', asset_id]
               );
-              console.log(`[수리] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[반납-조기반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-            case '대여반납':
-              // assets의 state를 useable로 변경, in_user를 cjenc_inno로 변경
-              // 유효성체크: assets의 state가 rent
+              case '반납-폐기':
+              // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
-                'UPDATE assets SET state = ?, in_user = ? WHERE asset_number = ? AND state = ?',
-                ['useable', 'cjenc_inno', asset_id, 'rent']
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['aj_rent', 'termination', asset_id]
               );
-              console.log(`[대여반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
-              break;
-
-            case '수리반납':
-              // assets의 state를 useable로 변경
-              // 유효성체크: assets의 state가 repair
-              [result] = await connection.query(
-                'UPDATE assets SET state = ? WHERE asset_number = ? AND state = ?',
-                ['useable', asset_id, 'repair']
-              );
-              console.log(`[수리반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              console.log(`[반납-폐기] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
           }
         } catch (assetErr) {

@@ -17,12 +17,12 @@ const columnOrder = [
   'timestamp', 
   'work_type', 
   'asset_id', 
-  'model', 
-  'ex_user',
-  'ex_user_name', 
-  'ex_user_part',
+  'model',
+  'ex_user_info', // 통합 컬럼 추가
   'cj_id', 
-  'user_name'];
+  'name',
+  'part'
+];
 
 const columnLabels = {
   'trade_id' : '순번',
@@ -30,6 +30,7 @@ const columnLabels = {
   'work_type': '작업유형',
   'asset_id': '자산번호',
   'model': '모델명',
+  'ex_user_info': '이전 사용자 정보', // 라벨 추가
   'ex_user_name': '이전 이름',
   'ex_user': '이전 사용자ID',
   'ex_user_part': '이전 부서',
@@ -139,12 +140,17 @@ const getSortIcon = (column) => {
 // 정렬된 컬럼 리스트 (columnOrder 순서 + 나머지 컬럼, memo는 맨뒤)
 const orderedColumns = computed(() => {
   if (!trades.value[0]) return [];
+  
+  // 1. columnOrder를 기반으로 하되, 실제 데이터에 있거나 가상 컬럼(ex_user_info)인 경우 포함
+  const ordered = columnOrder.filter(h => h in trades.value[0] || h === 'ex_user_info');
+  
+  // 2. UI에서 숨길 원본 컬럼들 정의
+  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'memo'];
+  
+  // 3. columnOrder에도 없고 숨김 대상도 아닌 나머지 컬럼들
   const allHeaders = Object.keys(trades.value[0]);
-  // columnOrder에 있는 것들을 먼저 정렬
-  const ordered = columnOrder.filter(h => h in trades.value[0]);
-  // columnOrder에 없는 것들을 뒤에 추가 (memo 제외)
-  const remaining = allHeaders.filter(h => !columnOrder.includes(h) && h !== 'memo');
-  // memo를 맨뒤에 추가
+  const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
+  
   if (allHeaders.includes('memo')) {
     remaining.push('memo');
   }
@@ -505,8 +511,21 @@ const downloadCSV = () => {
   const seconds = String(now.getSeconds()).padStart(2, '0');
   const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
   const filename = `TradePage_${timestamp}.csv`;
-  
-  const headers = trades.value.length > 0 ? Object.keys(trades.value[0]) : [];
+  // [수정 부분] 직접 원하는 컬럼 순서대로 배열을 정의합니다.
+  const headers = [
+    'trade_id', 
+    'timestamp', 
+    'work_type', 
+    'asset_id', 
+    'model', 
+    'ex_user', 
+    'ex_user_name', 
+    'ex_user_part', 
+    'cj_id', 
+    'name', 
+    'part',
+    'memo'
+  ];
   const csvContent = [
     headers.join(','),
     ...trades.value.map(trade => 
@@ -607,6 +626,12 @@ onMounted(async () => {
             <td v-for="header in orderedColumns" :key="header">
               <template v-if="header === 'timestamp'">
                 {{ formatDateTime(trade[header]) }}
+              </template>
+              <template v-else-if="header === 'ex_user_info'">
+                <div style="line-height: 1.4;">
+                  <strong>{{ trade.ex_user_name || '-' }}</strong> ({{ trade.ex_user || '-' }})
+                  <div style="font-size: 0.85em; color: #666;">{{ trade.ex_user_part || '-' }}</div>
+                </div>
               </template>
               <template v-else>
                 {{ trade[header] || '-' }}
