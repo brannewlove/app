@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 const mysql = require('mysql2/promise');
 const dbConfig = require('../config/db.config');
+const bcrypt = require('bcrypt');
 
 // MySQL 연결 풀
 const pool = mysql.createPool({
@@ -45,7 +46,9 @@ router.post('/login', async (req, res) => {
     const user = users[0];
     
     // 비밀번호 검증
-    if (user.password !== password) {
+    const isMatch = await bcrypt.compare(password, user.password);
+    
+    if (!isMatch) {
       return res.status(401).json({
         success: false,
         message: '아이디 또는 비밀번호가 일치하지 않습니다.'

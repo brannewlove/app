@@ -1,0 +1,205 @@
+<script setup>
+import { ref, computed, watch } from 'vue';
+
+const props = defineProps({
+  trades: {
+    type: Array,
+    required: true,
+  },
+});
+
+const emit = defineEmits(['download']);
+
+const currentPage = ref(1);
+const itemsPerPage = 20;
+const sortColumn = ref(null);
+const sortDirection = ref('desc');
+const searchQuery = ref('');
+
+// 테이블 컬럼 순서 및 라벨 정의
+const columnOrder = [
+  'trade_id', 'timestamp', 'work_type', 'asset_id', 'model',
+  'ex_user_info', 'cj_id', 'name', 'part'
+];
+const columnLabels = {
+  'trade_id': '순번', 'timestamp': '작업시간', 'work_type': '작업유형',
+  'asset_id': '자산번호', 'model': '모델명', 'ex_user_info': '이전 사용자 정보',
+  'ex_user_name': '이전 이름', 'ex_user': '이전 사용자ID', 'ex_user_part': '이전 부서',
+  'cj_id': '사용자ID', 'name': '이름', 'part': '부서', 'memo': '메모'
+};
+
+const filteredTrades = computed(() => {
+  if (!searchQuery.value) {
+    return sortedTrades.value;
+  }
+  const keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(k => k.length > 0);
+  if (keywords.length === 0) {
+    return sortedTrades.value;
+  }
+  return sortedTrades.value.filter(trade => {
+    const tradeString = Object.values(trade).map(value => String(value).toLowerCase()).join(' ');
+    return keywords.every(keyword => tradeString.includes(keyword));
+  });
+});
+
+watch(searchQuery, () => {
+  currentPage.value = 1;
+});
+
+const sortedTrades = computed(() => {
+  const activeSort = sortColumn.value || 'trade_id';
+  const sortDir = sortColumn.value ? sortDirection.value : 'desc';
+  return [...props.trades].sort((a, b) => {
+    let aValue = a[activeSort];
+    let bValue = b[activeSort];
+    if (aValue === null || aValue === undefined) aValue = '';
+    if (bValue === null || bValue === undefined) bValue = '';
+    if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
+      return sortDir === 'asc' ? parseFloat(aValue) - parseFloat(bValue) : parseFloat(bValue) - parseFloat(aValue);
+    }
+    aValue = String(aValue).toLowerCase();
+    bValue = String(bValue).toLowerCase();
+    return sortDir === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+  });
+});
+
+const handleSort = (column) => {
+  if (sortColumn.value === column) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortColumn.value = column;
+    sortDirection.value = 'asc';
+  }
+  currentPage.value = 1;
+};
+
+const getSortIcon = (column) => {
+  if (sortColumn.value !== column) return '⇳';
+  return sortDirection.value === 'asc' ? '⇧' : '⇩';
+};
+
+const orderedColumns = computed(() => {
+  if (!props.trades[0]) return [];
+  const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info');
+  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'memo'];
+  const allHeaders = Object.keys(props.trades[0]);
+  const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
+  if (allHeaders.includes('memo')) {
+    remaining.push('memo');
+  }
+  return [...ordered, ...remaining];
+});
+
+const paginatedTrades = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredTrades.value.slice(start, end);
+});
+
+const totalPages = computed(() => Math.ceil(filteredTrades.value.length / itemsPerPage));
+
+const pageNumbers = computed(() => {
+  const pages = [];
+  const maxPages = 5;
+  let start = Math.max(1, currentPage.value - 2);
+  let end = Math.min(totalPages.value, start + maxPages - 1);
+  if (end - start < maxPages - 1) {
+    start = Math.max(1, end - maxPages + 1);
+  }
+  for (let i = start; i <= end; i++) pages.push(i);
+  return pages;
+});
+
+const prevPage = () => { if (currentPage.value > 1) currentPage.value--; };
+const nextPage = () => { if (currentPage.value < totalPages.value) currentPage.value++; };
+const goToPage = (page) => { currentPage.value = page; };
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+const download = () => {
+    emit('download', props.trades);
+}
+</script>
+
+<template>
+  <div v-if="trades.length > 0" class="trades-section">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2>거래 목록 ({{ filteredTrades.length }}개)</h2>
+      <slot name="actions"></slot>
+    </div>
+
+    <div class="search-container">
+      <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
+    </div>
+
+    <table class="trades-table">
+      <thead>
+        <tr>
+          <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" class="sortable-header" :class="{ active: sortColumn === header }">
+            <div class="header-content">
+              <span>{{ columnLabels[header] || header }}</span>
+              <span class="sort-icon">{{ getSortIcon(header) }}</span>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1 }">
+          <td v-for="header in orderedColumns" :key="header">
+            <template v-if="header === 'timestamp'">{{ formatDateTime(trade[header]) }}</template>
+            <template v-else-if="header === 'ex_user_info'">
+              <div style="line-height: 1.4;">
+                <strong>{{ trade.ex_user_name || '-' }}</strong> ({{ trade.ex_user || '-' }})
+                <div style="font-size: 0.85em; color: #666;">{{ trade.ex_user_part || '-' }}</div>
+              </div>
+            </template>
+            <template v-else>{{ trade[header] || '-' }}</template>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 20px; text-align: center;">
+      <button v-if="currentPage > 1" @click="prevPage" class="btn btn-pagination">이전</button>
+      <button v-for="page in pageNumbers" :key="page" @click="goToPage(page)" :class="{ active: currentPage === page }" class="btn btn-page">{{ page }}</button>
+      <button v-if="currentPage < totalPages" @click="nextPage" class="btn btn-pagination">다음</button>
+    </div>
+  </div>
+   <div v-else class="empty-state">
+      거래가 없습니다.
+    </div>
+</template>
+
+<style scoped>
+.trades-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+h2 { color: #555; margin: 0 0 15px 0; font-size: 20px; }
+.search-container { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+.search-input { flex: 1; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; transition: all 0.3s ease; }
+.search-input:focus { outline: none; border-color: #999; box-shadow: 0 0 0 3px rgba(153,153,153,0.1); }
+.btn-pagination, .btn-page { padding: 10px 15px; margin: 0 2px; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; font-size: 14px; }
+.btn-pagination:hover:not(:disabled), .btn-page:hover { background: #e0e0e0; }
+.btn-pagination:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+.btn-page.active { background: #777; color: white; border-color: #777; font-weight: bold; }
+.trades-table { width: 100%; border-collapse: collapse; font-size: 14px; background: white; table-layout: auto; margin: 20px 0; }
+.trades-table thead { background: #4a4a4a; color: white; position: sticky; top: 0; z-index: 10; }
+.sortable-header { padding: 0; cursor: pointer; user-select: none; position: relative; transition: background 0.3s ease; color: white; background: #4a4a4a; }
+.sortable-header:hover:not(.active) { background: rgba(255,255,255,0.15); }
+.sortable-header.active { background: #3a3a3a; color: #ffeb3b; }
+.header-content { padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sort-icon { opacity: 0.6; font-size: 12px; min-width: 16px; text-align: right; }
+.sortable-header.active .sort-icon { opacity: 1; font-weight: bold; }
+.trades-table td { padding: 14px 12px; border-bottom: 1px solid #d8d8d8; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; vertical-align: middle; }
+.trades-table tbody tr { transition: all 0.2s ease; background: #ffffff; }
+.trades-table tbody tr.stripe { background: #f0f0f0; }
+.empty-state { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
+</style>
