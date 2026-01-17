@@ -79,6 +79,11 @@ watch(() => router.currentRoute.value.path, () => {
                거래 등록
             </router-link>
           </li>
+          <li>
+            <router-link to="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }">
+               반납처리
+            </router-link>
+          </li>
         </ul>
         <div class="navbar-right">
           <span class="user-info" v-if="currentUser">{{ currentUser.name }}</span>

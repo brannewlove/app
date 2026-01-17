@@ -1,12 +1,24 @@
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue';
+import { ref, defineProps, defineEmits, watch } from 'vue';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 
-defineProps({
+const props = defineProps({
   isOpen: {
     type: Boolean,
     required: true,
   },
+  initialAssetNumber: {
+    type: String,
+    default: '',
+  },
+  initialModel: {
+    type: String,
+    default: '',
+  },
+  initialCategory: {
+    type: String,
+    default: '',
+  }
 });
 
 const emit = defineEmits(['close']);
@@ -15,7 +27,19 @@ const selectedAsset = ref(null);
 const trackingLogs = ref([]);
 const trackingLoading = ref(false);
 const trackingError = ref(null);
-const isDragging = ref(false); // 드래그 상태 추적
+const isDragging = ref(false);
+
+// 모달이 열릴 때 초기 자산 번호가 있으면 로그 조회
+watch(() => props.isOpen, (newVal) => {
+  if (newVal && props.initialAssetNumber) {
+    selectedAsset.value = { 
+      asset_number: props.initialAssetNumber,
+      model: props.initialModel,
+      category: props.initialCategory
+    };
+    fetchTrackingLogs();
+  }
+});
 
 const closeModal = () => {
   selectedAsset.value = null;
@@ -88,6 +112,7 @@ const fetchTrackingLogs = async () => {
                   asset_id: item.asset_id,
                   asset_number: item.asset_number,
                   model: item.model,
+                  category: item.category,
                   state: item.state
                 };
                 fetchTrackingLogs();
@@ -98,6 +123,7 @@ const fetchTrackingLogs = async () => {
 
         <div v-if="selectedAsset" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
           <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
+          <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
           <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
         </div>
 
@@ -135,20 +161,25 @@ const fetchTrackingLogs = async () => {
 
 <style scoped>
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; border-radius: 8px; max-width: 1200px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #eee; background: #f9f9f9; }
-.modal-header h2 { margin: 0; color: #333; }
-.modal-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
-.modal-close-btn:hover { color: #333; }
-.modal-body { padding: 20px; }
+.modal-content { background: white; border-radius: 12px; max-width: 1200px; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+.modal-content::-webkit-scrollbar { width: 12px; }
+.modal-content::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+.modal-content::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; border: 3px solid #f1f1f1; }
+.modal-content::-webkit-scrollbar-thumb:hover { background: #999; }
+
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 2px solid #f0f0f0; background: #f8f9fa; }
+.modal-header h2 { margin: 0; color: #333; font-size: 1.4rem; }
+.modal-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.modal-close-btn:hover { color: #333; background: #eee; }
+.modal-body { padding: 24px; }
 .alert { padding: 15px 20px; border-radius: 5px; margin-bottom: 20px; font-size: 16px; }
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
 .alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
-.tracking-flow { display: flex; gap: 20px; overflow-x: auto; padding: 20px 0; scroll-behavior: smooth; }
-.tracking-flow::-webkit-scrollbar { height: 8px; }
-.tracking-flow::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 4px; }
-.tracking-flow::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
-.tracking-flow::-webkit-scrollbar-thumb:hover { background: #555; }
+.tracking-flow { display: flex; gap: 20px; overflow-x: auto; padding: 20px 0; scroll-behavior: smooth; border: 1px solid #f0f0f0; border-radius: 8px; padding: 20px; background: #fafafa; }
+.tracking-flow::-webkit-scrollbar { height: 14px; }
+.tracking-flow::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+.tracking-flow::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; border: 3px solid #f1f1f1; }
+.tracking-flow::-webkit-scrollbar-thumb:hover { background: #999; }
 .flow-item { display: flex; align-items: center; gap: 10px; min-width: max-content; position: relative; }
 .flow-content { padding: 15px 20px; background: white; border: 2px solid #e0e0e0; border-radius: 5px; min-width: 100px; flex-shrink: 0; }
 .flow-header { display: flex; justify-content: space-between; margin-bottom: 5px; }

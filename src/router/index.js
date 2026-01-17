@@ -4,6 +4,7 @@ import UsersPage from '../pages/UsersPage.vue'
 import AssetsPage from '../pages/AssetsPage.vue'
 import TradePage from '../pages/TradePage.vue'
 import TradeRegisterPage from '../pages/TradeRegisterPage.vue'
+import ReturnProcessingPage from '../pages/ReturnProcessingPage.vue' // New import
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,6 +37,12 @@ const router = createRouter({
       path: '/trade-register',
       name: 'TradeRegister',
       component: TradeRegisterPage,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/return-processing', // New route
+      name: 'ReturnProcessing',
+      component: ReturnProcessingPage,
       meta: { requiresAuth: true }
     },
     {

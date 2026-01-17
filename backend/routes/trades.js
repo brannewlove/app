@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
       LEFT JOIN users u2 ON t.ex_user = u2.cj_id
     `);
     connection.release();
-    
+
     res.json({
       success: true,
       data: trades,
@@ -54,14 +54,14 @@ router.get('/:id', async (req, res, next) => {
     const connection = await pool.getConnection();
     const [trade] = await connection.query('SELECT * FROM trde WHERE trade_id = ?', [id]);
     connection.release();
-    
+
     if (trade.length === 0) {
       return res.status(404).json({
         success: false,
         error: '거래를 찾을 수 없습니다.'
       });
     }
-    
+
     res.json({
       success: true,
       data: trade[0]
@@ -79,12 +79,12 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const tradeData = req.body;
-    
+
     const connection = await pool.getConnection();
-    
+
     // trade_id, asset_state, asset_in_user는 수정 불가능하므로 제외
     const { trade_id, asset_state, asset_in_user, ...updateData } = tradeData;
-    
+
     if (Object.keys(updateData).length === 0) {
       connection.release();
       return res.status(400).json({
@@ -92,24 +92,24 @@ router.put('/:id', async (req, res, next) => {
         error: '수정할 데이터가 없습니다.'
       });
     }
-    
+
     // 동적으로 UPDATE 쿼리 생성
     const columns = Object.keys(updateData);
     const values = Object.values(updateData);
     const setClause = columns.map(col => `${col} = ?`).join(', ');
     const query = `UPDATE trde SET ${setClause} WHERE trade_id = ?`;
     values.push(id);
-    
+
     const [result] = await connection.query(query, values);
     connection.release();
-    
+
     if (result.affectedRows === 0) {
       return res.status(404).json({
         success: false,
         error: '거래를 찾을 수 없습니다.'
       });
     }
-    
+
     res.json({
       success: true,
       message: '거래 정보가 수정되었습니다.',
@@ -128,23 +128,23 @@ router.post('/', async (req, res, next) => {
   try {
     const trades = req.body; // 배열로 받음
     console.log('📨 POST /trades 요청:', JSON.stringify(trades, null, 2));
-    
+
     if (!Array.isArray(trades) || trades.length === 0) {
       return res.status(400).json({
         success: false,
         error: '등록할 거래 데이터가 없습니다.'
       });
     }
-    
+
     const connection = await pool.getConnection();
     const results = [];
-    
+
     for (const trade of trades) {
       // trade_id, asset_state, asset_in_user를 제외한 컬럼만 추출 (frontend 검증용 필드)
       const { trade_id, asset_state, asset_in_user, ...insertData } = trade;
-      
+
       console.log(`  거래 처리: work_type=${insertData.work_type}, asset_id=${insertData.asset_id}, cj_id=${insertData.cj_id}`);
-      
+
       if (Object.keys(insertData).length === 0) {
         console.log('  ⊘ 빈 거래 스킵');
         continue;
@@ -152,7 +152,7 @@ router.post('/', async (req, res, next) => {
 
       // 작업유형별 assets 테이블 업데이트 로직
       const { work_type, asset_id, cj_id } = insertData;
-      
+
       if (work_type && asset_id) {
         console.log(`  ⚙️  자산 업데이트 시작: ${work_type}`);
         try {
@@ -176,7 +176,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-사용자변경':
+            case '출고-사용자변경':
               // assets의 in_user를 선택한 사용자로 변경
               // 유효성체크: assets의 state가 userable
               console.log(`[출고-사용자변경] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
@@ -194,13 +194,13 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-재고교체':
+            case '출고-재고교체':
               // assets의 in_user를 선택한 사용자로 변경
               // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 userable
               console.log(`[출고-재고교체] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'useable', asset_id, 'cjenc_inno',  'useable']
+                [cj_id, 'useable', asset_id, 'cjenc_inno', 'useable']
               );
               console.log(`[출고-재고교체] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               if (result.affectedRows === 0) {
@@ -212,7 +212,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-신규교체':
+            case '출고-신규교체':
               // assets의 in_user를 선택한 사용자로 변경, state를 useable로 변경
               // 유효성체크: assets의 state가 wait
               console.log(`[출고-신규교체] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
@@ -230,13 +230,13 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-재고지급':
+            case '출고-재고지급':
               // assets의 in_user를 선택한 사용자로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
               console.log(`[출고-재고지급] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'useable', asset_id, 'cjenc_inno',  'useable']
+                [cj_id, 'useable', asset_id, 'cjenc_inno', 'useable']
               );
               console.log(`[출고-재고지급] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               if (result.affectedRows === 0) {
@@ -248,13 +248,13 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-대여':
+            case '출고-대여':
               // assets의 in_user를 선택한 사용자로 변경, state를 rent로 변경
               // 유효성체크: assets의 in_user가 cjenc_inno, assets의 state가 useable
               console.log(`[출고-대여] asset_id=${asset_id}, cj_id=${cj_id} - 업데이트 시작`);
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'rent', asset_id, 'cjenc_inno',  'useable']
+                [cj_id, 'rent', asset_id, 'cjenc_inno', 'useable']
               );
               console.log(`[출고-대여] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               if (result.affectedRows === 0) {
@@ -266,7 +266,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '출고-수리':
+            case '출고-수리':
               // assets의 state를 repair로 변경
               // 유효성체크: assets의 state가 useable
               [result] = await connection.query(
@@ -283,7 +283,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-노후교체':
+            case '입고-노후교체':
               // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -300,7 +300,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-불량교체':
+            case '입고-불량교체':
               // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -317,7 +317,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-퇴사반납':
+            case '입고-퇴사반납':
               // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -334,7 +334,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-휴직반납':
+            case '입고-휴직반납':
               // state를 wait로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -351,7 +351,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-재입사예정':
+            case '입고-재입사예정':
               // state를 wait로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -368,7 +368,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-임의반납':
+            case '입고-임의반납':
               // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 useable
               [result] = await connection.query(
@@ -385,7 +385,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-대여반납':
+            case '입고-대여반납':
               // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
               // 유효성체크: assets의 in_user가 =!cjenc_inno, assets의 state가 rent
               [result] = await connection.query(
@@ -402,7 +402,7 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '입고-수리반납':
+            case '입고-수리반납':
               // state를 useable로 변경
               // 유효성체크:assets의 state가 repair
               [result] = await connection.query(
@@ -419,7 +419,39 @@ router.post('/', async (req, res, next) => {
               }
               break;
 
-              case '반납-노후반납':
+            case '반납':
+              // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['aj_rent', 'termination', asset_id]
+              );
+              console.log(`[반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+              break;
+
+            case '입고-재사용':
+              // assets의 in_user를 cjenc_inno로 변경, state를 useable로 변경
+              console.log(`[입고-재사용] 자산 업데이트 시도: asset_id=${asset_id}`);
+              [result] = await connection.query(
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
+                ['cjenc_inno', 'useable', asset_id]
+              );
+              console.log(`[입고-재사용] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
+
+              if (result.affectedRows === 0) {
+                // 업데이트 실패 시 현재 자산 상태 확인 및 로그 출력
+                const [currentAsset] = await connection.query(
+                  'SELECT asset_number, in_user, state FROM assets WHERE asset_number = ?',
+                  [asset_id]
+                );
+                if (currentAsset.length > 0) {
+                  console.warn(`[입고-재사용] 업데이트 실패: 자산 존재함. 현재 상태=${JSON.stringify(currentAsset[0])}`);
+                } else {
+                  console.warn(`[입고-재사용] 업데이트 실패: 자산번호 '${asset_id}'를 찾을 수 없음.`);
+                }
+              }
+              break;
+
+            case '반납-노후반납':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
@@ -428,7 +460,7 @@ router.post('/', async (req, res, next) => {
               console.log(`[반납-노후반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-              case '반납-고장교체':
+            case '반납-고장교체':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
@@ -437,7 +469,7 @@ router.post('/', async (req, res, next) => {
               console.log(`[반납-고장교체] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-              case '반납-조기반납':
+            case '반납-조기반납':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
@@ -446,7 +478,7 @@ router.post('/', async (req, res, next) => {
               console.log(`[반납-조기반납] asset_id=${asset_id}, 영향받은 행=${result.affectedRows}`);
               break;
 
-              case '반납-폐기':
+            case '반납-폐기':
               // assets의 in_user를 aj_rent로 변경, state를 termination으로 변경
               [result] = await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
@@ -460,23 +492,23 @@ router.post('/', async (req, res, next) => {
           // assets 업데이트 실패해도 거래 기록은 저장
         }
       }
-      
+
       const columns = Object.keys(insertData);
       const values = Object.values(insertData);
       const placeholders = columns.map(() => '?').join(', ');
       const query = `INSERT INTO trde (${columns.join(', ')}) VALUES (${placeholders})`;
-      
+
       const [result] = await connection.query(query, values);
       results.push({
         trade_id: result.insertId,
         ...insertData
       });
     }
-    
+
     connection.release();
-    
+
     console.log(`✅ 완료: ${results.length}개 거래 등록됨`);
-    
+
     res.json({
       success: true,
       message: `${results.length}개의 거래가 등록되었습니다.`,

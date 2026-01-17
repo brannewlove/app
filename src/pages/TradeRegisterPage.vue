@@ -132,6 +132,7 @@ const getFixedCjId = (workType) => {
     '반납-고장교체': 'aj_rent',
     '반납-조기반납': 'aj_rent',
     '반납-폐기': 'aj_rent',
+    '반납': 'aj_rent',
     '출고-수리': 'no-change'
   };
   return fixedMap[workType] || '';
@@ -152,6 +153,7 @@ const getFixedCjIdDisplay = (workType) => {
     '반납-고장교체': '반납처 (자동)',
     '반납-조기반납': '반납처 (자동)',
     '반납-폐기': '반납처 (자동)',
+    '반납': '반납처 (자동)',
     '출고-수리': '현재 보유자 유지 (자동)'
   };
   return displayMap[workType] || '';
@@ -162,7 +164,7 @@ const isCjIdDisabled = (workType) => {
   const fixedFields = [
     '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-휴직반납',
     '입고-재입사예정', '입고-임의반납', '입고-대여반납', '입고-수리반납',
-    '반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기',
+    '반납','반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기',
     '출고-수리'
   ];
   return fixedFields.includes(workType);

@@ -12,6 +12,7 @@ var selectBarRouter = require('./routes/selectBar');
 var assetLogsRouter = require('./routes/assetLogs');
 var dbTestRouter = require('./routes/db-test');
 var confirmedAssetsRouter = require('./routes/confirmedAssets');
+var returnedAssetsRouter = require('./routes/returnedAssets');
 
 var app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/trades', tradesRouter);
 app.use('/api/selectBar', selectBarRouter);
 app.use('/api/assetLogs', assetLogsRouter);
 app.use('/api/confirmedAssets', confirmedAssetsRouter);
+app.use('/api/returned-assets', returnedAssetsRouter);
 app.use('/db-test', dbTestRouter);
 
 // 개발 환경에서만 Express 기본 라우터 사용

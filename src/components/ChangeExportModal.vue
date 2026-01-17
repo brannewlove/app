@@ -126,18 +126,23 @@ const downloadExportData = () => {
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `AssetCurrentUsers_${timestamp}.csv`;
+  const filename = `AssetCurrentUsers_${timestamp}.tsv`;
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
-  const csvContent = [
-    headers.join(','),
+  const tsvContent = [
+    headers.join('\t'),
     ...filteredAssets.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
       return [asset.asset_id || '', asset.cj_id || '', asset.user_name || '', dateStr]
-        .map(value => typeof value === 'string' && (value.includes(',') || value.includes('"')) ? `"${value.replace(/"/g, '""')}"` : value)
-        .join(',');
+        .map(value => {
+          if (typeof value === 'string') {
+            return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
+          }
+          return value;
+        })
+        .join('\t');
     })
   ].join('\n');
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -190,7 +195,7 @@ onMounted(async () => {
           </table>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
             <button class="btn btn-secondary" @click="closeModal">취소</button>
-            <button class="btn btn-primary" @click="downloadExportData" :disabled="exportAssets.length === 0">CSV 다운로드</button>
+            <button class="btn btn-primary" @click="downloadExportData" :disabled="exportAssets.length === 0">TSV 다운로드</button>
           </div>
         </div>
         <div v-else class="tracking-logs-empty">데이터가 없습니다.</div>

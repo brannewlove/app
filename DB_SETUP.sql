@@ -91,6 +91,35 @@ CREATE TABLE IF NOT EXISTS confirmed_assets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자 변경 확인 테이블';
 
 -- ============================================
+-- 6. returned_assets 테이블 - 반납 자산 정보
+-- ============================================
+CREATE TABLE IF NOT EXISTS returned_assets (
+  return_id INT AUTO_INCREMENT PRIMARY KEY,
+  asset_number VARCHAR(100) NOT NULL COMMENT '자산번호',
+  model VARCHAR(255) COMMENT '모델명',
+  serial_number VARCHAR(255) COMMENT '시리얼번호',
+  return_type VARCHAR(100) COMMENT '반납유형',
+  end_date DATE COMMENT '자산 사용 종료일',
+  user_id VARCHAR(50) COMMENT '반납 사용자 ID',
+  user_name VARCHAR(100) COMMENT '반납 사용자명',
+  department VARCHAR(100) COMMENT '반납 사용자 부서',
+  handover_date DATE COMMENT '인계일',
+  release_status BOOLEAN DEFAULT FALSE COMMENT '출고여부',
+  it_room_stock BOOLEAN DEFAULT FALSE COMMENT '전산실입고',
+  low_format BOOLEAN DEFAULT FALSE COMMENT '로우포맷',
+  it_return BOOLEAN DEFAULT FALSE COMMENT '전산반납',
+  mail_return BOOLEAN DEFAULT FALSE COMMENT '메일반납',
+  actual_return BOOLEAN DEFAULT FALSE COMMENT '실재반납',
+  complete BOOLEAN DEFAULT FALSE COMMENT '완료',
+  remarks TEXT COMMENT '비고',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
+  INDEX idx_returned_asset_number (asset_number),
+  INDEX idx_returned_user_id (user_id),
+  FOREIGN KEY (asset_number) REFERENCES assets(asset_number) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(cj_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='반납 자산 테이블';
+
+-- ============================================
 -- 테스트용 샘플 데이터 (선택사항)
 -- ============================================
 -- INSERT INTO users (cj_id, password, name, part) VALUES 

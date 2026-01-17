@@ -19,17 +19,30 @@ router.get('/', async (req, res) => {
   const { asset_id } = req.query;
 
   if (!asset_id) {
-    return res.status(400).json({ 
-      success: false, 
-      message: '자산ID가 필요합니다.' 
+    return res.status(400).json({
+      success: false,
+      message: '자산ID가 필요합니다.'
     });
   }
 
   try {
     const conn = await pool.getConnection();
-    
-    // trde 테이블에서 asset_id로 검색 (asset_id는 assets.asset_number 값)
+
+    // assets 테이블의 초기 등록 정보와 trde 테이블의 거래 기록을 결합
     const query = `
+      SELECT 
+        0 as trade_id,
+        a.asset_number as asset_id,
+        '자산 등록' as work_type,
+        a.in_user as cj_id,
+        u.name as user_name,
+        COALESCE(a.day_of_start, '2000-01-01') as timestamp
+      FROM assets a
+      LEFT JOIN users u ON a.in_user = u.cj_id
+      WHERE a.asset_number = ?
+
+      UNION ALL
+
       SELECT 
         t.trade_id,
         t.asset_id,
@@ -40,16 +53,16 @@ router.get('/', async (req, res) => {
       FROM trde t
       LEFT JOIN users u ON t.cj_id = u.cj_id
       WHERE t.asset_id = ?
-      ORDER BY t.timestamp ASC
+      ORDER BY timestamp ASC
     `;
 
     console.log('쿼리 실행:', query);
     console.log('asset_id 파라미터:', asset_id);
-    
-    const [rows] = await conn.query(query, [asset_id]);
-    
+
+    const [rows] = await conn.query(query, [asset_id, asset_id]);
+
     console.log('조회 결과:', rows);
-    
+
     conn.release();
 
     res.json({
@@ -70,7 +83,7 @@ router.get('/', async (req, res) => {
 router.get('/currentUsers', async (req, res) => {
   try {
     const conn = await pool.getConnection();
-    
+
     // 각 자산별로 가장 최근 사용자변경 작업을 조회
     // (이동, 입고만 포함 - 사용자 변경 작업)
     // (1단계: 사용자변경 작업에서 마지막 찾기)
@@ -95,7 +108,7 @@ router.get('/currentUsers', async (req, res) => {
           work_type,
           ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY timestamp DESC) as rn
         FROM trde
-        WHERE work_type IN ('이동', '입고')
+        WHERE work_type LIKE '%입고%' OR work_type LIKE '%출고%'
       ) t
       LEFT JOIN users u ON t.cj_id = u.cj_id
       WHERE t.rn = 1
@@ -103,12 +116,12 @@ router.get('/currentUsers', async (req, res) => {
     `;
 
     console.log('현재 사용자 조회 쿼리 실행');
-    
+
     const [rows] = await conn.query(query);
-    
+
     console.log('현재 사용자 조회 결과:', rows.length, '개');
     console.log('반환 데이터:', JSON.stringify(rows.slice(0, 2), null, 2));
-    
+
     conn.release();
 
     res.json({

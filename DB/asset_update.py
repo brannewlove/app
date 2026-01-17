@@ -1,153 +1,62 @@
-import os
 from pathlib import Path
-
-import mysql.connector
 import pandas as pd
-import sys
+from utils import get_db_conn
 
-
-def load_env(env_path: Path) -> None:
-    """Minimal .env loader to avoid extra dependencies."""
-    if not env_path.is_file():
-        return
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip())
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-load_env(PROJECT_ROOT / ".env")
-
-
-def get_db_conn():
-    return mysql.connector.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        user=os.environ.get("DB_USER", "root"),
-        password=os.environ.get("DB_PASSWORD", ""),
-        database=os.environ.get("DB_NAME", "assetdb"),
-        port=int(os.environ.get("DB_PORT", 3306)),
-    )
-
-
-# Windows 터미널 한글 깨짐 방지
-if os.name == "nt":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
-
-# CSV 읽기 (스크립트와 같은 폴더에서 찾음)
+# 경로 설정
 SCRIPT_DIR = Path(__file__).resolve().parent
-csv_path = SCRIPT_DIR / "assets_data.csv"
-print(f"[INFO] CSV path: {csv_path}")
-if csv_path.exists():
-    stat = csv_path.stat()
-    print(f"[INFO] CSV modified: {stat.st_mtime}")
+TSV_PATH = SCRIPT_DIR / "assets_data.tsv"
 
-if not csv_path.exists():
-    print(f"[ERROR] CSV file not found: {csv_path}")
-    print(f"[INFO] Create {csv_path} with columns: asset_number, category, model, serial_number, day_of_start, day_of_end, unit_price, contract_month, in_user, state")
-    exit(1)
+def update_assets():
+    if not TSV_PATH.exists():
+        print(f"[ERROR] TSV 파일을 찾을 수 없습니다: {TSV_PATH}")
+        return
 
-df = pd.read_csv(csv_path, encoding="utf-8")
-print(f"[INFO] Loaded {len(df)} asset records from CSV")
+    # TSV 로드
+    df = pd.read_csv(TSV_PATH, sep='\t', encoding="utf-8")
+    print(f"[INFO] TSV에서 {len(df)}건의 자산 정보를 로드했습니다.")
 
-# CSV에 있는 컬럼 확인 (asset_number는 필수)
-if "asset_number" not in df.columns:
-    print("[ERROR] CSV must have 'asset_number' column")
-    exit(1)
+    if "asset_number" not in df.columns:
+        print("[ERROR] CSV 스키마 오류: 'asset_number' 컬럼이 필수입니다.")
+        return
 
-csv_columns = [col for col in df.columns if col != "asset_number"]
-print(f"[INFO] CSV columns to update: {', '.join(csv_columns)}")
-
-# MySQL 연결
-conn = get_db_conn()
-cursor = conn.cursor()
-
-# 기존 자산 목록 조회 (CSV에 있는 컬럼만, asset_number가 있는 행만)
-if csv_columns:
-    select_cols = ", ".join(csv_columns)
-    cursor.execute(f"SELECT asset_number, {select_cols} FROM assets WHERE asset_number IS NOT NULL")
-else:
-    cursor.execute("SELECT asset_number FROM assets WHERE asset_number IS NOT NULL")
-
-existing = {}
-for row in cursor.fetchall():
-    # asset_number는 str로 변환 (CSV와 타입 일치)
-    asset_number = str(row[0])
-    existing[asset_number] = row[1:] if len(row) > 1 else ()
-
-# CSV의 asset_number도 str로 변환
-df["asset_number"] = df["asset_number"].astype(str)
-
-# 신규 / 업데이트 대상 분리
-new_rows_df = df[~df["asset_number"].isin(existing.keys())]
-update_rows_df = df[df["asset_number"].isin(existing.keys())]
-
-# 업데이트가 필요한 행만 필터링
-def needs_update(row):
-    asset_number = row["asset_number"]
-    if asset_number not in existing:
-        return False
+    # 업데이트할 컬럼들 추출
+    cols = [col for col in df.columns if col != "asset_number"]
     
-    old_values = existing[asset_number]
-    new_values = tuple(row.get(col) for col in csv_columns)
+    # UPSERT 쿼리 생성
+    # INSERT INTO assets (col1, col2, ...) VALUES (%s, %s, ...)
+    # ON DUPLICATE KEY UPDATE col1=VALUES(col1), col2=VALUES(col2), ...
+    columns_clause = ", ".join(["asset_number"] + cols)
+    placeholders = ", ".join(["%s"] * len(df.columns))
+    update_clause = ", ".join([f"{col}=VALUES({col})" for col in cols])
     
-    for old, new in zip(old_values, new_values):
-        old_val = old if old is not None else ""
-        new_val = new if pd.notna(new) else ""
-        if str(old_val) != str(new_val):
-            return True
-    return False
+    upsert_sql = f"""
+        INSERT INTO assets ({columns_clause}) 
+        VALUES ({placeholders})
+        ON DUPLICATE KEY UPDATE {update_clause}
+    """
 
-if not update_rows_df.empty:
-    update_rows_df = update_rows_df[update_rows_df.apply(needs_update, axis=1)]
+    # 데이터 준비 (NaN 처리)
+    data = []
+    for _, row in df.iterrows():
+        row_values = []
+        for col in ["asset_number"] + cols:
+            val = row[col]
+            row_values.append(val if pd.notna(val) else None)
+        data.append(tuple(row_values))
 
-insert_count = 0
-update_count = 0
+    # DB 실행
+    conn = get_db_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany(upsert_sql, data)
+        conn.commit()
+        print(f"[SUCCESS] 처리 완료 (추가/수정 포함 총 {cursor.rowcount}행 영향 받음)")
+    except Exception as e:
+        conn.rollback()
+        print(f"[ERROR] DB 업데이트 중 오류 발생: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
-# 신규 삽입
-if not new_rows_df.empty:
-    insert_cols = ", ".join(["asset_number"] + csv_columns)
-    placeholders = ", ".join(["%s"] * (len(csv_columns) + 1))
-    insert_sql = f"INSERT INTO assets ({insert_cols}) VALUES ({placeholders})"
-    
-    new_data = []
-    for _, row in new_rows_df.iterrows():
-        values = [row["asset_number"]]
-        for col in csv_columns:
-            val = row.get(col)
-            values.append(val if pd.notna(val) else None)
-        new_data.append(tuple(values))
-    
-    cursor.executemany(insert_sql, new_data)
-    insert_count = cursor.rowcount
-    conn.commit()
-
-# 업데이트 (필요한 행만)
-if not update_rows_df.empty:
-    set_clause = ", ".join([f"{col} = %s" for col in csv_columns])
-    update_sql = f"UPDATE assets SET {set_clause} WHERE asset_number = %s"
-    
-    update_data = []
-    for _, row in update_rows_df.iterrows():
-        values = []
-        for col in csv_columns:
-            val = row.get(col)
-            values.append(val if pd.notna(val) else None)
-        values.append(row["asset_number"])
-        update_data.append(tuple(values))
-    
-    cursor.executemany(update_sql, update_data)
-    update_count = cursor.rowcount
-    conn.commit()
-
-print(f"[SUCCESS] Inserted {insert_count} new assets, updated {update_count} existing assets")
-
-cursor.close()
-conn.close()
+if __name__ == "__main__":
+    update_assets()

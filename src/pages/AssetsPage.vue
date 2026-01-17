@@ -1,5 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import axios from 'axios';
+import { useRouter } from 'vue-router';
+import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 
 const assets = ref([]);
 const loading = ref(false);
@@ -14,16 +17,96 @@ const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editedAsset = ref(null);
 const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
+const isClickStartedOnOverlay = ref(false);
+const isTrackingOpen = ref(false); // 추적 모달 상태 추가
+const stateOptions = ['useable', 'rent', 'repair', 'termination', 'process-ter'];
 
-const stateOptions = computed(() => {
-  const defaults = ['useable', 'rent', 'repair', ];
-  const set = new Set(defaults);
-  assets.value.forEach(a => {
-    if (a.state) set.add(a.state);
-  });
-  if (editedAsset.value?.state) set.add(editedAsset.value.state);
-  return Array.from(set);
-});
+// 반납 처리 모달 상태
+const isReturnModalOpen = ref(false);
+const returnModalMessage = ref('');
+const returnModalType = ref('confirm'); // 'confirm', 'success', 'error'
+const pendingReturnAsset = ref(null);
+
+const isAssetProcessedForReturn = (asset) => {
+  return asset.state === 'process-ter' || asset.state === 'termination';
+};
+
+// 반납 처리 모달 열기
+const handleReturn = (asset) => {
+  pendingReturnAsset.value = asset;
+  returnModalMessage.value = `'${asset.asset_number}' 자산을 반납 처리하시겠습니까?`;
+  returnModalType.value = 'confirm';
+  isReturnModalOpen.value = true;
+};
+
+// 반납 처리 확인
+const confirmReturn = async () => {
+  const asset = pendingReturnAsset.value;
+  if (!asset) return;
+  
+  try {
+    loading.value = true;
+    
+    // 날짜를 MySQL DATE 형식(YYYY-MM-DD)으로 변환하는 헬퍼 함수
+    const formatDateForMySQL = (dateValue) => {
+      if (!dateValue) return null;
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return null;
+      return date.toISOString().split('T')[0];
+    };
+    
+    // 현재 날짜를 YYYY-MM-DD 형식으로 가져오기
+    const getCurrentDate = () => {
+      return new Date().toISOString().split('T')[0];
+    };
+    
+    // 반납 자산 데이터 구성
+    const returnedAssetData = {
+      asset_number: asset.asset_number,
+      model: asset.model,
+      serial_number: asset.serial_number,
+      return_type: null,
+      end_date: formatDateForMySQL(asset.day_of_end),
+      user_id: asset.in_user,
+      user_name: asset.user_name,
+      department: asset.user_part,
+      handover_date: getCurrentDate(),
+      remarks: null
+    };
+
+    await axios.post('/api/returned-assets', returnedAssetData);
+    
+    // 로컬 상태 업데이트
+    const assetIndex = assets.value.findIndex(a => a.asset_id === asset.asset_id);
+    if (assetIndex !== -1) {
+      assets.value[assetIndex].state = 'process-ter';
+    }
+    
+    // 성공 메시지 표시
+    returnModalMessage.value = '자산이 반납 처리 페이지에 추가되었습니다.';
+    returnModalType.value = 'success';
+    
+  } catch (err) {
+    if (err.response && err.response.status === 409) {
+      returnModalMessage.value = err.response.data.error;
+    } else {
+      returnModalMessage.value = '자산 반납 처리에 실패했습니다: ' + (err.response?.data?.error || err.message);
+    }
+    returnModalType.value = 'error';
+    console.error('Error returning asset:', err);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 반납 처리 모달 닫기
+const closeReturnModal = () => {
+  isReturnModalOpen.value = false;
+  pendingReturnAsset.value = null;
+  returnModalMessage.value = '';
+  returnModalType.value = 'confirm';
+};
+
 
 
 // 모든 가능한 컬럼 정의
@@ -241,6 +324,18 @@ const closeModal = () => {
   isEditMode.value = false;
   selectedAsset.value = null;
   editedAsset.value = null;
+  isClickStartedOnOverlay.value = false;
+};
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target === e.currentTarget;
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target === e.currentTarget) {
+    closeModal();
+  }
+  isClickStartedOnOverlay.value = false;
 };
 
 const toggleEditMode = () => {
@@ -346,8 +441,8 @@ const getHeaderDisplayName = (columnName) => {
   return headerMap[columnName] || columnName;
 };
 
-// CSV 다운로드
-const downloadCSV = () => {
+// TSV 다운로드
+const downloadTSV = () => {
   if (filteredAssets.value.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
@@ -362,12 +457,12 @@ const downloadCSV = () => {
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
   const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
-  const filename = `AssetsPage_${timestamp}.csv`;
+  const filename = `AssetsPage_${timestamp}.tsv`;
   
-  // CSV 헤더 생성 (실제 출력되는 컬럼들만)
+  // TSV 헤더 생성 (실제 출력되는 컬럼들만)
   const headers = getTableHeaders(filteredAssets.value);
-  const csvContent = [
-    headers.map(h => getHeaderDisplayName(h)).join(','),
+  const tsvContent = [
+    headers.map(h => getHeaderDisplayName(h)).join('\t'),
     ...filteredAssets.value.map(asset => 
       headers.map(header => {
         let value = asset[header] || '';
@@ -378,33 +473,57 @@ const downloadCSV = () => {
             value = date.toISOString().split('T')[0];
           }
         }
-        // 쉼표나 줄바꿈을 포함한 값을 큰따옴표로 감싸기
-        if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
+        // 탭이나 줄바꿈을 포함한 값 처리 (탭을 공백으로 변환하거나 제거)
+        if (typeof value === 'string') {
+          return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
         }
         return value;
-      }).join(',')
+      }).join('\t')
     )
   ].join('\n');
   
-  // Blob 생성 및 다운로드 (UTF-8 BOM 추가로 엑셀 한글 깨짐 방지)
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  // UTF-8 BOM과 함께 TSV 파일 생성
+  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
   const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
 
+// 만료일 기준 행 클래스 결정
+const getExpirationClass = (asset) => {
+  if (activeFilter.value !== 'available' || !asset.day_of_end) return '';
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDate = new Date(asset.day_of_end);
+  endDate.setHours(0, 0, 0, 0);
+
+  const diffTime = endDate.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'expire-passed';
+  if (diffDays <= 30) return 'expire-warning-30';
+  if (diffDays <= 60) return 'expire-warning-60';
+  
+  return '';
+};
+
 onMounted(() => {
   fetchAssets();
   // ESC 키로 모달 닫기
   const handleKeyDown = (event) => {
-    if (event.key === 'Escape' && isModalOpen.value) {
-      closeModal();
+    if (event.key === 'Escape') {
+      if (isTrackingOpen.value) {
+        isTrackingOpen.value = false;
+      } else if (isReturnModalOpen.value) {
+        isReturnModalOpen.value = false;
+      } else if (isModalOpen.value) {
+        closeModal();
+      }
     }
   };
   window.addEventListener('keydown', handleKeyDown);
@@ -428,7 +547,7 @@ onMounted(() => {
       ⏳ 로딩 중...
     </div>
     
-    <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+    <div v-if="isModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
       <div class="modal-content">
         <div class="modal-header">
           <h2>자산 정보</h2>
@@ -461,10 +580,54 @@ onMounted(() => {
         </div>
         
         <div class="modal-footer">
+          <button v-if="!isEditMode && selectedAsset" @click="isTrackingOpen = true" class="btn btn-tracking">추적</button>
           <button v-if="!isEditMode" @click="toggleEditMode" class="btn btn-edit">수정</button>
           <button v-if="isEditMode" @click="saveAsset" class="btn btn-save">저장</button>
           <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-cancel">취소</button>
           <button @click="closeModal" class="btn btn-close">닫기</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 반납 처리 확인 모달 -->
+    <div v-if="isReturnModalOpen" class="modal-overlay" @click.self="closeReturnModal">
+      <div class="modal-content return-modal">
+        <div class="modal-header">
+          <h2>
+            <span v-if="returnModalType === 'confirm'">반납 처리 확인</span>
+            <span v-else-if="returnModalType === 'success'">✅ 처리 완료</span>
+            <span v-else>❌ 오류 발생</span>
+          </h2>
+          <button @click="closeReturnModal" class="close-btn">✕</button>
+        </div>
+        
+        <div class="modal-body">
+          <p class="return-message">{{ returnModalMessage }}</p>
+        </div>
+        
+        <div class="modal-footer">
+          <button 
+            v-if="returnModalType === 'confirm'" 
+            @click="confirmReturn" 
+            class="btn btn-confirm"
+            :disabled="loading"
+          >
+            {{ loading ? '처리 중...' : '확인' }}
+          </button>
+          <button 
+            v-if="returnModalType === 'confirm'" 
+            @click="closeReturnModal" 
+            class="btn btn-cancel"
+          >
+            취소
+          </button>
+          <button 
+            v-if="returnModalType === 'success' || returnModalType === 'error'" 
+            @click="closeReturnModal" 
+            class="btn btn-close"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>
@@ -491,7 +654,7 @@ onMounted(() => {
             class="btn btn-filter">
             수리중
           </button>
-          <button @click="downloadCSV" class="btn btn-csv">csv</button>
+          <button @click="downloadTSV" class="btn btn-csv">tsv</button>
         </div>
       </div>
       
@@ -504,32 +667,49 @@ onMounted(() => {
         검색 결과: {{ filteredAssets.length }}개
       </div>
       
-      <div class="table-wrapper">
-        <table class="assets-table">
-          <thead>
-            <tr>
-              <th v-for="key in getTableHeaders(assets)" :key="key" @click="handleSort(key)"
-                class="sortable-header" :class="{ active: sortColumn === key }">
-                <div class="header-content">
-                  <span>{{ getHeaderDisplayName(key) }}</span>
-                  <span class="sort-icon">{{ getSortIcon(key) }}</span>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(asset, index) in paginatedAssets" :key="asset.asset_id"
-              @click="handleRowClick(asset)"
-              :class="{ 'stripe': index % 2 === 1, active: selectedAsset?.asset_id === asset.asset_id }"
-              class="clickable-row">
-              <td v-for="key in getTableHeaders(assets)" :key="key">
-                {{ formatCellValue(asset[key], key, asset) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
+                <div class="table-wrapper">
+                  <table class="assets-table">
+                    <thead>
+                      <tr>
+                        <th v-for="key in getTableHeaders(assets)" :key="key" @click="handleSort(key)"
+                          class="sortable-header" :class="{ active: sortColumn === key }">
+                          <div class="header-content">
+                            <span>{{ getHeaderDisplayName(key) }}</span>
+                            <span class="sort-icon">{{ getSortIcon(key) }}</span>
+                          </div>
+                        </th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(asset, index) in paginatedAssets" :key="asset.asset_id"
+                        @click="handleRowClick(asset)"
+                        :class="[{ 'stripe': index % 2 === 1, active: selectedAsset?.asset_id === asset.asset_id }, 'clickable-row']"
+                      >
+                        <td v-for="key in getTableHeaders(assets)" :key="key">
+                          <template v-if="key === 'day_of_end'">
+                            <span :class="getExpirationClass(asset)" style="padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                              {{ formatCellValue(asset[key], key, asset) }}
+                            </span>
+                          </template>
+                          <template v-else>
+                            {{ formatCellValue(asset[key], key, asset) }}
+                          </template>
+                        </td>
+                        <td>
+                          <button
+                            @click.stop="handleReturn(asset)"
+                            class="btn"
+                            :class="{ 'btn-return-process': !isAssetProcessedForReturn(asset), 'btn-returned': isAssetProcessedForReturn(asset) }"
+                            :disabled="isAssetProcessedForReturn(asset)"
+                          >
+                            {{ asset.state === 'process-ter' ? '처리중' : (asset.state === 'termination' ? '반납완료' : '반납처리') }}
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>      
       <div class="pagination">
         <button @click="prevPage" :disabled="currentPage === 1" class="pagination-btn">← 이전</button>
         <div class="page-numbers">
@@ -552,6 +732,15 @@ onMounted(() => {
     <div v-else-if="!loading" class="empty-state">
       자산이 없습니다.
     </div>
+
+    <!-- 자산 추적 모달 -->
+    <AssetTrackingModal 
+      :is-open="isTrackingOpen" 
+      :initial-asset-number="selectedAsset?.asset_number || ''"
+      :initial-model="selectedAsset?.model || ''"
+      :initial-category="selectedAsset?.category || ''"
+      @close="isTrackingOpen = false" 
+    />
   </div>
 </template>
 
@@ -755,6 +944,25 @@ h2 {
 
 .assets-table tbody tr.active:hover {
   background: #c8c8c8;
+}
+
+/* Expiration Warning Styles (Only for available filter, applied to span) */
+.expire-warning-60 {
+  background-color: #fff9c4 !important; /* 연노랑 */
+  color: #856404 !important;
+  font-weight: bold;
+}
+
+.expire-warning-30 {
+  background-color: #ffe0b2 !important; /* 연한 주황 */
+  color: #e65100 !important;
+  font-weight: bold;
+}
+
+.expire-passed {
+  background-color: #f8bbd0 !important; /* 연분홍 (만료) */
+  color: #c2185b !important;
+  font-weight: bold;
 }
 
 .clickable-row {
@@ -1029,9 +1237,80 @@ h2 {
   transform: translateY(-2px);
 }
 
+.btn-tracking {
+  background: #777;
+  color: white;
+}
+
+.btn-tracking:hover {
+  background: #555;
+  transform: translateY(-2px);
+}
+
 .btn-filter.active {
   background: #666;
   box-shadow: 0 5px 15px rgba(102, 102, 102, 0.4);
 }
+
+/* New styles for return process button */
+.btn-return-process {
+  background: #6b8e6f; /* Match with CSV button */
+  color: white;
+  transform: scale(0.8);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.btn-return-process:hover:not(:disabled) {
+  background: #5a7a5e;
+  transform: scale(0.8) translateY(-2px);
+  box-shadow: 0 5px 15px rgba(107, 142, 111, 0.4);
+}
+
+.btn-returned {
+  background: #6c757d; /* Gray */
+  color: white;
+  cursor: not-allowed;
+  transform: scale(0.8);
+  font-size: 12px;
+  padding: 8px 12px;
+}
+.btn-returned:hover {
+  background: #6c757d; /* No hover effect for disabled */
+  transform: none;
+  box-shadow: none;
+}
+
+/* 반납 처리 모달 스타일 */
+.return-modal {
+  max-width: 500px;
+}
+
+.return-message {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+  text-align: center;
+  padding: 20px 0;
+  margin: 0;
+}
+
+.btn-confirm {
+  background: #27ae60;
+  color: white;
+  padding: 10px 24px;
+  font-weight: 600;
+}
+
+.btn-confirm:hover:not(:disabled) {
+  background: #229954;
+  transform: translateY(-2px);
+}
+
+.btn-confirm:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 </style>
 

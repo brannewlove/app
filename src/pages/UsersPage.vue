@@ -13,6 +13,7 @@ const searchQuery = ref('');
 const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editedUser = ref(null);
+const isClickStartedOnOverlay = ref(false);
 
 // 테이블 헤더 가져오기 (user_id와 password 제외)
 const getTableHeaders = (data) => {
@@ -225,6 +226,18 @@ const closeModal = () => {
   isEditMode.value = false;
   selectedUser.value = null;
   editedUser.value = null;
+  isClickStartedOnOverlay.value = false;
+};
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target === e.currentTarget;
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target === e.currentTarget) {
+    closeModal();
+  }
+  isClickStartedOnOverlay.value = false;
 };
 
 // 수정 모드 토글
@@ -276,8 +289,8 @@ const saveUser = async () => {
   }
 };
 
-// CSV 다운로드
-const downloadCSV = () => {
+// TSV 다운로드
+const downloadTSV = () => {
   if (users.value.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
@@ -292,35 +305,34 @@ const downloadCSV = () => {
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
   const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
-  const filename = `UsersPage_${timestamp}.csv`;
+  const filename = `UsersPage_${timestamp}.tsv`;
   
-  // CSV 헤더 생성 (실제 출력되는 컬럼들만)
+  // TSV 헤더 생성 (실제 출력되는 컬럼들만)
   const headers = getTableHeaders(users.value);
-  const csvContent = [
-    headers.join(','),
+  const tsvContent = [
+    headers.join('\t'),
     ...users.value.map(user => 
       headers.map(header => {
         const value = user[header] || '';
-        // 쉼표나 줄바꿈을 포함한 값을 큰따옴표로 감싸기
-        if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
+        // 탭이나 줄바꿈을 포함한 값 처리
+        if (typeof value === 'string') {
+          return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
         }
         return value;
-      }).join(',')
+      }).join('\t')
     )
   ].join('\n');
   
-  // Blob 생성 및 다운로드 (UTF-8 BOM 추가로 엑셀 한글 깨짐 방지)
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  // UTF-8 BOM과 함께 TSV 파일 생성
+  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
   const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 };
+
 
 // 컴포넌트 마운트 시 사용자 목록 조회
 onMounted(() => {
@@ -352,7 +364,7 @@ onMounted(() => {
       ⏳ 로딩 중...
     </div>
     
-    <div v-if="isModalOpen" class="modal-overlay" @click.self="closeModal">
+    <div v-if="isModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
       <div class="modal-content">
         <div class="modal-header">
           <h2>사용자 정보</h2>
@@ -389,7 +401,7 @@ onMounted(() => {
     <div v-if="users.length > 0" class="users-section">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>사용자 목록 ({{ filteredUsers.length }}명)</h2>
-        <button @click="downloadCSV" class="btn btn-csv">csv</button>
+        <button @click="downloadTSV" class="btn btn-csv">tsv</button>
       </div>
       
       <div class="search-container">

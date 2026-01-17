@@ -37,31 +37,33 @@ const fetchTrades = async () => {
 const openTrackingModal = () => isTrackingOpen.value = true;
 const openExportModal = () => isExportModalOpen.value = true;
 
-const downloadCSV = (data) => {
+const downloadTSV = (data) => {
   if (data.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `TradePage_${timestamp}.csv`;
+  const filename = `TradePage_${timestamp}.tsv`;
   const headers = [
     'trade_id', 'timestamp', 'work_type', 'asset_id', 'model',
     'ex_user', 'ex_user_name', 'ex_user_part',
     'cj_id', 'name', 'part', 'memo'
   ];
-  const csvContent = [
-    headers.join(','),
+  const tsvContent = [
+    headers.join('\t'),
     ...data.map(trade => 
       headers.map(header => {
         const value = trade[header] || '';
-        return typeof value === 'string' && (value.includes(',') || value.includes('"')) 
-          ? `"${value.replace(/"/g, '""')}"` 
-          : value;
-      }).join(',')
+        // 탭이나 줄바꿈을 포함한 값 처리
+        if (typeof value === 'string') {
+          return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
+        }
+        return value;
+      }).join('\t')
     )
   ].join('\n');
   
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -93,12 +95,12 @@ onMounted(fetchTrades);
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" @download="downloadCSV">
+    <TradeList v-if="!loading" :trades="trades" @download="downloadTSV">
       <template #actions>
         <div style="display: flex; gap: 10px;">
           <button @click="openTrackingModal" class="btn btn-tracking">추적</button>
           <button @click="openExportModal" class="btn btn-export">변경 Export</button>
-          <button @click="downloadCSV(trades)" class="btn btn-csv">csv</button>
+          <button @click="downloadTSV(trades)" class="btn btn-csv">tsv</button>
         </div>
       </template>
     </TradeList>
