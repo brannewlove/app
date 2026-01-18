@@ -157,7 +157,11 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  id: String
+  id: String,
+  filterFn: {
+    type: Function,
+    default: null
+  }
 });
 
 const emit = defineEmits(['select']);
@@ -293,12 +297,15 @@ const handleItemClick = (value) => {
 const filterData = (query) => {
   console.log('Filtering with query:', query);
   
+  // 기획에 의한 필터링 적용
+  const baseList = props.filterFn ? workTypes.filter(props.filterFn) : workTypes;
+  
   if (!query || query.trim() === '') {
-    filteredData.value = [...workTypes];
+    filteredData.value = [...baseList];
     console.log('No query - showing all:', filteredData.value.length);
   } else {
     const lowerQuery = query.toLowerCase().trim();
-    filteredData.value = workTypes.filter(item => {
+    filteredData.value = baseList.filter(item => {
       // 안전성 체크 추가
       const workType = (item.work_type || '').toLowerCase();
       const category = (item.category || '').toLowerCase();

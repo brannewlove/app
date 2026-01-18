@@ -15,6 +15,7 @@ const exportLoading = ref(false);
 const exportError = ref(null);
 const excludedAssets = ref({});
 const isDragging = ref(false); // 드래그 상태 추적
+const isCopied = ref(false);
 
 const closeModal = () => {
   emit('close');
@@ -123,6 +124,33 @@ const visibleAssets = computed(() => {
   return exportAssets.value.filter(asset => !excludedAssets.value[asset.asset_number]?.checked);
 });
 
+const copyToClipboard = () => {
+  // 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청 반영)
+  const dataToCopy = exportAssets.value;
+  
+  if (dataToCopy.length === 0) return;
+
+  const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
+  const tsvContent = [
+    headers.join('\t'),
+    ...dataToCopy.map(asset => {
+      const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
+      return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
+        .map(value => String(value).replace(/\t/g, ' ').replace(/\n/g, ' '))
+        .join('\t');
+    })
+  ].join('\n');
+
+  navigator.clipboard.writeText(tsvContent).then(() => {
+    isCopied.value = true;
+    setTimeout(() => {
+      isCopied.value = false;
+    }, 2000);
+  }).catch(err => {
+    console.error('클립보드 복사 실패:', err);
+  });
+};
+
 const downloadExportData = () => {
   // TSV 다운로드 시에는 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청)
   const dataToDownload = exportAssets.value;
@@ -139,12 +167,7 @@ const downloadExportData = () => {
     ...dataToDownload.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
       return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
-        .map(value => {
-          if (typeof value === 'string') {
-            return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
-          }
-          return value;
-        })
+        .map(value => String(value).replace(/\t/g, ' ').replace(/\n/g, ' '))
         .join('\t');
     })
   ].join('\n');
@@ -203,8 +226,14 @@ onMounted(async () => {
             </tbody>
           </table>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button class="btn btn-secondary" @click="closeModal">취소</button>
-            <button class="btn btn-primary" @click="downloadExportData" :disabled="exportAssets.length === 0">TSV 다운로드</button>
+            <button class="btn btn-secondary" @click="closeModal">닫기</button>
+            <button class="btn btn-primary btn-copy" @click="copyToClipboard" :disabled="exportAssets.length === 0">
+              {{ isCopied ? '✓' : '복사' }}
+            </button>
+            <button class="btn btn-primary btn-tsv" @click="downloadExportData" :disabled="exportAssets.length === 0">
+              <img src="/images/down.png" alt="download" class="btn-icon" />
+              tsv
+            </button>
           </div>
         </div>
         <div v-else class="tracking-logs-empty">데이터가 없습니다.</div>
@@ -215,7 +244,7 @@ onMounted(async () => {
 
 <style scoped>
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; border-radius: 8px; max-width: 1200px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+.modal-content { background: white; border-radius: 8px; width: 90%; max-width: 800px; max-height: 80vh; overflow: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #eee; background: #f9f9f9; }
 .modal-header h2 { margin: 0; color: #333; }
 .modal-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
@@ -228,6 +257,21 @@ onMounted(async () => {
 .btn-primary { background: #666; color: white; }
 .btn-primary:hover { background: #555; }
 .btn-primary:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+
+.btn-tsv, .btn-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
+
 .btn-secondary { background: white; color: #333; border: 1px solid #ddd; }
 .btn-secondary:hover { background: #f5f5f5; }
 .export-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }

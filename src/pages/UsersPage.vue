@@ -258,7 +258,10 @@ onMounted(() => {
     <div v-if="users.length > 0" class="users-section">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>사용자 목록 ({{ filteredUsers.length }}명)</h2>
-        <button @click="downloadTSV" class="btn btn-csv">tsv</button>
+        <button @click="downloadTSV" class="btn btn-csv">
+          <img src="/images/down.png" alt="download" class="btn-icon" />
+          tsv
+        </button>
       </div>
       
       <div class="search-container">
@@ -340,5 +343,32 @@ h2 {
   color: #555;
   margin: 0 0 15px 0;
   font-size: 20px;
+}
+
+/* TSV 버튼 스타일 */
+.btn-csv {
+  background: #5e88af;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-csv:hover {
+  background: #4a6d8d;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 흰색으로 변경 */
 }
 </style>

@@ -3,7 +3,6 @@ import LoginPage from '../pages/LoginPage.vue'
 import UsersPage from '../pages/UsersPage.vue'
 import AssetsPage from '../pages/AssetsPage.vue'
 import TradePage from '../pages/TradePage.vue'
-import TradeRegisterPage from '../pages/TradeRegisterPage.vue'
 import ReturnProcessingPage from '../pages/ReturnProcessingPage.vue'
 import DataManagementPage from '../pages/DataManagementPage.vue'
 
@@ -32,12 +31,6 @@ const router = createRouter({
       path: '/trades',
       name: 'Trades',
       component: TradePage,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/trade-register',
-      name: 'TradeRegister',
-      component: TradeRegisterPage,
       meta: { requiresAuth: true }
     },
     {

@@ -82,7 +82,7 @@ const getSortIcon = (column) => {
 const orderedColumns = computed(() => {
   if (!props.trades[0]) return [];
   const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
-  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'cj_id', 'name', 'part', 'memo'];
+  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'cj_id', 'name', 'part', 'memo', 'category'];
   const allHeaders = Object.keys(props.trades[0]);
   const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
   if (allHeaders.includes('memo')) {

@@ -28,6 +28,7 @@ const trackingLogs = ref([]);
 const trackingLoading = ref(false);
 const trackingError = ref(null);
 const isDragging = ref(false);
+const isCopied = ref(false);
 
 // 모달이 열릴 때 초기 자산 번호가 있으면 로그 조회
 watch(() => props.isOpen, (newVal) => {
@@ -88,6 +89,48 @@ const fetchTrackingLogs = async () => {
     trackingLoading.value = false;
   }
 };
+
+const copyAssetInfo = () => {
+  if (!selectedAsset.value) return;
+
+  const { asset_number, category, model } = selectedAsset.value;
+  
+  // HTML 버전 (요청하신 스타일 적용)
+  const htmlTable = `
+    <table style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif;">
+      <thead>
+        <tr style="background-color: #f2f2f2; font-weight: bold;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">자산번호</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">분류</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">모델</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px;">${asset_number || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${category || '-'}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${model || '-'}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  // 텍스트 버전 (Fallback)
+  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}`;
+
+  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
+  const blobText = new Blob([plainText], { type: 'text/plain' });
+  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
+
+  navigator.clipboard.write(data).then(() => {
+    isCopied.value = true;
+    setTimeout(() => {
+      isCopied.value = false;
+    }, 2000);
+  }).catch(err => {
+    console.error('클립보드 복사 실패:', err);
+  });
+};
 </script>
 
 <template>
@@ -121,10 +164,19 @@ const fetchTrackingLogs = async () => {
           />
         </div>
 
-        <div v-if="selectedAsset" class="asset-info-summary">
-          <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
-          <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
-          <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
+        <div v-if="selectedAsset">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <h3 style="margin: 0; font-size: 16px; color: #333;">자산 정보</h3>
+            <button class="copy-btn-small" @click="copyAssetInfo" title="클립보드 복사">
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
+              <span v-else class="check-mark-black">✓</span>
+            </button>
+          </div>
+          <div class="asset-info-summary">
+            <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
+            <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
+            <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
+          </div>
         </div>
 
         <div v-if="trackingError" class="alert alert-error">
@@ -160,7 +212,29 @@ const fetchTrackingLogs = async () => {
 </template>
 
 <style scoped>
-.modal-content { max-width: 1200px; max-height: 85vh; overflow: auto; }
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+}
 .modal-content::-webkit-scrollbar { width: 12px; }
 .modal-content::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
 .modal-content::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; border: 3px solid #f1f1f1; }
@@ -186,4 +260,36 @@ const fetchTrackingLogs = async () => {
 .flow-date { font-size: 11px; color: #8a99af; font-weight: 500; }
 .flow-arrow { font-size: 24px; color: #a5b1c2; font-weight: bold; }
 .tracking-logs-empty { text-align: center; padding: 50px; color: #999; font-style: italic; }
+
+/* 복사 버튼 스타일 */
+.copy-btn-small {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.copy-btn-small:hover {
+  opacity: 0.7;
+}
+
+.btn-icon-black {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: brightness(0);
+}
+
+.check-mark-black {
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
+}
 </style>

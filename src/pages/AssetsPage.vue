@@ -56,6 +56,12 @@ const isEditMode = ref(false);
 const editedAsset = ref(null);
 const isClickStartedOnOverlay = ref(false);
 const isTrackingOpen = ref(false); // 추적 모달 상태 추가
+const isAssetCopied = ref(false);
+const assetModalFields = [
+  'category', 'model', 'asset_number', 'serial_number',
+  'day_of_start', 'day_of_end', 'contract_month',
+  'in_user', 'user_name', 'user_part', 'state'
+];
 const stateOptions = ['useable', 'rent', 'repair', 'termination', 'process-ter'];
 
 // 반납 처리 모달 상태
@@ -185,7 +191,10 @@ const fetchAssetById = async (id) => {
 
 const handleRowClick = (asset) => {
   if (asset.asset_id) {
-    fetchAssetById(asset.asset_id);
+    selectedAsset.value = asset;
+    editedAsset.value = JSON.parse(JSON.stringify(asset));
+    isModalOpen.value = true;
+    isEditMode.value = false;
   } else {
     error.value = 'Asset ID를 찾을 수 없습니다.';
   }
@@ -369,12 +378,56 @@ const submitQuickTrade = async () => {
     } else {
       quickTradeError.value = response.data.error || '등록 실패';
     }
-  } catch (err) {
-    quickTradeError.value = err.response?.data?.error || err.message;
   } finally {
     loading.value = false;
   }
 };
+
+// 작업 유형 필터링 로직 (자산 상태 및 보유자에 따라)
+const currentWorkTypeFilter = computed(() => {
+  const asset = selectedAsset.value;
+  if (!asset) return () => true;
+
+  const { state, in_user } = asset;
+  
+  return (wt) => {
+    const type = wt.work_type;
+    
+    // 1. 상태가 'wait' (신규/대기)인 경우
+    if (state === 'wait') {
+      return ['출고-신규지급', '출고-신규교체'].includes(type);
+    }
+    
+    // 2. 상태가 'useable' (사용가능/사용중)인 경우
+    if (state === 'useable') {
+      if (in_user === 'cjenc_inno') {
+        // 전산실 재고: 타인에게 출고하거나 렌탈사 반납
+        return [
+          '출고-재고지급', '출고-재고교체', '출고-대여', '출고-수리',
+          '반납', '반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기'
+        ].includes(type);
+      } else {
+        // 사용자 보유: 타인에게 변경하거나 전산실 입고
+        return [
+          '출고-사용자변경', '출고-수리',
+          '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-임의반납', '입고-휴직반납', '입고-재입사예정'
+        ].includes(type);
+      }
+    }
+    
+    // 3. 상태가 'rent' (대여중)인 경우
+    if (state === 'rent') {
+      return type === '입고-대여반납';
+    }
+    
+    // 4. 상태가 'repair' (수리중)인 경우
+    if (state === 'repair') {
+      return type === '입고-수리반납';
+    }
+    
+    return false;
+  };
+});
 
 const handleOverlayMouseDown = (e) => {
   isClickStartedOnOverlay.value = e.target === e.currentTarget;
@@ -504,6 +557,44 @@ const downloadTSV = () => {
   document.body.removeChild(link);
 };
 
+const copyAssetInfoDetailed = () => {
+  if (!selectedAsset.value) return;
+
+  const fields = assetModalFields.filter(key => selectedAsset.value[key] !== undefined);
+  
+  // HTML 버전 (요청하신 스타일 적용: 12px, 헤더 회색배경, 볼드체)
+  const htmlTable = `
+    <table style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif;">
+      <thead>
+        <tr style="background-color: #f2f2f2; font-weight: bold;">
+          ${fields.map(field => `<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">${getHeaderDisplayName(field)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          ${fields.map(field => `<td style="border: 1px solid #ddd; padding: 8px;">${formatCellValue(selectedAsset.value[field], field, selectedAsset.value) || '-'}</td>`).join('')}
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  // 텍스트 버전 (Fallback)
+  const plainText = fields.map(field => `${getHeaderDisplayName(field)}: ${formatCellValue(selectedAsset.value[field], field, selectedAsset.value) || '-'}`).join('\n');
+
+  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
+  const blobText = new Blob([plainText], { type: 'text/plain' });
+  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
+
+  navigator.clipboard.write(data).then(() => {
+    isAssetCopied.value = true;
+    setTimeout(() => {
+      isAssetCopied.value = false;
+    }, 2000);
+  }).catch(err => {
+    console.error('클립보드 복사 실패:', err);
+  });
+};
+
 const getExpirationClass = (asset) => {
   if (activeFilter.value !== 'available' || !asset.day_of_end) return '';
 
@@ -562,20 +653,26 @@ onMounted(() => {
     <div v-if="isModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>자산 정보</h2>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="margin: 0;">자산 정보</h2>
+            <button class="copy-btn-small" @click="copyAssetInfoDetailed" title="클립보드 복사">
+              <img v-if="!isAssetCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
+              <span v-else class="check-mark-black">✓</span>
+            </button>
+          </div>
           <button @click="closeModal" class="close-btn">✕</button>
         </div>
         
         <div class="modal-body">
           <div v-if="selectedAsset" class="form-grid">
-            <template v-for="(value, key) in selectedAsset" :key="key">
-              <div v-if="key !== 'unit_price'" class="form-group">
+            <template v-for="key in assetModalFields" :key="key">
+              <div v-if="selectedAsset[key] !== undefined" class="form-group">
                 <label>{{ getHeaderDisplayName(key) }}</label>
                 <select v-if="isEditMode && key === 'state'" v-model="editedAsset[key]" class="form-input">
                   <option v-for="opt in stateOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
                 <input v-else-if="isEditMode" v-model="editedAsset[key]" type="text" class="form-input" :disabled="['asset_id', 'asset_number', 'unit_price'].includes(key)" />
-                <div v-else class="form-value"> {{ formatCellValue(value, key, selectedAsset) }} </div>
+                <div v-else class="form-value"> {{ formatCellValue(selectedAsset[key], key, selectedAsset) }} </div>
               </div>
             </template>
           </div>
@@ -594,6 +691,7 @@ onMounted(() => {
                     id="quick-work-type"
                     :initial-value="quickTradeForm.work_type"
                     placeholder="작업 유형 선택"
+                    :filter-fn="currentWorkTypeFilter"
                     @select="(item) => quickTradeForm.work_type = item.work_type"
                   />
                 </div>
@@ -672,7 +770,10 @@ onMounted(() => {
           <button @click="activeFilter = activeFilter === 'available' ? null : 'available'" :class="{ active: activeFilter === 'available' }" class="btn btn-filter">가용재고</button>
           <button @click="activeFilter = activeFilter === 'rent' ? null : 'rent'" :class="{ active: activeFilter === 'rent' }" class="btn btn-filter">대여중</button>
           <button @click="activeFilter = activeFilter === 'repair' ? null : 'repair'" :class="{ active: activeFilter === 'repair' }" class="btn btn-filter">수리중</button>
-          <button @click="downloadTSV" class="btn btn-csv">tsv</button>
+          <button @click="downloadTSV" class="btn btn-csv">
+            <img src="/images/down.png" alt="download" class="btn-icon" />
+            tsv
+          </button>
         </div>
       </div>
       
@@ -819,6 +920,23 @@ h2 {
 .btn-trade { background: #5e88af; color: white; }
 .btn-trade:hover { background: #4a6f8f; }
 
+.btn-csv {
+  background: #5e88af;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-csv:hover { background: #4a6d8d; }
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
+
 .quick-trade-section {
   margin-top: 25px;
   padding-top: 20px;
@@ -876,5 +994,37 @@ h2 {
   font-size: 13px;
   margin-bottom: 10px;
   border-radius: 4px;
+}
+
+/* 복사 버튼 스타일 */
+.copy-btn-small {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.copy-btn-small:hover {
+  opacity: 0.7;
+}
+
+.btn-icon-black {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: brightness(0); /* 검은색으로 변경 */
+}
+
+.check-mark-black {
+  color: #333;
+  font-size: 16px;
+  font-weight: bold;
 }
 </style>

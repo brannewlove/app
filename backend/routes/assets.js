@@ -26,7 +26,17 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const [asset] = await pool.query('SELECT * FROM assets WHERE asset_id = ?', [id]);
+    const [asset] = await pool.query(
+      `SELECT 
+        a.asset_id, a.asset_number, a.category, a.model, a.serial_number, 
+        a.state, a.in_user, a.day_of_start, a.day_of_end, a.unit_price, a.contract_month,
+        u.name as user_name,
+        u.part as user_part
+      FROM assets a
+      LEFT JOIN users u ON a.in_user = u.cj_id
+      WHERE a.asset_id = ?`,
+      [id]
+    );
 
     if (asset.length === 0) {
       return error(res, '자산을 찾을 수 없습니다.', 404);

@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import TradeList from '../components/TradeList.vue';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import ChangeExportModal from '../components/ChangeExportModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 
 const trades = ref([]);
 const loading = ref(false);
@@ -14,6 +15,7 @@ const trackingAssetNumber = ref('');
 const trackingModel = ref('');
 const trackingCategory = ref('');
 const isExportModalOpen = ref(false);
+const isRegisterModalOpen = ref(false);
 
 const isConfirmModalOpen = ref(false);
 const confirmMessage = ref('');
@@ -127,7 +129,28 @@ const handleConfirmYes = () => {
   isConfirmModalOpen.value = false;
 };
 
-onMounted(fetchTrades);
+const handleKeyDown = (e) => {
+  if (e.key === 'Escape') {
+    if (isConfirmModalOpen.value) {
+      isConfirmModalOpen.value = false;
+    } else if (isRegisterModalOpen.value) {
+      isRegisterModalOpen.value = false;
+    } else if (isTrackingOpen.value) {
+      isTrackingOpen.value = false;
+    } else if (isExportModalOpen.value) {
+      isExportModalOpen.value = false;
+    }
+  }
+};
+
+onMounted(() => {
+  fetchTrades();
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
 
 <template>
@@ -140,9 +163,13 @@ onMounted(fetchTrades);
     <TradeList v-if="!loading" :trades="trades" @download="downloadTSV" @track-asset="handleTrackAsset">
       <template #actions>
         <div style="display: flex; gap: 10px;">
+          <button @click="isRegisterModalOpen = true" class="btn btn-register">거래 등록</button>
           <button @click="openTrackingModal" class="btn btn-tracking">추적</button>
           <button @click="openExportModal" class="btn btn-export">변경 Export</button>
-          <button @click="downloadTSV" class="btn btn-csv">tsv</button>
+          <button @click="downloadTSV" class="btn btn-csv">
+            <img src="/images/down.png" alt="download" class="btn-icon" />
+            tsv
+          </button>
         </div>
       </template>
     </TradeList>
@@ -161,6 +188,11 @@ onMounted(fetchTrades);
       @confirm="handleConfirmYes"
       @cancel="isConfirmModalOpen = false"
     />
+    <TradeRegisterModal 
+      :is-open="isRegisterModalOpen" 
+      @close="isRegisterModalOpen = false" 
+      @success="fetchTrades"
+    />
   </div>
 </template>
 
@@ -173,5 +205,32 @@ h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
 .btn-tracking { background: #777; color: white; }
 .btn-tracking:hover { background: #555; }
+.btn-register { background: #5e88af; color: white; }
+.btn-register:hover { background: #4a6f8f; }
 
+/* TSV 버튼 스타일 */
+.btn-csv {
+  background: #5e88af;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-csv:hover {
+  background: #4a6d8d;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
 </style>

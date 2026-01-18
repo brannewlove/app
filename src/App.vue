@@ -149,11 +149,6 @@ watch(() => router.currentRoute.value.path, () => {
             </router-link>
           </li>
           <li>
-            <router-link to="/trade-register" class="nav-link" :class="{ active: $route.path === '/trade-register' }">
-               거래 등록
-            </router-link>
-          </li>
-          <li>
             <router-link to="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }">
                반납처리
             </router-link>
@@ -170,7 +165,7 @@ watch(() => router.currentRoute.value.path, () => {
           <!-- 알림 버튼 -->
           <div class="notification-wrapper" v-if="currentUser && Number(currentUser.sec_level) === 100">
             <button @click="toggleNotifications" class="notification-btn">
-              🔔
+              <img src="/images/alram.png" alt="Notification" class="notification-icon" />
               <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
             </button>
             <div v-if="showNotifications" class="notification-dropdown" @click.stop>
@@ -348,16 +343,23 @@ watch(() => router.currentRoute.value.path, () => {
 }
 
 .notification-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 18px;
-  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 5px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
-  filter: grayscale(100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 이미지를 흰색으로 변경 */
 }
 
 .notification-btn:hover {

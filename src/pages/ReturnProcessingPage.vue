@@ -1,5 +1,6 @@
 <template>
   <div class="page-content">
+    <h1>반납 처리 관리</h1>
     <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
 
@@ -7,9 +8,12 @@
       <div class="section-header">
         <h2>반납 처리 목록 ({{ filteredReturnedAssets.length }}개)</h2>
         <div class="header-actions">
-          <button @click="downloadTSV" class="btn btn-tsv">tsv</button>
           <button @click="openExportModal" class="btn btn-export">
             반납메일 Export ({{ exportAssets.length }})
+          </button>
+          <button @click="downloadTSV" class="btn btn-csv">
+            <img src="/images/down.png" alt="download" class="btn-icon" />
+            tsv
           </button>
         </div>
       </div>
@@ -539,6 +543,14 @@ onUnmounted(() => {
   padding: 20px;
 }
 
+h1 {
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 28px;
+  border-bottom: 3px solid #999;
+  padding-bottom: 10px;
+}
+
 .assets-section {
   background: white;
   padding: 20px;
@@ -552,11 +564,55 @@ onUnmounted(() => {
   margin-top: 10px;
 }
 
-.btn-export { background: #556B2F; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s; }
+.btn-export { 
+  background: #556B2F; 
+  color: white; 
+  border: none; 
+  padding: 8px 15px; 
+  border-radius: 4px; 
+  cursor: pointer; 
+  font-size: 14px; 
+  font-weight: 600; 
+  transition: background 0.2s; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .btn-export:hover { background: #33401C; }
 
-.btn-tsv { background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s; margin-right: 10px; }
-.btn-tsv:hover { background: #5a6268; }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* TSV 버튼 스타일 */
+.btn-csv {
+  background: #5e88af;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-csv:hover {
+  background: #4a6d8d;
+}
+
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
 
 .returns-table {
   width: 100%;
