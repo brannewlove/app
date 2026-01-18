@@ -101,7 +101,7 @@
           }"
           @mousedown.prevent="handleItemClick(item)"
         >
-          <!-- 첫 번째 줄: cj_id/asset_id/asset_number 와 이름/model 정보 -->
+          <!-- 첫 번째 줄: cj_id/asset_number 와 이름/model 정보 -->
           <div
             v-if="apiColumn && item[apiColumn]"
             style="
@@ -272,7 +272,11 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  validateItem: Function
+  validateItem: Function,
+  apiParams: {
+    type: Object,
+    default: () => ({})
+  }
 });
 
 const emit = defineEmits(['update:modelValue', 'select']);
@@ -287,6 +291,8 @@ const highlightedIndex = ref(-1);
 const isValid = ref(true);
 const isDropdownHover = ref(false);
 const itemRefs = ref([]);
+const isSelecting = ref(false);
+const blurTimeout = ref(null);
 
 const dropdownStyle = reactive({
   top: 0,
@@ -337,7 +343,16 @@ watch(highlightedIndex, (newIndex) => {
 });
 
 // 값 선택
-const selectValue = (value, shouldMoveFocus = false) => {
+const selectValue = (value, focusDirection = 0) => {
+  if (isSelecting.value) return;
+  isSelecting.value = true;
+  
+  // 블러 예약 취소
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+
   let selectedDisplayValue = '';
   
   if (value && typeof value === 'object') {
@@ -364,24 +379,32 @@ const selectValue = (value, shouldMoveFocus = false) => {
   isOpen.value = false;
   isDropdownHover.value = false;  // 드롭다운 호버 상태 초기화
   highlightedIndex.value = -1;
+  filteredData.value = []; // 데이터 즉시 초기화하여 handleBlur 중복 실행 방지
+
   // 선택된 값이 유효한지 확인
   isValid.value = selectedDisplayValue.trim().length > 0;
   
   if (props.onSelect) props.onSelect(value);
   emit('select', value);
   
-  // shouldMoveFocus가 true면 다음 input 필드로 포커스 이동
-  if (shouldMoveFocus) {
+  // 포커스 이동 처리 (focusDirection: 1=정방향, -1=역방향)
+  if (focusDirection !== 0) {
     setTimeout(() => {
-      const currentInput = document.querySelector(`[data-id="${props.id}"]`);
+      const currentInput = inputRef.value;
       if (currentInput) {
-        const inputs = Array.from(document.querySelectorAll('input:not([disabled])'));
+        const inputs = Array.from(document.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])'));
         const currentIndex = inputs.indexOf(currentInput);
-        if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
-          inputs[currentIndex + 1].focus();
+        if (currentIndex !== -1) {
+          const nextIndex = currentIndex + focusDirection;
+          if (nextIndex >= 0 && nextIndex < inputs.length) {
+            inputs[nextIndex].focus();
+          }
         }
       }
-    }, 150); // 블러 처리가 완료될 때까지 충분한 지연
+      isSelecting.value = false;
+    }, 50);
+  } else {
+    isSelecting.value = false;
   }
 };
 
@@ -402,14 +425,29 @@ const fetchData = async (query) => {
     if (props.apiTable) url += `&table=${encodeURIComponent(props.apiTable)}`;
     if (props.apiColumn) url += `&column=${encodeURIComponent(props.apiColumn)}`;
     
+    // apiParams 추가
+    if (props.apiParams && typeof props.apiParams === 'object') {
+      Object.entries(props.apiParams).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+        }
+      });
+    }
+    
     const res = await fetch(url);
     const result = await res.json();
 
-    if (result.error) {
+    if (result.success === false || result.error) {
       filteredData.value = [];
       isValid.value = false;
     } else {
-      let data = Array.isArray(result) ? result : [];
+      // 신규 표준 응답 형식 { success: true, data: [...] } 대응
+      let data = [];
+      if (result.data && Array.isArray(result.data)) {
+        data = result.data;
+      } else if (Array.isArray(result)) {
+        data = result;
+      }
 
       if (!query || query.trim().length === 0) {
         data = data.sort((a, b) => {
@@ -487,18 +525,25 @@ const handleClick = async () => {
 
 // 블러 핸들러
 const handleBlur = () => {
-  setTimeout(() => {
+  blurTimeout.value = setTimeout(() => {
+    // 이미 선택 중이거나 드롭다운이 닫혀 있으면 중단
+    if (isSelecting.value || !isOpen.value) {
+      blurTimeout.value = null;
+      return;
+    }
+
     // 드롭다운 호버 상태가 아니고, 하이라이트된 항목이 있으면 자동 선택
     if (!isDropdownHover.value) {
       if (highlightedIndex.value >= 0 && filteredData.value[highlightedIndex.value]) {
-        selectValue(filteredData.value[highlightedIndex.value], false);
+        selectValue(filteredData.value[highlightedIndex.value], 0);
       } else if (filteredData.value.length === 1) {
         // 검색 결과가 1개만 있으면 자동 선택
-        selectValue(filteredData.value[0], false);
+        selectValue(filteredData.value[0], 0);
       } else {
         isOpen.value = false;
       }
     }
+    blurTimeout.value = null;
   }, 100);
 };
 
@@ -520,11 +565,14 @@ const handleKeyDown = (e) => {
       }
       break;
     case 'Tab':
-      if (filteredData.value.length > 0) {
-        e.preventDefault();
-        // 하이라이트가 없으면 첫 번째 항목 선택
-        const indexToSelect = highlightedIndex.value >= 0 ? highlightedIndex.value : 0;
-        selectValue(filteredData.value[indexToSelect], true);
+      if (isOpen.value && filteredData.value.length > 0) {
+        const indexToSelect = highlightedIndex.value >= 0 ? highlightedIndex.value : (filteredData.value.length === 1 ? 0 : -1);
+        
+        if (indexToSelect >= 0) {
+          e.preventDefault();
+          selectValue(filteredData.value[indexToSelect], e.shiftKey ? -1 : 1);
+        }
+        // 그 외의 경우(결과가 여러개인데 하이라이트가 없는 경우 등)는 기본 Tab 동작(이동) 허용
       }
       break;
     case 'Escape':

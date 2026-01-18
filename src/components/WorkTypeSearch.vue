@@ -193,6 +193,8 @@ const isOpen = ref(false);
 const highlightedIndex = ref(-1);
 const isDropdownHover = ref(false);
 const itemRefs = ref([]);
+const isSelecting = ref(false);
+const blurTimeout = ref(null);
 
 const dropdownStyle = reactive({
   top: 0,
@@ -239,7 +241,16 @@ watch(highlightedIndex, (newIndex) => {
 });
 
 // 값 선택
-const selectValue = (value, shouldMoveFocus = false) => {
+const selectValue = (value, focusDirection = 0) => {
+  if (isSelecting.value) return;
+  isSelecting.value = true;
+
+  // 블러 예약 취소
+  if (blurTimeout.value) {
+    clearTimeout(blurTimeout.value);
+    blurTimeout.value = null;
+  }
+
   const selectedValue = value.work_type;
   inputValue.value = selectedValue;
   if (inputRef.value) {
@@ -249,20 +260,27 @@ const selectValue = (value, shouldMoveFocus = false) => {
   isOpen.value = false;
   isDropdownHover.value = false;
   highlightedIndex.value = -1;
+  filteredData.value = []; // 데이터 즉시 초기화하여 handleBlur 중복 실행 방지
   
   emit('select', value);
   
-  if (shouldMoveFocus) {
+  if (focusDirection !== 0) {
     setTimeout(() => {
-      const currentInput = document.querySelector(`[data-id="${props.id}"]`);
+      const currentInput = inputRef.value;
       if (currentInput) {
-        const inputs = Array.from(document.querySelectorAll('input:not([disabled])'));
+        const inputs = Array.from(document.querySelectorAll('input:not([disabled]), select:not([disabled]), textarea:not([disabled])'));
         const currentIndex = inputs.indexOf(currentInput);
-        if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
-          inputs[currentIndex + 1].focus();
+        if (currentIndex !== -1) {
+          const nextIndex = currentIndex + focusDirection;
+          if (nextIndex >= 0 && nextIndex < inputs.length) {
+            inputs[nextIndex].focus();
+          }
         }
       }
-    }, 150);
+      isSelecting.value = false;
+    }, 50);
+  } else {
+    isSelecting.value = false;
   }
 };
 
@@ -331,18 +349,25 @@ const handleClick = () => {
 
 // 블러 핸들러
 const handleBlur = () => {
-  setTimeout(() => {
+  blurTimeout.value = setTimeout(() => {
+    // 이미 선택 중이거나 드롭다운이 닫혀 있으면 중단
+    if (isSelecting.value || !isOpen.value) {
+      blurTimeout.value = null;
+      return;
+    }
+
     // 드롭다운 호버 상태가 아니고, 하이라이트된 항목이 있으면 자동 선택
     if (!isDropdownHover.value) {
       if (highlightedIndex.value >= 0 && filteredData.value[highlightedIndex.value]) {
-        selectValue(filteredData.value[highlightedIndex.value], false);
+        selectValue(filteredData.value[highlightedIndex.value], 0);
       } else if (filteredData.value.length === 1) {
         // 검색 결과가 1개만 있으면 자동 선택
-        selectValue(filteredData.value[0], false);
+        selectValue(filteredData.value[0], 0);
       } else {
         isOpen.value = false;
       }
     }
+    blurTimeout.value = null;
   }, 100);
 };
 
@@ -364,10 +389,13 @@ const handleKeyDown = (e) => {
       }
       break;
     case 'Tab':
-      if (filteredData.value.length > 0) {
-        e.preventDefault();
-        const indexToSelect = highlightedIndex.value >= 0 ? highlightedIndex.value : 0;
-        selectValue(filteredData.value[indexToSelect], true);
+      if (isOpen.value && filteredData.value.length > 0) {
+        const indexToSelect = highlightedIndex.value >= 0 ? highlightedIndex.value : (filteredData.value.length === 1 ? 0 : -1);
+        
+        if (indexToSelect >= 0) {
+          e.preventDefault();
+          selectValue(filteredData.value[indexToSelect], e.shiftKey ? -1 : 1);
+        }
       }
       break;
     case 'Escape':

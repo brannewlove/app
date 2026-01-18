@@ -8,7 +8,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['download']);
+const emit = defineEmits(['download', 'track-asset']);
 
 const currentPage = ref(1);
 const itemsPerPage = 20;
@@ -18,13 +18,14 @@ const searchQuery = ref('');
 
 // 테이블 컬럼 순서 및 라벨 정의
 const columnOrder = [
-  'trade_id', 'timestamp', 'work_type', 'asset_id', 'model',
-  'ex_user_info', 'cj_id', 'name', 'part'
+  'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
+  'ex_user_info', 'new_user_info'
 ];
 const columnLabels = {
   'trade_id': '순번', 'timestamp': '작업시간', 'work_type': '작업유형',
-  'asset_id': '자산번호', 'model': '모델명', 'ex_user_info': '이전 사용자 정보',
+  'asset_number': '자산번호', 'model': '모델명', 'ex_user_info': '이전 사용자 정보',
   'ex_user_name': '이전 이름', 'ex_user': '이전 사용자ID', 'ex_user_part': '이전 부서',
+  'new_user_info': '변경 사용자 정보',
   'cj_id': '사용자ID', 'name': '이름', 'part': '부서', 'memo': '메모'
 };
 
@@ -80,8 +81,8 @@ const getSortIcon = (column) => {
 
 const orderedColumns = computed(() => {
   if (!props.trades[0]) return [];
-  const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info');
-  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'memo'];
+  const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
+  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'cj_id', 'name', 'part', 'memo'];
   const allHeaders = Object.keys(props.trades[0]);
   const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
   if (allHeaders.includes('memo')) {
@@ -138,11 +139,17 @@ const download = () => {
       <slot name="actions"></slot>
     </div>
 
+    <!-- 검색창 추가 (자산관리페이지와 동일 방식) -->
     <div class="search-container">
-      <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
+      <input v-model="searchQuery" type="text" placeholder="거래 내역 검색..." class="search-input" />
+      <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
+    </div>
+    <div v-if="searchQuery" class="search-result">
+      검색 결과: {{ filteredTrades.length }}개
     </div>
 
-    <table class="trades-table">
+    <div class="table-wrapper">
+      <table class="trades-table">
       <thead>
         <tr>
           <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" class="sortable-header" :class="{ active: sortColumn === header }">
@@ -151,6 +158,7 @@ const download = () => {
               <span class="sort-icon">{{ getSortIcon(header) }}</span>
             </div>
           </th>
+          <th class="actions-header">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -163,11 +171,21 @@ const download = () => {
                 <div style="font-size: 0.85em; color: #666;">{{ trade.ex_user_part || '-' }}</div>
               </div>
             </template>
+            <template v-else-if="header === 'new_user_info'">
+              <div style="line-height: 1.4;">
+                <strong>{{ trade.name || '-' }}</strong> ({{ trade.cj_id || '-' }})
+                <div style="font-size: 0.85em; color: #666;">{{ trade.part || '-' }}</div>
+              </div>
+            </template>
             <template v-else>{{ trade[header] || '-' }}</template>
+          </td>
+          <td class="action-cell">
+            <button @click="emit('track-asset', trade)" class="btn-action btn-track">추적</button>
           </td>
         </tr>
       </tbody>
-    </table>
+      </table>
+    </div>
 
     <div style="margin-top: 20px; text-align: center;">
       <button v-if="currentPage > 1" @click="prevPage" class="btn btn-pagination">이전</button>
@@ -182,24 +200,28 @@ const download = () => {
 
 <style scoped>
 .trades-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-h2 { color: #555; margin: 0 0 15px 0; font-size: 20px; }
-.search-container { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
-.search-input { flex: 1; padding: 12px 16px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; transition: all 0.3s ease; }
-.search-input:focus { outline: none; border-color: #999; box-shadow: 0 0 0 3px rgba(153,153,153,0.1); }
+h2 { color: #555; margin: 0; font-size: 20px; }
+/* 검색 관련 스타일은 global.css를 따르되 필요한 경우 여기서 조정 */
+.search-container { margin-bottom: 20px; }
 .btn-pagination, .btn-page { padding: 10px 15px; margin: 0 2px; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; font-size: 14px; }
 .btn-pagination:hover:not(:disabled), .btn-page:hover { background: #e0e0e0; }
 .btn-pagination:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
 .btn-page.active { background: #777; color: white; border-color: #777; font-weight: bold; }
-.trades-table { width: 100%; border-collapse: collapse; font-size: 14px; background: white; table-layout: auto; margin: 20px 0; }
-.trades-table thead { background: #4a4a4a; color: white; position: sticky; top: 0; z-index: 10; }
-.sortable-header { padding: 0; cursor: pointer; user-select: none; position: relative; transition: background 0.3s ease; color: white; background: #4a4a4a; }
+.trades-table { width: 100%; border-collapse: collapse; font-size: 14px; background: white; table-layout: auto; }
+.trades-table thead { background: var(--primary-color); color: white; position: sticky; top: 0; z-index: 10; }
+.sortable-header { padding: 0; cursor: pointer; user-select: none; position: relative; transition: background 0.3s ease; color: white; background: var(--primary-color); }
 .sortable-header:hover:not(.active) { background: rgba(255,255,255,0.15); }
-.sortable-header.active { background: #3a3a3a; color: #ffeb3b; }
+.sortable-header.active { background: rgba(0,0,0,0.2); color: var(--accent-color); }
 .header-content { padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sort-icon { opacity: 0.6; font-size: 12px; min-width: 16px; text-align: right; }
 .sortable-header.active .sort-icon { opacity: 1; font-weight: bold; }
-.trades-table td { padding: 14px 12px; border-bottom: 1px solid #d8d8d8; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; vertical-align: middle; }
+.trades-table td { padding: 14px 12px; border-bottom: 1px solid #eee; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; vertical-align: middle; }
 .trades-table tbody tr { transition: all 0.2s ease; background: #ffffff; }
-.trades-table tbody tr.stripe { background: #f0f0f0; }
+.trades-table tbody tr.stripe { background: #f8f9fa; }
+.actions-header { background: var(--primary-color); color: white; padding: 12px; font-weight: 600; text-align: center; }
+.action-cell { text-align: center; }
+.btn-action { padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+.btn-track { background: #777; color: white; }
+.btn-track:hover { background: #555; transform: translateY(-1px); }
 .empty-state { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
 </style>

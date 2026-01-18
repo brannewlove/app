@@ -10,6 +10,9 @@ const loading = ref(false);
 const error = ref(null);
 
 const isTrackingOpen = ref(false);
+const trackingAssetNumber = ref('');
+const trackingModel = ref('');
+const trackingCategory = ref('');
 const isExportModalOpen = ref(false);
 
 const isConfirmModalOpen = ref(false);
@@ -34,31 +37,70 @@ const fetchTrades = async () => {
   }
 };
 
-const openTrackingModal = () => isTrackingOpen.value = true;
+const openTrackingModal = () => {
+  trackingAssetNumber.value = '';
+  trackingModel.value = '';
+  trackingCategory.value = '';
+  isTrackingOpen.value = true;
+};
 const openExportModal = () => isExportModalOpen.value = true;
 
-const downloadTSV = (data) => {
-  if (data.length === 0) {
+const handleTrackAsset = (trade) => {
+  trackingAssetNumber.value = trade.asset_number;
+  trackingModel.value = trade.model || '';
+  trackingCategory.value = trade.category || '';
+  isTrackingOpen.value = true;
+};
+
+const closeTrackingModal = () => {
+  isTrackingOpen.value = false;
+  trackingAssetNumber.value = '';
+  trackingModel.value = '';
+  trackingCategory.value = '';
+};
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
+const downloadTSV = () => {
+  const tradesData = trades.value || [];
+  if (tradesData.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
   const filename = `TradePage_${timestamp}.tsv`;
+
+  // 헤더는 영문 키값으로 원복 (이전 요청사항 반영)
   const headers = [
-    'trade_id', 'timestamp', 'work_type', 'asset_id', 'model',
+    'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
     'ex_user', 'ex_user_name', 'ex_user_part',
     'cj_id', 'name', 'part', 'memo'
   ];
+
   const tsvContent = [
     headers.join('\t'),
-    ...data.map(trade => 
+    ...tradesData.map(trade => 
       headers.map(header => {
-        const value = trade[header] || '';
-        // 탭이나 줄바꿈을 포함한 값 처리
-        if (typeof value === 'string') {
-          return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
+        let value = trade[header];
+        if (header === 'timestamp') {
+          value = formatDateTime(value);
         }
-        return value;
+        // 빈 값은 빈 문자열로 처리 (사용자 요청 반영)
+        if (value === null || value === undefined) {
+          value = '';
+        }
+        // 탭이나 줄바꿈을 포함한 값 처리
+        return String(value).replace(/\t/g, ' ').replace(/\n/g, ' ');
       }).join('\t')
     )
   ].join('\n');
@@ -95,17 +137,23 @@ onMounted(fetchTrades);
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" @download="downloadTSV">
+    <TradeList v-if="!loading" :trades="trades" @download="downloadTSV" @track-asset="handleTrackAsset">
       <template #actions>
         <div style="display: flex; gap: 10px;">
           <button @click="openTrackingModal" class="btn btn-tracking">추적</button>
           <button @click="openExportModal" class="btn btn-export">변경 Export</button>
-          <button @click="downloadTSV(trades)" class="btn btn-csv">tsv</button>
+          <button @click="downloadTSV" class="btn btn-csv">tsv</button>
         </div>
       </template>
     </TradeList>
 
-    <AssetTrackingModal :is-open="isTrackingOpen" @close="isTrackingOpen = false" />
+    <AssetTrackingModal 
+      :is-open="isTrackingOpen" 
+      :initial-asset-number="trackingAssetNumber"
+      :initial-model="trackingModel"
+      :initial-category="trackingCategory"
+      @close="closeTrackingModal" 
+    />
     <ChangeExportModal :is-open="isExportModalOpen" @close="isExportModalOpen = false" />
     <ConfirmationModal 
       :is-open="isConfirmModalOpen"
@@ -125,8 +173,5 @@ h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
 .btn-tracking { background: #777; color: white; }
 .btn-tracking:hover { background: #555; }
-.btn-export { background: #777; color: white; }
-.btn-export:hover { background: #555; }
-.btn-csv { background: #6b8e6f; color: white; }
-.btn-csv:hover { background: #5a7a5e; }
+
 </style>

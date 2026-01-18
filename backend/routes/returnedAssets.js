@@ -1,19 +1,7 @@
 var express = require('express');
 var router = express.Router();
-const mysql = require('mysql2/promise');
-const dbConfig = require('../config/db.config');
-
-// MySQL 연결 풀
-const pool = mysql.createPool({
-  connectionLimit: 10,
-  host: dbConfig.host,
-  user: dbConfig.user,
-  password: dbConfig.password,
-  database: dbConfig.database,
-  port: dbConfig.port,
-  waitForConnections: true,
-  enableKeepAlive: true
-});
+const pool = require('../utils/db');
+const { success, error } = require('../utils/response');
 
 // 모든 요청 로깅 미들웨어
 router.use((req, res, next) => {
@@ -24,31 +12,28 @@ router.use((req, res, next) => {
 /* GET returned assets listing - 모든 반납 자산 조회 */
 router.get('/', async (req, res, next) => {
   try {
-    const connection = await pool.getConnection();
-    const [returnedAssets] = await connection.query(
-      `SELECT * FROM returned_assets ORDER BY handover_date DESC`
+    const [returnedAssets] = await pool.query(
+      `SELECT 
+        return_id, asset_number, return_reason, model, serial_number, return_type,
+        DATE_FORMAT(end_date, '%Y-%m-%d') as end_date,
+        user_id, user_name, department,
+        DATE_FORMAT(handover_date, '%Y-%m-%d') as handover_date,
+        release_status, it_room_stock, low_format, it_return, mail_return, actual_return,
+        complete, remarks, created_at
+      FROM returned_assets 
+      ORDER BY created_at DESC`
     );
-    connection.release();
-
-    res.json({
-      success: true,
-      data: returnedAssets,
-      count: returnedAssets.length
-    });
+    success(res, returnedAssets);
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    error(res, err.message);
   }
 });
 
 /* POST a new returned asset - 새로운 반납 자산 추가 */
 router.post('/', async (req, res, next) => {
-  let connection;
+  const connection = await pool.getConnection();
   try {
     const newReturnedAsset = req.body;
-    connection = await pool.getConnection();
 
     // 1. Check if the asset's state in 'assets' table is already 'termination'
     const [assetCheck] = await connection.query(
@@ -57,11 +42,7 @@ router.post('/', async (req, res, next) => {
     );
 
     if (assetCheck.length > 0 && assetCheck[0].state === 'termination') {
-      connection.release();
-      return res.status(409).json({
-        success: false,
-        error: '이미 반납 처리된 자산입니다.'
-      });
+      return error(res, '이미 반납 처리된 자산입니다.', 409);
     }
 
     // Insert into returned_assets
@@ -91,44 +72,18 @@ router.post('/', async (req, res, next) => {
         [newReturnedAsset.asset_number]
       );
 
-      if (updateAssetResult.affectedRows > 0) {
-        res.status(201).json({
-          success: true,
-          message: '반납 자산이 성공적으로 추가되었으며, 원본 자산 상태가 업데이트되었습니다.',
-          data: { id: insertResult.insertId, ...newReturnedAsset }
-        });
-      } else {
-        // If asset state update fails but returned_assets insert succeeded,
-        // this is an inconsistent state, but still report success for the primary action.
-        console.warn(`반납 자산은 추가되었으나, 원본 자산(asset_number: ${newReturnedAsset.asset_number}) 상태 업데이트에 실패했습니다.`);
-        res.status(201).json({
-          success: true,
-          message: '반납 자산이 성공적으로 추가되었으나, 원본 자산 상태 업데이트에 실패했습니다.',
-          data: { id: insertResult.insertId, ...newReturnedAsset }
-        });
-      }
+      success(res, { id: insertResult.insertId, ...newReturnedAsset }, 201);
     } else {
-      res.status(400).json({
-        success: false,
-        error: '반납 자산 추가에 실패했습니다.'
-      });
+      error(res, '반납 자산 추가에 실패했습니다.', 400);
     }
   } catch (err) {
     console.error(`POST /returned-assets - Error:`, err);
     if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
-      return res.status(409).json({
-        success: false,
-        error: '이미 반납 처리된 동일한 자산 번호가 존재합니다.'
-      });
+      return error(res, '이미 반납 처리된 동일한 자산 번호가 존재합니다.', 409);
     }
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    error(res, err.message);
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    connection.release();
   }
 });
 /* PUT (update) a returned asset - 반납 자산 정보 수정 */
@@ -136,20 +91,15 @@ router.put('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    const connection = await pool.getConnection();
 
     // Check if the asset exists
-    const [existingAsset] = await connection.query(
+    const [existingAsset] = await pool.query(
       'SELECT * FROM returned_assets WHERE return_id = ?',
       [id]
     );
 
     if (existingAsset.length === 0) {
-      connection.release();
-      return res.status(404).json({
-        success: false,
-        error: '반납 자산을 찾을 수 없습니다.'
-      });
+      return error(res, '반납 자산을 찾을 수 없습니다.', 404);
     }
 
     const fields = [];
@@ -163,45 +113,39 @@ router.put('/:id', async (req, res, next) => {
       // Handle boolean checkboxes
       if (typeof updateData[key] === 'boolean') {
         values.push(updateData[key] ? 1 : 0);
-      } else {
+      }
+      // Handle date fields - ensure they're stored as strings to avoid timezone conversion
+      else if ((key === 'handover_date' || key === 'end_date') && updateData[key]) {
+        // If it's already a string in YYYY-MM-DD format, use it as-is
+        const dateStr = typeof updateData[key] === 'string' ? updateData[key] : updateData[key].split('T')[0];
+        values.push(dateStr);
+      }
+      else {
         values.push(updateData[key]);
       }
     }
     values.push(id); // for WHERE clause
 
-    const [result] = await connection.query(
-      `UPDATE returned_assets SET ${fields.join(', ')} WHERE return_id = ?`,
-      values
-    );
-    connection.release();
+    const sqlQuery = `UPDATE returned_assets SET ${fields.join(', ')} WHERE return_id = ?`;
+
+    const [result] = await pool.query(sqlQuery, values);
 
     if (result.affectedRows > 0) {
-      res.json({
-        success: true,
-        message: '반납 자산 정보가 성공적으로 수정되었습니다.',
-        data: { id, ...updateData }
-      });
+      success(res, { id, ...updateData });
     } else {
-      res.status(400).json({
-        success: false,
-        error: '반납 자산 정보 수정에 실패했습니다.'
-      });
+      error(res, '반납 자산 정보 수정에 실패했습니다.', 400);
     }
   } catch (err) {
     console.error(`PUT /returned-assets/${req.params.id} - Error:`, err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    error(res, err.message);
   }
 });
 
 /* POST cancel return processing - 반납 처리 취소 */
 router.post('/cancel/:id', async (req, res, next) => {
-  let connection;
+  const connection = await pool.getConnection();
   try {
     const { id } = req.params;
-    connection = await pool.getConnection();
     await connection.beginTransaction();
 
     // 1. Get the asset number from the return record
@@ -212,11 +156,7 @@ router.post('/cancel/:id', async (req, res, next) => {
 
     if (existingAsset.length === 0) {
       await connection.rollback();
-      connection.release();
-      return res.status(404).json({
-        success: false,
-        error: '반납 자산을 찾을 수 없습니다.'
-      });
+      return error(res, '반납 자산을 찾을 수 없습니다.', 404);
     }
 
     const { asset_number } = existingAsset[0];
@@ -234,75 +174,45 @@ router.post('/cancel/:id', async (req, res, next) => {
     );
 
     await connection.commit();
-    connection.release();
-
-    res.json({
-      success: true,
-      message: '반납 처리가 취소되었습니다.'
-    });
+    success(res, { message: '반납 처리가 취소되었습니다.' });
   } catch (err) {
-    if (connection) await connection.rollback();
+    await connection.rollback();
     console.error(`POST /returned-assets/cancel/${req.params.id} - Error:`, err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    error(res, err.message);
   } finally {
-    if (connection) {
-      connection.release();
-    }
+    connection.release();
   }
 });
 
 /* DELETE a returned asset - 반납 자산 삭제 */
 router.delete('/:id', async (req, res, next) => {
-  let connection;
   try {
     const { id } = req.params;
-    connection = await pool.getConnection();
 
     // Check if the asset exists
-    const [existingAsset] = await connection.query(
+    const [existingAsset] = await pool.query(
       'SELECT * FROM returned_assets WHERE return_id = ?',
       [id]
     );
 
     if (existingAsset.length === 0) {
-      connection.release();
-      return res.status(404).json({
-        success: false,
-        error: '반납 자산을 찾을 수 없습니다.'
-      });
+      return error(res, '반납 자산을 찾을 수 없습니다.', 404);
     }
 
     // Delete the asset
-    const [result] = await connection.query(
+    const [result] = await pool.query(
       'DELETE FROM returned_assets WHERE return_id = ?',
       [id]
     );
-    connection.release();
 
     if (result.affectedRows > 0) {
-      res.json({
-        success: true,
-        message: '반납 자산이 성공적으로 삭제되었습니다.'
-      });
+      success(res, { message: '반납 자산이 성공적으로 삭제되었습니다.' });
     } else {
-      res.status(400).json({
-        success: false,
-        error: '반납 자산 삭제에 실패했습니다.'
-      });
+      error(res, '반납 자산 삭제에 실패했습니다.', 400);
     }
   } catch (err) {
     console.error(`DELETE /returned-assets/${req.params.id} - Error:`, err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  } finally {
-    if (connection) {
-      connection.release();
-    }
+    error(res, err.message);
   }
 });
 

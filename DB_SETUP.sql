@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS assets (
 -- ============================================
 CREATE TABLE IF NOT EXISTS trde (
   trade_id INT AUTO_INCREMENT PRIMARY KEY,
-  asset_id VARCHAR(100) NOT NULL COMMENT '자산번호(assets.asset_number)',
+  asset_number VARCHAR(100) NOT NULL COMMENT '자산번호(assets.asset_number)',
   work_type VARCHAR(50) COMMENT '작업 유형 (배치, 회수, 대여, 대여반납, 수리, 수리반납 등)',
   cj_id VARCHAR(50) COMMENT '사원ID',
   asset_state VARCHAR(50) COMMENT '자산 상태',
@@ -54,10 +54,10 @@ CREATE TABLE IF NOT EXISTS trde (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일',
   INDEX idx_trade_id (trade_id),
-  INDEX idx_asset_id (asset_id),
+  INDEX idx_asset_number (asset_number),
   INDEX idx_cj_id (cj_id),
   INDEX idx_timestamp (timestamp),
-  FOREIGN KEY (asset_id) REFERENCES assets(asset_number) ON DELETE CASCADE,
+  FOREIGN KEY (asset_number) REFERENCES assets(asset_number) ON DELETE CASCADE,
   FOREIGN KEY (cj_id) REFERENCES users(cj_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='거래/작업 기록 테이블';
 
@@ -66,14 +66,14 @@ CREATE TABLE IF NOT EXISTS trde (
 -- ============================================
 CREATE TABLE IF NOT EXISTS assetLogs (
   log_id INT AUTO_INCREMENT PRIMARY KEY,
-  asset_id VARCHAR(100) COMMENT '자산번호',
+  asset_number VARCHAR(100) COMMENT '자산번호',
   work_type VARCHAR(50) COMMENT '작업 유형',
   cj_id VARCHAR(50) COMMENT '사원ID',
   user_name VARCHAR(100) COMMENT '사용자명',
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '작업 시간',
   memo TEXT COMMENT '메모',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
-  INDEX idx_asset_id (asset_id),
+  INDEX idx_asset_number (asset_number),
   INDEX idx_timestamp (timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='자산 작업 로그 테이블';
 
@@ -82,11 +82,11 @@ CREATE TABLE IF NOT EXISTS assetLogs (
 -- ============================================
 CREATE TABLE IF NOT EXISTS confirmed_assets (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  asset_id VARCHAR(100) NOT NULL COMMENT '자산ID',
+  asset_number VARCHAR(100) NOT NULL COMMENT '자산ID',
   cj_id VARCHAR(50) NOT NULL COMMENT '사원ID(확인 시점의 사용자)',
   confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '확인 시간',
-  UNIQUE KEY unique_asset_user (asset_id, cj_id),
-  INDEX idx_asset_id (asset_id),
+  UNIQUE KEY unique_asset_user (asset_number, cj_id),
+  INDEX idx_asset_number (asset_number),
   INDEX idx_cj_id (cj_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='사용자 변경 확인 테이블';
 

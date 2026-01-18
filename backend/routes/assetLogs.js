@@ -1,95 +1,108 @@
 var express = require('express');
 var router = express.Router();
-const mysql = require('mysql2/promise');
-const dbConfig = require('../config/db.config');
-
-// MySQL 연결 풀
-const pool = mysql.createPool({
-  connectionLimit: 10,
-  host: dbConfig.host,
-  user: dbConfig.user,
-  password: dbConfig.password,
-  database: dbConfig.database,
-  port: dbConfig.port,
-  waitForConnections: true,
-  enableKeepAlive: true
-});
+const pool = require('../utils/db');
+const { success, error } = require('../utils/response');
 
 router.get('/', async (req, res) => {
-  const { asset_id } = req.query;
+  const { asset_number } = req.query;
 
-  if (!asset_id) {
-    return res.status(400).json({
-      success: false,
-      message: '자산ID가 필요합니다.'
-    });
+  if (!asset_number) {
+    return error(res, '자산번호가 필요합니다.', 400);
   }
 
   try {
-    const conn = await pool.getConnection();
-
-    // assets 테이블의 초기 등록 정보와 trde 테이블의 거래 기록을 결합
-    const query = `
-      SELECT 
-        0 as trade_id,
-        a.asset_number as asset_id,
-        '자산 등록' as work_type,
-        a.in_user as cj_id,
-        u.name as user_name,
-        COALESCE(a.day_of_start, '2000-01-01') as timestamp
-      FROM assets a
-      LEFT JOIN users u ON a.in_user = u.cj_id
-      WHERE a.asset_number = ?
-
-      UNION ALL
-
-      SELECT 
+    // 1. 먼저 해당 자산의 모든 거래 기록을 조회 (timestamp 기준)
+    const tradeQuery = `
+      SELECT
         t.trade_id,
-        t.asset_id,
+        t.asset_number,
         t.work_type,
         t.cj_id,
-        u.name as user_name,
+        u1.name as user_name,
+        t.ex_user,
+        u2.name as ex_user_name,
         t.timestamp
       FROM trde t
-      LEFT JOIN users u ON t.cj_id = u.cj_id
-      WHERE t.asset_id = ?
-      ORDER BY timestamp ASC
+      LEFT JOIN users u1 ON t.cj_id = u1.cj_id
+      LEFT JOIN users u2 ON t.ex_user = u2.cj_id
+      WHERE t.asset_number = ?
+      ORDER BY t.timestamp ASC
     `;
 
-    console.log('쿼리 실행:', query);
-    console.log('asset_id 파라미터:', asset_id);
+    const [trades] = await pool.query(tradeQuery, [asset_number]);
 
-    const [rows] = await conn.query(query, [asset_id, asset_id]);
+    let results = [];
 
-    console.log('조회 결과:', rows);
+    if (trades.length > 0) {
+      // 거래 기록이 있는 경우
 
-    conn.release();
+      // 첫 번째 거래의 이전 사용자(ex_user)를 최초 보유자로 추가 (있을 경우만)
+      const firstTrade = trades[0];
+      if (firstTrade.ex_user && firstTrade.ex_user !== 'cjenc_inno' && firstTrade.ex_user !== 'aj_rent') {
+        results.push({
+          trade_id: 0,
+          asset_number: firstTrade.asset_number,
+          work_type: '기존 보유자',
+          cj_id: firstTrade.ex_user,
+          user_name: firstTrade.ex_user_name || firstTrade.ex_user,
+          timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
+        });
+      } else if (firstTrade.work_type.includes('신규')) {
+        // 신규라면 '자산 등록' 등으로 표시? 일단 첫 거래부터 보여줌
+      } else if (firstTrade.ex_user === 'cjenc_inno') {
+        // 회사 입고 상태에서 시작된 경우
+        results.push({
+          trade_id: 0,
+          asset_number: firstTrade.asset_number,
+          work_type: '자산 등록',
+          cj_id: 'cjenc_inno',
+          user_name: '건설경영혁신',
+          timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
+        });
+      }
 
-    res.json({
-      success: true,
-      data: rows
-    });
-  } catch (error) {
-    console.error('자산 로그 조회 오류:', error);
-    res.status(500).json({
-      success: false,
-      message: '자산 로그 조회 중 오류 발생',
-      error: error.message
-    });
+      // 모든 거래 내역 추가
+      trades.forEach(t => {
+        results.push({
+          trade_id: t.trade_id,
+          asset_number: t.asset_number,
+          work_type: t.work_type,
+          cj_id: t.cj_id,
+          user_name: t.user_name || (t.cj_id === 'cjenc_inno' ? '건설경영혁신' : (t.cj_id === 'aj_rent' ? 'AJ랜탈' : t.cj_id)),
+          timestamp: t.timestamp
+        });
+      });
+    } else {
+      // 거래 기록이 아예 없는 경우에만 assets 테이블 정보를 기초 데이터로 사용
+      const assetQuery = `
+        SELECT 
+          0 as trade_id,
+          a.asset_number,
+          '자산 등록' as work_type,
+          a.in_user as cj_id,
+          u.name as user_name,
+          COALESCE(a.day_of_start, '2000-01-01') as timestamp
+        FROM assets a
+        LEFT JOIN users u ON a.in_user = u.cj_id
+        WHERE a.asset_number = ?
+      `;
+      const [assetRows] = await pool.query(assetQuery, [asset_number]);
+      results = assetRows;
+    }
+
+    success(res, results);
+  } catch (err) {
+    console.error('자산 로그 조회 오류:', err);
+    error(res, '자산 로그 조회 중 오류 발생: ' + err.message);
   }
 });
 
 // 모든 자산의 현재 사용자 조회 (가장 최근 거래 기준)
 router.get('/currentUsers', async (req, res) => {
   try {
-    const conn = await pool.getConnection();
-
-    // 각 자산별로 가장 최근 사용자변경 작업을 조회
-    // (이동, 입고만 포함 - 사용자 변경 작업)
-    // (1단계: 사용자변경 작업에서 마지막 찾기)
     const query = `
       SELECT 
-        t.asset_id,
+        t.asset_number,
         t.cj_id,
         COALESCE(u.name, 
           CASE 
@@ -102,11 +115,11 @@ router.get('/currentUsers', async (req, res) => {
         t.work_type
       FROM (
         SELECT 
-          asset_id,
+          asset_number,
           cj_id,
           timestamp,
           work_type,
-          ROW_NUMBER() OVER (PARTITION BY asset_id ORDER BY timestamp DESC) as rn
+          ROW_NUMBER() OVER (PARTITION BY asset_number ORDER BY timestamp DESC) as rn
         FROM trde
         WHERE work_type LIKE '%입고%' OR work_type LIKE '%출고%'
       ) t
@@ -115,26 +128,11 @@ router.get('/currentUsers', async (req, res) => {
       ORDER BY t.timestamp ASC
     `;
 
-    console.log('현재 사용자 조회 쿼리 실행');
-
-    const [rows] = await conn.query(query);
-
-    console.log('현재 사용자 조회 결과:', rows.length, '개');
-    console.log('반환 데이터:', JSON.stringify(rows.slice(0, 2), null, 2));
-
-    conn.release();
-
-    res.json({
-      success: true,
-      data: rows
-    });
-  } catch (error) {
-    console.error('현재 사용자 조회 오류:', error);
-    res.status(500).json({
-      success: false,
-      message: '현재 사용자 조회 중 오류 발생',
-      error: error.message
-    });
+    const [rows] = await pool.query(query);
+    success(res, rows);
+  } catch (err) {
+    console.error('현재 사용자 조회 오류:', err);
+    error(res, '현재 사용자 조회 중 오류 발생: ' + err.message);
   }
 });
 

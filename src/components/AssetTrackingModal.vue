@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, defineEmits, watch } from 'vue';
+import { ref, watch } from 'vue';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 
 const props = defineProps({
@@ -50,7 +50,7 @@ const closeModal = () => {
 
 const handleTrackingWheel = (event) => {
   const container = event.currentTarget;
-  container.scrollLeft += event.deltaY > 0 ? 200 : -200;
+  container.scrollLeft += event.deltaY > 0 ? 400 : -400;
 };
 
 // 드래그 시작 시 호출
@@ -73,7 +73,7 @@ const fetchTrackingLogs = async () => {
   trackingError.value = null;
 
   try {
-    const response = await fetch(`/api/assetLogs?asset_id=${selectedAsset.value.asset_number}`);
+    const response = await fetch(`/api/assetLogs?asset_number=${selectedAsset.value.asset_number}`);
     const data = await response.json();
     
     if (!response.ok) {
@@ -121,7 +121,7 @@ const fetchTrackingLogs = async () => {
           />
         </div>
 
-        <div v-if="selectedAsset" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 5px;">
+        <div v-if="selectedAsset" class="asset-info-summary">
           <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
           <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
           <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
@@ -160,32 +160,30 @@ const fetchTrackingLogs = async () => {
 </template>
 
 <style scoped>
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; border-radius: 12px; max-width: 1200px; max-height: 85vh; overflow: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+.modal-content { max-width: 1200px; max-height: 85vh; overflow: auto; }
 .modal-content::-webkit-scrollbar { width: 12px; }
 .modal-content::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
 .modal-content::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; border: 3px solid #f1f1f1; }
 .modal-content::-webkit-scrollbar-thumb:hover { background: #999; }
 
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 2px solid #f0f0f0; background: #f8f9fa; }
-.modal-header h2 { margin: 0; color: #333; font-size: 1.4rem; }
-.modal-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-.modal-close-btn:hover { color: #333; background: #eee; }
-.modal-body { padding: 24px; }
-.alert { padding: 15px 20px; border-radius: 5px; margin-bottom: 20px; font-size: 16px; }
-.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
-.alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
-.tracking-flow { display: flex; gap: 20px; overflow-x: auto; padding: 20px 0; scroll-behavior: smooth; border: 1px solid #f0f0f0; border-radius: 8px; padding: 20px; background: #fafafa; }
+/* Component specific overrides or additional styles */
+.asset-info-summary { margin-bottom: 24px; padding: 18px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02); }
+.asset-info-summary p { margin: 8px 0; font-size: 14px; color: #444; }
+.asset-info-summary strong { color: #2c3e50; margin-right: 8px; }
+
+.tracking-flow { display: flex; gap: 20px; overflow-x: auto; padding: 24px; scroll-behavior: smooth; border: 1px solid #eef2f7; border-radius: 12px; background: #f1f3f5; box-shadow: inset 0 2px 4px rgba(0,0,0,0.03); }
 .tracking-flow::-webkit-scrollbar { height: 14px; }
 .tracking-flow::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-.tracking-flow::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; border: 3px solid #f1f1f1; }
-.tracking-flow::-webkit-scrollbar-thumb:hover { background: #999; }
-.flow-item { display: flex; align-items: center; gap: 10px; min-width: max-content; position: relative; }
-.flow-content { padding: 15px 20px; background: white; border: 2px solid #e0e0e0; border-radius: 5px; min-width: 100px; flex-shrink: 0; }
-.flow-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
-.flow-work-type { font-weight: bold; color: #5a6d8c; padding: 3px 8px; background: #f0f0f0; border-radius: 3px; font-size: 12px; }
-.flow-user { color: #3a424f; font-weight: bold; }
-.flow-date { font-size: 12px; color: #999; }
-.flow-arrow { font-size: 20px; color: #3a424f; flex-shrink: 0; min-width: 20px; text-align: center; }
-.tracking-logs-empty { text-align: center; padding: 30px; color: #999; }
+.tracking-flow::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; border: 3px solid #f1f1f1; }
+.tracking-flow::-webkit-scrollbar-thumb:hover { background: #bbb; }
+
+.flow-item { display: flex; align-items: center; gap: 12px; min-width: max-content; }
+.flow-content { padding: 16px 20px; background: white; border: 1px solid #d1d9e6; border-radius: 10px; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: transform 0.2s; }
+.flow-content:hover { transform: translateY(-3px); border-color: #3498db; }
+.flow-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 15px; }
+.flow-work-type { font-weight: bold; color: white; padding: 4px 10px; background: #5a6d8c; border-radius: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.flow-user { color: #2c3e50; font-weight: 700; font-size: 14px; }
+.flow-date { font-size: 11px; color: #8a99af; font-weight: 500; }
+.flow-arrow { font-size: 24px; color: #a5b1c2; font-weight: bold; }
+.tracking-logs-empty { text-align: center; padding: 50px; color: #999; font-style: italic; }
 </style>

@@ -12,6 +12,7 @@
             type="text"
             class="form-input"
             placeholder="아이디를 입력하세요"
+            autocomplete="username"
             @keyup.enter="handleLogin"
           />
         </div>
@@ -24,6 +25,7 @@
             type="password"
             class="form-input"
             placeholder="비밀번호를 입력하세요"
+            autocomplete="current-password"
             @keyup.enter="handleLogin"
           />
         </div>
@@ -81,17 +83,23 @@ const handleLogin = async () => {
     const result = await response.json();
     
     if (result.success) {
-      // 로그인 성공 - 로컬스토리지에 토큰 저장
-      localStorage.setItem('authToken', result.token);
-      localStorage.setItem('user', JSON.stringify(result.user));
+      // 백엔드 success 유틸리티는 데이터를 .data 필드에 실어 보냅니다.
+      const loginData = result.data || {};
       
-      // storage 이벤트 발생 (App.vue가 감지하도록)
+      // 로그인 성공 - 로컬스토리지에 토큰 저장
+      localStorage.setItem('authToken', loginData.token);
+      localStorage.setItem('user', JSON.stringify(loginData.user));
+      
+      // auth-change 이벤트 발생 (동일 탭 내 App.vue 감지용)
+      window.dispatchEvent(new Event('auth-change'));
+      
+      // storage 이벤트 발생 (다른 탭용)
       window.dispatchEvent(new Event('storage'));
       
       // 다음 페이지로 이동
       router.push('/users');
     } else {
-      error.value = result.message || '로그인 실패';
+      error.value = result.message || result.error || '로그인 실패';
     }
   } catch (err) {
     error.value = '로그인 중 오류가 발생했습니다.';

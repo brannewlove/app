@@ -14,7 +14,7 @@ const handleAssetSelect = (item, trade, index) => {
   if (item && typeof item === 'object') {
     const assetNumber = String(item.asset_number || '');
     console.log('선택된 자산:', item);
-    trade.asset_id = assetNumber;
+    trade.asset_number = assetNumber;
     trade.asset_state = String(item.state || '');
     trade.asset_in_user = String(item.in_user || '');
   }
@@ -170,9 +170,39 @@ const isCjIdDisabled = (workType) => {
   return fixedFields.includes(workType);
 };
 
+// 작업유형별 API 필터 파라미터 생성
+const getAssetApiParams = (workType) => {
+  if (!workType) return {};
+  
+  switch (workType) {
+    case '출고-신규지급':
+    case '출고-신규교체':
+      return { state: 'wait' };
+    case '출고-사용자변경':
+    case '출고-수리':
+    case '입고-노후교체':
+    case '입고-불량교체':
+    case '입고-퇴사반납':
+    case '입고-임의반납':
+    case '입고-휴직반납':
+    case '입고-재입사예정':
+      return { state: 'useable' };
+    case '출고-재고교체':
+    case '출고-재고지급':
+    case '출고-대여':
+      return { state: 'useable', in_user: 'cjenc_inno' };
+    case '입고-대여반납':
+      return { state: 'rent' };
+    case '입고-수리반납':
+      return { state: 'repair' };
+    default:
+      return {};
+  }
+};
+
 // 작업유형별 검증
 const validateTrade = (trade) => {
-  const { work_type, asset_id, cj_id, asset_state, asset_in_user } = trade;
+  const { work_type, asset_number, cj_id, asset_state, asset_in_user } = trade;
 
   if (!work_type) {
     return { valid: false, message: '작업 유형을 선택해주세요.' };
@@ -181,7 +211,7 @@ const validateTrade = (trade) => {
   trade.ex_user = asset_in_user || '';
 
   // 자산 ID 필수 체크
-  if (!asset_id) {
+  if (!asset_number) {
     return { valid: false, message: '자산 ID를 선택해주세요.' };
   }
 
@@ -458,11 +488,12 @@ onMounted(() => {
               </td>
               <td>
                 <AutocompleteSearch
-                  :initial-value="trade.asset_id || ''"
+                  :initial-value="trade.asset_number || ''"
                   placeholder="자산번호 선택"
                   api-table="assets"
                   api-column="asset_number"
                   :id="`asset_number_${index}`"
+                  :api-params="getAssetApiParams(trade.work_type)"
                   :validate-item="(item) => validateAssetForWorkType(item, trade.work_type)"
                   @select="(item) => handleAssetSelect(item, trade, index)"
                 />
@@ -535,7 +566,7 @@ onMounted(() => {
               :class="{ 'stripe': index % 2 === 1 }">
               <td class="row-number">{{ index + 1 }}</td>
               <td>{{ trade.work_type }}</td>
-              <td>{{ trade.asset_id }}</td>
+              <td>{{ trade.asset_number }}</td>
               <td>{{ trade.cj_id }}</td>
               <td>{{ trade.memo || '-' }}</td>
             </tr>
@@ -633,6 +664,7 @@ h1 {
   margin-bottom: 20px;
   -webkit-overflow-scrolling: touch;
   height: 500px;
+  overflow: hidden;
 }
 
 .register-table {
@@ -644,7 +676,7 @@ h1 {
 }
 
 .register-table thead {
-  background: #4a4a4a;
+  background: var(--primary-color);
   color: white;
   position: sticky;
   top: 0;
@@ -680,7 +712,7 @@ h1 {
 }
 
 .register-table tbody tr.stripe {
-  background: #f9f9f9;
+  background: #f8f9fa;
 }
 
 .register-table tbody tr:hover {

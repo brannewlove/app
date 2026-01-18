@@ -1,0 +1,35 @@
+{
+  "assets": [
+    {
+      "asset_number": "2510260431",
+      "in_user": "leejh87",
+      "day_of_start": "2025-10-31"
+    }
+  ],
+  "trades": [
+    {
+      "trade_id": 67,
+      "asset_number": "2510260431",
+      "work_type": "입고-재사용",
+      "cj_id": "cjenc_inno",
+      "timestamp": "2026-01-17 01:17:34"
+    },
+    {
+      "trade_id": 93,
+      "asset_number": "2510260431",
+      "work_type": "출고-사용자변경",
+      "cj_id": "leejh87",
+      "timestamp": "2026-01-18 12:32:48"
+    }
+  ],
+  "users": [
+    {
+      "cj_id": "cjenc_inno",
+      "name": "건설경영혁신"
+    },
+    {
+      "cj_id": "leejh87",
+      "name": "이준희님"
+    }
+  ]
+}

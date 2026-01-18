@@ -1,5 +1,5 @@
 <script setup>
-import { ref, defineProps, defineEmits, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 
 defineProps({
   isOpen: {
@@ -36,7 +36,7 @@ const loadConfirmedAssets = async () => {
     const result = await response.json();
     if (result.success && result.data) {
       excludedAssets.value = result.data.reduce((acc, item) => {
-        acc[String(item.asset_id)] = { checked: true, cj_id: item.cj_id };
+        acc[String(item.asset_number)] = { checked: true, cj_id: item.cj_id };
         return acc;
       }, {});
     }
@@ -50,7 +50,7 @@ const saveConfirmedAsset = async (assetId, cj_id) => {
     await fetch('/api/confirmedAssets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asset_id: assetId, cj_id: cj_id }),
+      body: JSON.stringify({ asset_number: assetId, cj_id: cj_id }),
     });
   } catch (err) {
     console.error('자산 확인 저장 에러:', err);
@@ -76,10 +76,10 @@ const fetchExportAssets = async () => {
     const sortedData = (data.data || []).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     for (const current of sortedData) {
-      const savedInfo = excludedAssets.value[current.asset_id];
+      const savedInfo = excludedAssets.value[current.asset_number];
       if (savedInfo?.checked && savedInfo.cj_id !== current.cj_id) {
-        delete excludedAssets.value[current.asset_id];
-        await deleteConfirmedAsset(current.asset_id, savedInfo.cj_id);
+        delete excludedAssets.value[current.asset_number];
+        await deleteConfirmedAsset(current.asset_number, savedInfo.cj_id);
       }
     }
     exportAssets.value = sortedData;
@@ -90,25 +90,25 @@ const fetchExportAssets = async () => {
   }
 };
 
-const toggleAssetExclude = (assetId) => {
-  const asset = exportAssets.value.find(a => a.asset_id === assetId);
+const toggleAssetExclude = (assetNumber) => {
+  const asset = exportAssets.value.find(a => a.asset_number === assetNumber);
   if (!asset) return;
-  if (excludedAssets.value[assetId]?.checked) {
-    const cj_id = excludedAssets.value[assetId].cj_id;
-    delete excludedAssets.value[assetId];
-    deleteConfirmedAsset(assetId, cj_id);
+  if (excludedAssets.value[assetNumber]?.checked) {
+    const cj_id = excludedAssets.value[assetNumber].cj_id;
+    delete excludedAssets.value[assetNumber];
+    deleteConfirmedAsset(assetNumber, cj_id);
   } else {
-    excludedAssets.value[assetId] = { checked: true, cj_id: asset.cj_id };
-    saveConfirmedAsset(assetId, asset.cj_id);
+    excludedAssets.value[assetNumber] = { checked: true, cj_id: asset.cj_id };
+    saveConfirmedAsset(assetNumber, asset.cj_id);
   }
 };
 
 const toggleAllExclude = (event) => {
   if (event.target.checked) {
     exportAssets.value.forEach(asset => {
-      if (!excludedAssets.value[asset.asset_id]?.checked) {
-        excludedAssets.value[asset.asset_id] = { checked: true, cj_id: asset.cj_id };
-        saveConfirmedAsset(asset.asset_id, asset.cj_id);
+      if (!excludedAssets.value[asset.asset_number]?.checked) {
+        excludedAssets.value[asset.asset_number] = { checked: true, cj_id: asset.cj_id };
+        saveConfirmedAsset(asset.asset_number, asset.cj_id);
       }
     });
   } else {
@@ -119,9 +119,15 @@ const toggleAllExclude = (event) => {
   }
 };
 
+const visibleAssets = computed(() => {
+  return exportAssets.value.filter(asset => !excludedAssets.value[asset.asset_number]?.checked);
+});
+
 const downloadExportData = () => {
-  const filteredAssets = exportAssets.value.filter(asset => !excludedAssets.value[asset.asset_id]?.checked);
-  if (filteredAssets.length === 0) {
+  // TSV 다운로드 시에는 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청)
+  const dataToDownload = exportAssets.value;
+  
+  if (dataToDownload.length === 0) {
     alert('다운로드할 데이터가 없습니다.');
     return;
   }
@@ -130,9 +136,9 @@ const downloadExportData = () => {
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
   const tsvContent = [
     headers.join('\t'),
-    ...filteredAssets.map(asset => {
+    ...dataToDownload.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
-      return [asset.asset_id || '', asset.cj_id || '', asset.user_name || '', dateStr]
+      return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
         .map(value => {
           if (typeof value === 'string') {
             return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
@@ -168,12 +174,15 @@ onMounted(async () => {
         <div v-if="exportLoading" class="alert alert-info">⏳ 데이터 로딩 중...</div>
         <div v-else-if="exportError" class="alert alert-error">❌ {{ exportError }}</div>
         <div v-else-if="exportAssets.length > 0">
-          <p style="color: #666; font-size: 14px;">총 {{ exportAssets.length }}개 자산</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <p style="color: #666; font-size: 14px;">대상: {{ visibleAssets.length }}개 (총 {{ exportAssets.length }}개 중)</p>
+            <p v-if="exportAssets.length > visibleAssets.length" style="color: #e67e22; font-size: 12px; font-weight: bold;">* 체크 완료된 {{ exportAssets.length - visibleAssets.length }}개 자산 숨김 처리됨</p>
+          </div>
           <table class="export-table">
             <thead>
               <tr>
                 <th style="width: 40px;">
-                  <input type="checkbox" :checked="Object.keys(excludedAssets).length > 0 && Object.keys(excludedAssets).length === exportAssets.length" @change="toggleAllExclude" />
+                  <input type="checkbox" :checked="visibleAssets.length > 0 && visibleAssets.every(a => excludedAssets[a.asset_number]?.checked)" @change="toggleAllExclude" />
                 </th>
                 <th>자산ID</th>
                 <th>사용자ID</th>
@@ -182,11 +191,11 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="asset in exportAssets" :key="asset.asset_id" :class="{ excluded: excludedAssets[asset.asset_id]?.checked }">
+              <tr v-for="asset in visibleAssets" :key="asset.asset_number" :class="{ excluded: excludedAssets[asset.asset_number]?.checked }">
                 <td style="text-align: center;">
-                  <input type="checkbox" :checked="excludedAssets[asset.asset_id]?.checked || false" @change="() => toggleAssetExclude(asset.asset_id)" />
+                  <input type="checkbox" :checked="excludedAssets[asset.asset_number]?.checked || false" @change="() => toggleAssetExclude(asset.asset_number)" />
                 </td>
-                <td>{{ asset.asset_id }}</td>
+                <td>{{ asset.asset_number }}</td>
                 <td>{{ asset.cj_id }}</td>
                 <td>{{ asset.user_name || '-' }}</td>
                 <td>{{ new Date(asset.timestamp).toLocaleString('ko-KR') }}</td>

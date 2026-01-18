@@ -1,4 +1,5 @@
 var createError = require('http-errors');
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
@@ -13,6 +14,10 @@ var assetLogsRouter = require('./routes/assetLogs');
 var dbTestRouter = require('./routes/db-test');
 var confirmedAssetsRouter = require('./routes/confirmedAssets');
 var returnedAssetsRouter = require('./routes/returnedAssets');
+var importRouter = require('./routes/import');
+var backupRouter = require('./routes/backup');
+const { runBackup } = require('./utils/googleSheets');
+const cron = require('node-cron');
 
 var app = express();
 
@@ -21,7 +26,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -51,7 +56,19 @@ app.use('/api/selectBar', selectBarRouter);
 app.use('/api/assetLogs', assetLogsRouter);
 app.use('/api/confirmedAssets', confirmedAssetsRouter);
 app.use('/api/returned-assets', returnedAssetsRouter);
+app.use('/api/import', importRouter);
+app.use('/api/backup', backupRouter);
 app.use('/db-test', dbTestRouter);
+
+// 매일 13:00 자동 백업 스케줄 등록 (환경변수 설정 시에만 실행)
+if (process.env.ENABLE_BACKUP_SCHEDULER === 'true') {
+  cron.schedule('0 13 * * *', () => {
+    console.log('Scheduled Backup: 13:00');
+    runBackup().catch(err => console.error('Scheduled backup failed:', err));
+  });
+} else {
+  console.log('Backup scheduler is disabled (ENABLE_BACKUP_SCHEDULER != true)');
+}
 
 // 개발 환경에서만 Express 기본 라우터 사용
 if (process.env.NODE_ENV !== 'production') {
@@ -66,12 +83,12 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // catch 404 and forward to error handler
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
   next(createError(404));
 });
 
 // error handler
-app.use(function(err, req, res, next) {
+app.use(function (err, req, res, next) {
   // set locals, only providing error in development
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};

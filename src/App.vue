@@ -1,10 +1,29 @@
 ﻿<script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 
 const router = useRouter();
-const currentUser = ref(null);
 const authToken = ref(localStorage.getItem('authToken'));
+
+// 알림 관련 상태
+const notifications = ref([]);
+const showNotifications = ref(false);
+const hasUnreadNotifications = computed(() => notifications.value.some(n => !n.read));
+
+// localStorage에서 유저 정보를 안전하게 가져오는 함수
+const getSafeUser = () => {
+  const userStr = localStorage.getItem('user');
+  if (!userStr || userStr === 'undefined') return null;
+  try {
+    return JSON.parse(userStr);
+  } catch (err) {
+    console.error('User data parsing error:', err);
+    return null;
+  }
+};
+
+const currentUser = ref(getSafeUser());
 
 // 현재 로그인 상태 확인
 const isLoggedIn = computed(() => {
@@ -20,33 +39,88 @@ const handleLogout = () => {
   router.push('/login');
 };
 
-// localStorage 변화 감시
 const updateAuthState = () => {
   authToken.value = localStorage.getItem('authToken');
-  const userStr = localStorage.getItem('user');
-  if (userStr) {
-    currentUser.value = JSON.parse(userStr);
-  } else {
-    currentUser.value = null;
-  }
+  currentUser.value = getSafeUser();
 };
 
 // 컴포넌트 마운트 시 사용자 정보 로드 및 storage 이벤트 감시
 onMounted(() => {
   updateAuthState();
+  checkBackupStatus(); // 백업 상태 확인
   
   // 다른 탭에서 localStorage 변경 감시
   window.addEventListener('storage', updateAuthState);
   
+  // 동일 탭 내 상태 변경 감시 (커스텀 이벤트)
+  window.addEventListener('auth-change', updateAuthState);
+  
+  // 외부 클릭 시 알림 드롭다운 닫기
+  document.addEventListener('click', handleOutsideClick);
+  
+  // 주기적으로 백업 상태 확인 (5분마다)
+  const intervalId = setInterval(checkBackupStatus, 5 * 60 * 1000);
+  
   // cleanup
   return () => {
     window.removeEventListener('storage', updateAuthState);
+    window.removeEventListener('auth-change', updateAuthState);
+    document.removeEventListener('click', handleOutsideClick);
+    clearInterval(intervalId);
   };
 });
 
+// 외부 클릭 처리
+const handleOutsideClick = (event) => {
+  const wrapper = document.querySelector('.notification-wrapper');
+  if (wrapper && !wrapper.contains(event.target)) {
+    showNotifications.value = false;
+  }
+};
+
+// 백업 상태 확인
+const checkBackupStatus = async () => {
+  if (!authToken.value) return;
+  
+  try {
+    const response = await axios.get('/api/backup/status');
+    const status = response.data.data;
+    
+    // 기존 백업 관련 알림 제거
+    notifications.value = notifications.value.filter(n => n.type !== 'backup');
+    
+    if (!status.valid) {
+      notifications.value.unshift({
+        id: Date.now(),
+        type: 'backup',
+        title: '⚠️ 구글 인증 만료',
+        message: status.message,
+        read: false,
+        timestamp: new Date()
+      });
+    }
+  } catch (err) {
+    console.error('백업 상태 확인 실패:', err);
+  }
+};
+
+// 알림 토글
+const toggleNotifications = () => {
+  showNotifications.value = !showNotifications.value;
+  if (showNotifications.value) {
+    // 알림 읽음 처리
+    notifications.value.forEach(n => n.read = true);
+  }
+};
+
+// 외부 클릭 시 닫기
+const closeNotifications = () => {
+  showNotifications.value = false;
+};
+
 // 라우트 변경 시도 감시
 watch(() => router.currentRoute.value.path, () => {
-  authToken.value = localStorage.getItem('authToken');
+  updateAuthState();
 });
 </script>
 
@@ -84,9 +158,35 @@ watch(() => router.currentRoute.value.path, () => {
                반납처리
             </router-link>
           </li>
+          <li v-if="currentUser && Number(currentUser.sec_level) === 100">
+            <router-link to="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }">
+               데이터관리
+            </router-link>
+          </li>
         </ul>
         <div class="navbar-right">
-          <span class="user-info" v-if="currentUser">{{ currentUser.name }}</span>
+          <span class="user-info" v-if="currentUser">{{ currentUser.name?.trim() }}</span>
+          
+          <!-- 알림 버튼 -->
+          <div class="notification-wrapper" v-if="currentUser && Number(currentUser.sec_level) === 100">
+            <button @click="toggleNotifications" class="notification-btn">
+              🔔
+              <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
+            </button>
+            <div v-if="showNotifications" class="notification-dropdown" @click.stop>
+              <div class="notification-header">시스템 알림</div>
+              <div v-if="notifications.length === 0" class="notification-empty">
+                알림이 없습니다.
+              </div>
+              <div v-else class="notification-list">
+                <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ unread: !n.read }">
+                  <div class="notification-title">{{ n.title }}</div>
+                  <div class="notification-message">{{ n.message }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <button @click="handleLogout" class="logout-btn">로그아웃</button>
         </div>
       </div>
@@ -240,5 +340,106 @@ watch(() => router.currentRoute.value.path, () => {
   .main-content {
     padding: 10px;
   }
+}
+
+/* 알림 버튼 스타일 */
+.notification-wrapper {
+  position: relative;
+}
+
+.notification-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  filter: grayscale(100%);
+}
+
+.notification-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #e74c3c;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 10px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 300px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.notification-header {
+  background: #4a4a4a;
+  color: white;
+  padding: 12px 15px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.notification-empty {
+  padding: 30px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.notification-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  transition: background 0.2s;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item:hover {
+  background: #f8f9fa;
+}
+
+.notification-item.unread {
+  background: #fff8e1;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
 }
 </style>
