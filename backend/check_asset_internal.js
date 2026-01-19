@@ -10,8 +10,8 @@ async function checkAssetData() {
         console.log('\n--- assets table ---');
         console.table(assets);
 
-        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, timestamp FROM trde WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
-        console.log('\n--- trde table ---');
+        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, timestamp FROM trade WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
+        console.log('\n--- trade table ---');
         console.table(trades);
 
         const ids = [...new Set([

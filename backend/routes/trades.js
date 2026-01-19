@@ -15,10 +15,10 @@ router.get('/', async (req, res, next) => {
         u.part,
         u2.name AS ex_user_name,
         u2.part AS ex_user_part
-      FROM trde t
-      LEFT JOIN assets a ON t.asset_number COLLATE utf8mb4_unicode_ci = a.asset_number COLLATE utf8mb4_unicode_ci
-      LEFT JOIN users u ON t.cj_id COLLATE utf8mb4_unicode_ci = u.cj_id COLLATE utf8mb4_unicode_ci
-      LEFT JOIN users u2 ON t.ex_user COLLATE utf8mb4_unicode_ci = u2.cj_id COLLATE utf8mb4_unicode_ci
+      FROM trade t
+      LEFT JOIN assets a ON t.asset_number = a.asset_number
+      LEFT JOIN users u ON t.cj_id = u.cj_id
+      LEFT JOIN users u2 ON t.ex_user = u2.cj_id
     `);
     success(res, trades);
   } catch (err) {
@@ -30,7 +30,7 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const [trade] = await pool.query('SELECT * FROM trde WHERE trade_id = ?', [id]);
+    const [trade] = await pool.query('SELECT * FROM trade WHERE trade_id = ?', [id]);
 
     if (trade.length === 0) {
       return error(res, '거래를 찾을 수 없습니다.', 404);
@@ -58,7 +58,7 @@ router.put('/:id', async (req, res, next) => {
     const columns = Object.keys(updateData);
     const values = Object.values(updateData);
     const setClause = columns.map(col => `${col} = ?`).join(', ');
-    const query = `UPDATE trde SET ${setClause} WHERE trade_id = ?`;
+    const query = `UPDATE trade SET ${setClause} WHERE trade_id = ?`;
     values.push(id);
 
     const [result] = await pool.query(query, values);
@@ -183,7 +183,7 @@ router.post('/', async (req, res, next) => {
       const columns = Object.keys(insertData);
       const values = Object.values(insertData);
       const placeholders = columns.map(() => '?').join(', ');
-      const query = `INSERT INTO trde (${columns.join(', ')}) VALUES (${placeholders})`;
+      const query = `INSERT INTO trade (${columns.join(', ')}) VALUES (${placeholders})`;
 
       const [result] = await connection.query(query, values);
       results.push({ trade_id: result.insertId, ...insertData });

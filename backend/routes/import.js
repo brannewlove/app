@@ -57,8 +57,18 @@ router.post('/assets', async (req, res) => {
             return response.error(res, '처리할 데이터가 없습니다.', 400);
         }
 
+        // 1. 존재하는 사용자 cj_id 목록 가져오기 (FK 제약 조건 위반 방지)
+        const [userRows] = await pool.query('SELECT cj_id FROM users');
+        const validUserIds = new Set(userRows.map(u => u.cj_id));
+
         // 필수 필드 검증 (asset_number, day_of_start, day_of_end)
         const validData = rawData.filter(row => {
+            // in_user가 존재하지 않는 사용자라면 null 처리 (제약조건 에러 방지)
+            if (row.in_user && !validUserIds.has(String(row.in_user))) {
+                console.warn(`[Import] 존재하지 않는 사용자 ID(${row.in_user})가 발견되어 null 처리합니다.`);
+                row.in_user = null;
+            }
+
             const hasAssetNumber = row.asset_number && String(row.asset_number).trim() !== '';
             const hasDayOfStart = row.day_of_start && String(row.day_of_start).trim() !== '';
             const hasDayOfEnd = row.day_of_end && String(row.day_of_end).trim() !== '';
@@ -73,13 +83,11 @@ router.post('/assets', async (req, res) => {
 
         const result = await performUpsert('assets', 'asset_number', validData);
 
-        // MySQL INSERT ... ON DUPLICATE KEY UPDATE 결과 분석
+        // MySQL affectedRows는 신규(1), 업데이트(2), 변경없음(0)을 합산하므로 배치 작업에서 정확한 구분은 어렵습니다.
         const totalCount = rawData.length;
         const processedCount = validData.length;
-        const insertedCount = Math.floor(result.affectedRows / 2);
-        const updatedCount = result.affectedRows - (insertedCount * 2);
 
-        let message = `총 ${totalCount}건 중 ${processedCount}건 처리 완료 (신규 ${updatedCount}건, 업데이트 ${insertedCount}건)`;
+        let message = `총 ${totalCount}건 중 ${processedCount}건 처리 완료`;
         if (skippedCount > 0) {
             message += `, 필수정보 누락으로 ${skippedCount}건 제외됨`;
         }
@@ -103,17 +111,12 @@ router.post('/users', async (req, res) => {
     try {
         const result = await performUpsert('users', 'cj_id', req.body);
 
-        // MySQL INSERT ... ON DUPLICATE KEY UPDATE 결과 분석
-        // affectedRows: 신규 삽입 시 1, 업데이트 시 2, 변경사항 없을 시 0
         const totalCount = req.body.length;
-        const insertedCount = Math.floor(result.affectedRows / 2); // 업데이트된 건수 (affectedRows가 2인 경우)
-        const updatedCount = result.affectedRows - (insertedCount * 2); // 신규 삽입된 건수
 
         response.success(res, {
             total: totalCount,
-            inserted: updatedCount,
-            updated: insertedCount,
-            message: `총 ${totalCount}건 중 신규 등록 ${updatedCount}건, 업데이트 ${insertedCount}건`
+            affected: result.affectedRows,
+            message: `총 ${totalCount}건 처리 완료`
         });
     } catch (err) {
         console.error('User Import Error:', err);

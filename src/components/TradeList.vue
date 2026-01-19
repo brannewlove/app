@@ -82,12 +82,14 @@ const getSortIcon = (column) => {
 const orderedColumns = computed(() => {
   if (!props.trades[0]) return [];
   const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
-  const hiddenColumns = ['ex_user', 'ex_user_name', 'ex_user_part', 'cj_id', 'name', 'part', 'memo', 'category'];
+  const hiddenColumns = [
+    'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
+    'cj_id', 'name', 'part', 'category', 
+    'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user',
+    'created_at', 'updated_at'
+  ];
   const allHeaders = Object.keys(props.trades[0]);
   const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
-  if (allHeaders.includes('memo')) {
-    remaining.push('memo');
-  }
   return [...ordered, ...remaining];
 });
 
@@ -206,19 +208,38 @@ h2 { color: #555; margin: 0; font-size: 20px; }
 .btn-pagination, .btn-page { padding: 10px 15px; margin: 0 2px; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; font-size: 14px; }
 .btn-pagination:hover:not(:disabled), .btn-page:hover { background: #e0e0e0; }
 .btn-pagination:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
-.btn-page.active { background: #777; color: white; border-color: #777; font-weight: bold; }
-.trades-table { width: 100%; border-collapse: collapse; font-size: 14px; background: white; table-layout: auto; }
-.trades-table thead { background: var(--primary-color); color: white; position: sticky; top: 0; z-index: 10; }
-.sortable-header { padding: 0; cursor: pointer; user-select: none; position: relative; transition: background 0.3s ease; color: white; background: var(--primary-color); }
+.trades-table { 
+  width: 100%; 
+  border-collapse: separate; 
+  border-spacing: 0; 
+  font-size: 14px; 
+  background: white; 
+  table-layout: auto; 
+}
+.trades-table thead { background: var(--primary-color); color: white; }
+.sortable-header { 
+  padding: 0; 
+  cursor: pointer; 
+  user-select: none; 
+  position: sticky; /* position: relative에서 sticky로 변경 */
+  top: 0;
+  z-index: 10;
+  transition: background 0.3s ease; 
+  color: white; 
+  background: var(--primary-color); 
+}
 .sortable-header:hover:not(.active) { background: rgba(255,255,255,0.15); }
 .sortable-header.active { background: rgba(0,0,0,0.2); color: var(--accent-color); }
-.header-content { padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sort-icon { opacity: 0.6; font-size: 12px; min-width: 16px; text-align: right; }
-.sortable-header.active .sort-icon { opacity: 1; font-weight: bold; }
-.trades-table td { padding: 14px 12px; border-bottom: 1px solid #eee; word-wrap: break-word; word-break: break-word; overflow-wrap: break-word; vertical-align: middle; }
-.trades-table tbody tr { transition: all 0.2s ease; background: #ffffff; }
-.trades-table tbody tr.stripe { background: #f8f9fa; }
-.actions-header { background: var(--primary-color); color: white; padding: 12px; font-weight: 600; text-align: center; }
+.actions-header { 
+  background: var(--primary-color); 
+  color: white; 
+  padding: 12px; 
+  font-weight: 600; 
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
 .action-cell { text-align: center; }
 .btn-action { padding: 6px 12px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
 .btn-track { background: #777; color: white; }

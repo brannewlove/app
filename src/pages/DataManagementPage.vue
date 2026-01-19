@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import importApi from '../api/import';
 
 const loading = ref(false);
@@ -128,6 +128,41 @@ const handleImport = async (type) => {
         loading.value = false;
     }
 };
+
+const autoBackupEnabled = ref(true);
+
+const fetchBackupConfig = async () => {
+    try {
+        const response = await fetch('/api/backup/config');
+        const data = await response.json();
+        if (data.success) {
+            autoBackupEnabled.value = data.data.auto_backup_enabled;
+        }
+    } catch (err) {
+        console.error('Failed to fetch backup config:', err);
+    }
+};
+
+const toggleAutoBackup = async () => {
+    try {
+        const response = await fetch('/api/backup/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: autoBackupEnabled.value })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            autoBackupEnabled.value = !autoBackupEnabled.value; // Revert on failure
+            throw new Error(data.error);
+        }
+    } catch (err) {
+        error.value = '설정 저장 중 오류가 발생했습니다: ' + err.message;
+    }
+};
+
+onMounted(() => {
+    fetchBackupConfig();
+});
 
 const handleManualBackup = async () => {
     loading.value = true;
@@ -306,6 +341,17 @@ const handleManualBackup = async () => {
                             <li>자동 백업: 매일 <strong>13:00</strong></li>
                             <li>보관 정책: 최근 <strong>50개</strong> 파일 유지</li>
                         </ul>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <strong>자동 백업 활성화</strong>
+                            <span>설정 시 정해진 시간에 자동으로 백업이 실행됩니다.</span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" v-model="autoBackupEnabled" @change="toggleAutoBackup">
+                            <span class="slider round"></span>
+                        </label>
                     </div>
                 </div>
                 <div class="card-footer">
@@ -593,5 +639,91 @@ const handleManualBackup = async () => {
 
 .mb-20 {
     margin-bottom: 20px;
+}
+
+/* Switch 스타일 */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 15px;
+}
+
+.setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.setting-label strong {
+    font-size: 14px;
+    color: #333;
+}
+
+.setting-label span {
+    font-size: 12px;
+    color: #666;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+.switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #4285f4;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #4285f4;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(22px);
+  -ms-transform: translateX(22px);
+  transform: translateX(22px);
+}
+
+.slider.round {
+  border-radius: 24px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
 }
 </style>

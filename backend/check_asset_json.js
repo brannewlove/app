@@ -5,7 +5,7 @@ async function checkAssetData() {
     const asset_number = '2510260431';
     try {
         const [assets] = await pool.query('SELECT asset_number, in_user, day_of_start FROM assets WHERE asset_number = ?', [asset_number]);
-        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, timestamp FROM trde WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
+        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, timestamp FROM trade WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
         const ids = [...new Set([
             ...(assets.map(a => a.in_user)),
             ...(trades.map(t => t.cj_id))

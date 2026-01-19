@@ -5,7 +5,7 @@ const pool = require('./utils/db');
 async function checkAssetData() {
     const asset_number = '2510260431';
     try {
-        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, ex_user, timestamp FROM trde WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
+        const [trades] = await pool.query('SELECT trade_id, asset_number, work_type, cj_id, ex_user, timestamp FROM trade WHERE asset_number = ? ORDER BY timestamp ASC', [asset_number]);
         const ids = [...new Set([
             ...(trades.map(t => t.cj_id)),
             ...(trades.map(t => t.ex_user))

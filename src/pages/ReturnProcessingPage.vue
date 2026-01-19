@@ -91,22 +91,22 @@
                 <input type="date" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
                        :class="['inline-input', { 'warning-highlight': shouldHighlight(asset.handover_date) }]" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.release_status }">
                 <input type="checkbox" v-model="asset.release_status" @change="handleReleaseStatusChange(asset)" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.it_room_stock }">
                 <input type="checkbox" v-model="asset.it_room_stock" @change="updateReturnedAsset(asset)" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.low_format }">
                 <input type="checkbox" v-model="asset.low_format" @change="updateReturnedAsset(asset)" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.it_return }">
                 <input type="checkbox" v-model="asset.it_return" @change="updateReturnedAsset(asset)" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.mail_return }">
                 <input type="checkbox" v-model="asset.mail_return" @change="updateReturnedAsset(asset)" />
               </td>
-              <td class="center">
+              <td class="center" :class="{ 'status-checked': asset.actual_return }">
                 <input type="checkbox" v-model="asset.actual_return" @change="updateReturnedAsset(asset)" />
               </td>
               <td>
@@ -115,14 +115,11 @@
               <td>{{ formatDateTime(asset.created_at) }}</td>
               <td class="action-cell">
                 <div class="action-buttons">
-                  <button @click="completeReturn(asset)" class="btn-action btn-complete" :disabled="asset.processing" title="반납 완료">
-                    {{ asset.processing ? '...' : '반납' }}
-                  </button>
-                  <button @click="reuseAsset(asset)" class="btn-action btn-reuse" :disabled="asset.processing" title="재사용">
-                    {{ asset.processing ? '...' : '재사용' }}
+                  <button @click="openActionChoiceModal(asset)" class="btn-action btn-process" :disabled="asset.processing" title="처리 선택">
+                    처리
                   </button>
                   <button @click="cancelReturn(asset)" class="btn-action btn-cancel-return" :disabled="asset.processing" title="취소">
-                    {{ asset.processing ? '...' : '취소' }}
+                    취소
                   </button>
                 </div>
               </td>
@@ -203,6 +200,57 @@
         </div>
       </div>
     </div>
+
+    <!-- 처리 선택 모달 추가 -->
+    <div v-if="isActionChoiceModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="e => handleOverlayMouseUp(e, closeActionChoiceModal)">
+      <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+          <h2>처리 선택</h2>
+          <button @click="closeActionChoiceModal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 30px 20px;">
+          <p style="margin-bottom: 25px; font-weight: 500; font-size: 16px;">
+            '{{ selectedAssetForAction?.asset_number }}' 자산에 대해 어떤 처리를 원하십니까?
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <button @click="handleActionChoice('complete')" class="btn btn-confirm" style="background: #A52A2A; width: 100%;">반납 완료 (렌탈사 반납)</button>
+            <button @click="handleActionChoice('reuse')" class="btn btn-confirm" style="background: #4682B4; width: 100%;">재사용 처리 (사내 재고)</button>
+            <button @click="handleActionChoice('replacement')" class="btn btn-confirm" style="background: #5e88af; width: 100%;">고장교체 처리 (렌탈사 교체)</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="closeActionChoiceModal" class="btn btn-close">취소 (Escape)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 고장교체 자산 입력 모달 추가 -->
+    <div v-if="isReplacementModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="e => handleOverlayMouseUp(e, closeReplacementModal)">
+      <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-header">
+          <h2>교체 자산 입력</h2>
+          <button @click="closeReplacementModal" class="close-btn">✕</button>
+        </div>
+        <div class="modal-body" style="padding: 25px;">
+          <p style="margin-bottom: 15px; font-weight: 500;">'{{ selectedAssetForAction?.asset_number }}'를 교체할 자산번호를 입력하세요.</p>
+          <div class="form-group">
+            <label>교체 자산번호</label>
+            <AutocompleteSearch 
+              id="replacement-asset"
+              apiTable="assets"
+              apiColumn="asset_number"
+              placeholder="자산번호 검색..."
+              @select="(val) => replacementAssetNumber = val.asset_number"
+              :initialValue="replacementAssetNumber"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button @click="confirmReplacement" class="btn btn-save" :disabled="!replacementAssetNumber">확인</button>
+          <button @click="closeReplacementModal" class="btn btn-cancel">취소</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -211,6 +259,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import returnedAssetsApi from '../api/returnedAssets';
 import axios from 'axios';
 import { useTable } from '../composables/useTable';
+import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 
 const returnedAssets = ref([]);
 const loading = ref(false);
@@ -219,12 +268,17 @@ const error = ref(null);
 const isModalOpen = ref(false);
 const modalMessage = ref('');
 const modalType = ref('confirm'); // 'confirm', 'success', 'error'
-const modalAction = ref(null);    // 'complete', 'reuse', 'cancel'
+const modalAction = ref(null);    // 'complete', 'reuse', 'cancel', 'replacement'
 const pendingAsset = ref(null);
 
 const isExportModalOpen = ref(false);
 const isCopied = ref(false);
 const isClickStartedOnOverlay = ref(false);
+
+const isActionChoiceModalOpen = ref(false);
+const isReplacementModalOpen = ref(false);
+const selectedAssetForAction = ref(null);
+const replacementAssetNumber = ref('');
 
 const {
   filteredData: filteredReturnedAssets,
@@ -238,7 +292,8 @@ const {
   itemsPerPage: 1000,
   initialSortColumn: 'handover_date',
   initialSortDirection: 'desc',
-  nullsFirst: true
+  nullsFirst: true,
+  stableSort: true
 });
 
 const exportAssets = computed(() => {
@@ -330,6 +385,54 @@ const cancelReturn = (asset) => {
   isModalOpen.value = true;
 };
 
+// 처리 선택 모달 열기
+const openActionChoiceModal = (asset) => {
+  selectedAssetForAction.value = asset;
+  isActionChoiceModalOpen.value = true;
+};
+
+const closeActionChoiceModal = () => {
+  isActionChoiceModalOpen.value = false;
+  selectedAssetForAction.value = null;
+  isClickStartedOnOverlay.value = false;
+};
+
+const handleActionChoice = (choice) => {
+  const asset = selectedAssetForAction.value;
+  // Choice modal은 닫고 다음 단계로 이동
+  closeActionChoiceModal();
+  
+  if (choice === 'complete') {
+    completeReturn(asset);
+  } else if (choice === 'reuse') {
+    reuseAsset(asset);
+  } else if (choice === 'replacement') {
+    openReplacementModal(asset);
+  }
+};
+
+const openReplacementModal = (asset) => {
+  selectedAssetForAction.value = asset;
+  replacementAssetNumber.value = '';
+  isReplacementModalOpen.value = true;
+};
+
+const closeReplacementModal = () => {
+  isReplacementModalOpen.value = false;
+  selectedAssetForAction.value = null;
+  replacementAssetNumber.value = '';
+};
+
+const confirmReplacement = () => {
+  if (!replacementAssetNumber.value) return;
+  pendingAsset.value = selectedAssetForAction.value;
+  modalAction.value = 'replacement';
+  modalMessage.value = `'${pendingAsset.value.asset_number}' 자산을 '${replacementAssetNumber.value}' 자산으로 고장교체 처리하시겠습니까?`;
+  modalType.value = 'confirm';
+  isReplacementModalOpen.value = false;
+  isModalOpen.value = true;
+};
+
 const confirmAction = async () => {
   const asset = pendingAsset.value;
   if (!asset) return;
@@ -366,6 +469,33 @@ const confirmAction = async () => {
       await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
       removeAssetFromList(asset.return_id);
       showModal('재사용 처리가 완료되었습니다.', 'success');
+    } else if (modalAction.value === 'replacement') {
+      const memoParts = [`[교체자산: ${replacementAssetNumber.value}]`];
+      if (asset.return_reason) memoParts.push(`[사유: ${asset.return_reason}]`);
+      if (asset.remarks) memoParts.push(asset.remarks);
+      
+      const tradeData = [{
+        work_type: '반납-고장교체',
+        asset_number: asset.asset_number,
+        cj_id: 'aj_rent',
+        ex_user: asset.user_id,
+        memo: memoParts.join(' ')
+      }];
+      
+      // 1. 거래 내역 생성
+      await axios.post('/api/trades', tradeData);
+      
+      // 2. 본 자산에 교체 자산 정보 기록 (replacement 컬럼 업데이트)
+      // asset.asset_id 를 찾아서 업데이트해야 하므로 returnedAsset 정보에 asset_id가 있는지 확인 필요
+      // fetch 시점에 asset_id가 포함되어 있음
+      if (asset.asset_id) {
+          await axios.put(`/api/assets/${asset.asset_id}`, { replacement: replacementAssetNumber.value });
+      }
+      
+      // 3. 반납 대기 목록에서 삭제
+      await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
+      removeAssetFromList(asset.return_id);
+      showModal('고장교체 처리가 완료되었습니다.', 'success');
     } else if (modalAction.value === 'cancel') {
       await returnedAssetsApi.cancelReturnedAsset(asset.return_id);
       removeAssetFromList(asset.return_id);
@@ -390,10 +520,15 @@ const showModal = (message, type) => {
 };
 
 const closeModal = () => {
+  const needsRefresh = modalType.value === 'success';
   isModalOpen.value = false;
   pendingAsset.value = null;
   modalAction.value = null;
   isClickStartedOnOverlay.value = false;
+  
+  if (needsRefresh) {
+    fetchReturnedAssets();
+  }
 };
 
 const handleOverlayMouseDown = (e) => {
@@ -525,6 +660,8 @@ const handleKeyDown = (event) => {
   if (event.key === 'Escape') {
     if (isModalOpen.value) closeModal();
     else if (isExportModalOpen.value) closeExportModal();
+    else if (isActionChoiceModalOpen.value) closeActionChoiceModal();
+    else if (isReplacementModalOpen.value) closeReplacementModal();
   }
 };
 
@@ -559,7 +696,7 @@ h1 {
 }
 
 .table-wrapper {
-  overflow-x: auto;
+  overflow-x: visible; /* sticky 작동을 위해 visible로 변경하거나 height 고정 필요 */
   width: 100%;
   margin-top: 10px;
 }
@@ -617,7 +754,8 @@ h1 {
 .returns-table {
   width: 100%;
   min-width: 1400px; /* 모든 컬럼이 보이도록 최소 너비 설정 */
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .section-header {
@@ -677,10 +815,12 @@ h2 {
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  min-width: 52px; /* 텍스트 변경시에도 크기 유지 */
 }
 
 .btn-complete { background: #A52A2A; }
 .btn-reuse { background: #4682B4; }
+.btn-process { background: #5e88af; } /* 처리 버튼 색상 */
 .btn-cancel-return { background: #556B2F; }
 
 .btn-action:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
@@ -709,5 +849,10 @@ input[type="checkbox"] {
 .expired-date {
   color: #ff4444 !important;
   font-weight: bold;
+}
+
+.status-checked {
+  background-color: #e6ffed !important; /* 연한 녹색 배경 */
+  border-bottom-color: #b7eb8f !important;
 }
 </style>

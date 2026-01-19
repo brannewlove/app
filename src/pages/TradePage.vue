@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import TradeList from '../components/TradeList.vue';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import ChangeExportModal from '../components/ChangeExportModal.vue';
+import ReplacementExportModal from '../components/ReplacementExportModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 
@@ -15,6 +16,7 @@ const trackingAssetNumber = ref('');
 const trackingModel = ref('');
 const trackingCategory = ref('');
 const isExportModalOpen = ref(false);
+const isReplacementExportOpen = ref(false);
 const isRegisterModalOpen = ref(false);
 
 const isConfirmModalOpen = ref(false);
@@ -39,12 +41,6 @@ const fetchTrades = async () => {
   }
 };
 
-const openTrackingModal = () => {
-  trackingAssetNumber.value = '';
-  trackingModel.value = '';
-  trackingCategory.value = '';
-  isTrackingOpen.value = true;
-};
 const openExportModal = () => isExportModalOpen.value = true;
 
 const handleTrackAsset = (trade) => {
@@ -139,6 +135,8 @@ const handleKeyDown = (e) => {
       isTrackingOpen.value = false;
     } else if (isExportModalOpen.value) {
       isExportModalOpen.value = false;
+    } else if (isReplacementExportOpen.value) {
+      isReplacementExportOpen.value = false;
     }
   }
 };
@@ -164,8 +162,8 @@ onUnmounted(() => {
       <template #actions>
         <div style="display: flex; gap: 10px;">
           <button @click="isRegisterModalOpen = true" class="btn btn-register">거래 등록</button>
-          <button @click="openTrackingModal" class="btn btn-tracking">추적</button>
           <button @click="openExportModal" class="btn btn-export">변경 Export</button>
+          <button @click="isReplacementExportOpen = true" class="btn btn-export-replacement">교체 Export</button>
           <button @click="downloadTSV" class="btn btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
             tsv
@@ -182,6 +180,7 @@ onUnmounted(() => {
       @close="closeTrackingModal" 
     />
     <ChangeExportModal :is-open="isExportModalOpen" @close="isExportModalOpen = false" />
+    <ReplacementExportModal :is-open="isReplacementExportOpen" @close="isReplacementExportOpen = false" />
     <ConfirmationModal 
       :is-open="isConfirmModalOpen"
       :message="confirmMessage"
@@ -203,10 +202,10 @@ h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
 .alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-tracking { background: #777; color: white; }
-.btn-tracking:hover { background: #555; }
 .btn-register { background: #5e88af; color: white; }
 .btn-register:hover { background: #4a6f8f; }
+.btn-export-replacement { background: #794A8D; color: white; }
+.btn-export-replacement:hover { background: #603a70; }
 
 /* TSV 버튼 스타일 */
 .btn-csv {

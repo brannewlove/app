@@ -32,6 +32,10 @@ const assetsFilterFn = (asset) => {
   return true;
 };
 
+const itemsPerPage = computed(() => {
+  return activeFilter.value === 'available' ? 50 : 20;
+});
+
 const {
   currentPage,
   searchQuery,
@@ -47,7 +51,7 @@ const {
   sortColumn,
   sortDirection
 } = useTable(assets, {
-  itemsPerPage: 20,
+  itemsPerPage: itemsPerPage,
   filterFn: assetsFilterFn
 });
 
@@ -476,7 +480,7 @@ const getTableHeaders = (data) => {
   if (data.length === 0) return [];
   
   const headers = Object.keys(data[0]);
-  const filtered = headers.filter(h => !['asset_id', 'user_cj_id', 'user_name', 'user_part', 'unit_price'].includes(h));
+  const filtered = headers.filter(h => !['asset_id', 'user_cj_id', 'user_name', 'user_part', 'unit_price', 'replacement'].includes(h));
   
   const result = [];
   for (let header of filtered) {
@@ -562,17 +566,17 @@ const copyAssetInfoDetailed = () => {
 
   const fields = assetModalFields.filter(key => selectedAsset.value[key] !== undefined);
   
-  // HTML 버전 (요청하신 스타일 적용: 12px, 헤더 회색배경, 볼드체)
+  // HTML 버전 (요청하신 스타일 적용: 12px, 헤더 회색배경, 검은색 텍스트, 1px 검은색 테두리)
   const htmlTable = `
-    <table style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif;">
+    <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif; border: 1px solid #000000;">
       <thead>
-        <tr style="background-color: #f2f2f2; font-weight: bold;">
-          ${fields.map(field => `<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">${getHeaderDisplayName(field)}</th>`).join('')}
+        <tr style="font-weight: bold; color: #000000;">
+          ${fields.map(field => `<th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">${getHeaderDisplayName(field)}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
         <tr>
-          ${fields.map(field => `<td style="border: 1px solid #ddd; padding: 8px;">${formatCellValue(selectedAsset.value[field], field, selectedAsset.value) || '-'}</td>`).join('')}
+          ${fields.map(field => `<td style="border: 1px solid #000000; padding: 10px; color: #000000;">${formatCellValue(selectedAsset.value[field], field, selectedAsset.value) || '-'}</td>`).join('')}
         </tr>
       </tbody>
     </table>

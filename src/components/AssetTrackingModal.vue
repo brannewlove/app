@@ -97,19 +97,19 @@ const copyAssetInfo = () => {
   
   // HTML 버전 (요청하신 스타일 적용)
   const htmlTable = `
-    <table style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif;">
+    <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; font-size: 12px; width: 100%; font-family: sans-serif; border: 1px solid #000000;">
       <thead>
-        <tr style="background-color: #f2f2f2; font-weight: bold;">
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">자산번호</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">분류</th>
-          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">모델</th>
+        <tr style="font-weight: bold; color: #000000;">
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산번호</th>
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">분류</th>
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">모델</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td style="border: 1px solid #ddd; padding: 8px;">${asset_number || '-'}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">${category || '-'}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">${model || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${asset_number || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${category || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${model || '-'}</td>
         </tr>
       </tbody>
     </table>

@@ -15,7 +15,7 @@ async function testNewLogLogic() {
             t.ex_user,
             u2.name as ex_user_name,
             t.timestamp
-          FROM trde t
+          FROM trade t
           LEFT JOIN users u1 ON t.cj_id = u1.cj_id
           LEFT JOIN users u2 ON t.ex_user = u2.cj_id
           WHERE t.asset_number = ?

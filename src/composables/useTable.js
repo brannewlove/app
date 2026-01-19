@@ -1,13 +1,19 @@
 import { ref, computed, watch } from 'vue';
 
 export function useTable(data, options = {}) {
+    // itemsPerPage를 반응형으로 관리 (Ref나 Computed가 들어오면 .value로 접근)
+    const itemsPerPage = computed(() => {
+        const val = options.itemsPerPage;
+        return (val && typeof val === 'object' && 'value' in val) ? val.value : (val || 20);
+    });
+
     const {
-        itemsPerPage = 20,
         initialSortColumn = null,
         initialSortDirection = 'asc',
         searchFields = [],
         filterFn = null,
-        nullsFirst = false
+        nullsFirst = false,
+        stableSort = false // 새로운 옵션: true일 경우 데이터 내부 수정시 정렬을 유지함
     } = options;
 
     const currentPage = ref(1);
@@ -21,17 +27,17 @@ export function useTable(data, options = {}) {
         currentPage.value = 1;
     });
 
-    const sortedData = computed(() => {
-        if (!sortColumn.value) return data.value;
+    // 정렬 로직을 함수로 분리
+    const getSortedArray = (rawData) => {
+        if (!sortColumn.value || !rawData) return rawData;
 
-        return [...data.value].sort((a, b) => {
+        return [...rawData].sort((a, b) => {
             const columns = Array.isArray(sortColumn.value) ? sortColumn.value : [sortColumn.value];
 
             for (const col of columns) {
                 let aRaw = a[col];
                 let bRaw = b[col];
 
-                // Check for empty values if nullsFirst is enabled
                 if (nullsFirst) {
                     const aEmpty = aRaw === null || aRaw === undefined || aRaw === '';
                     const bEmpty = bRaw === null || bRaw === undefined || bRaw === '';
@@ -45,13 +51,11 @@ export function useTable(data, options = {}) {
                 let bValue = bRaw === null || bRaw === undefined ? '' : bRaw;
 
                 let comparison = 0;
-                // Number comparison
                 if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
                     const numA = parseFloat(aValue);
                     const numB = parseFloat(bValue);
                     comparison = numA - numB;
                 } else {
-                    // String comparison
                     aValue = String(aValue).toLowerCase();
                     bValue = String(bValue).toLowerCase();
                     comparison = aValue.localeCompare(bValue);
@@ -63,7 +67,21 @@ export function useTable(data, options = {}) {
             }
             return 0;
         });
-    });
+    };
+
+    // stableSort인 경우 ref와 shallow watch 사용, 아니면 computed 사용
+    let sortedData;
+    if (stableSort) {
+        const sortedRef = ref([]);
+        const updateSort = () => {
+            sortedRef.value = getSortedArray(data.value);
+        };
+        // 데이터 배열 자체가 바뀌거나 정렬 조건이 바뀔 때만 재정렬 (deep: false)
+        watch([data, sortColumn, sortDirection], updateSort, { deep: false, immediate: true });
+        sortedData = sortedRef;
+    } else {
+        sortedData = computed(() => getSortedArray(data.value));
+    }
 
     const filteredData = computed(() => {
         let result = sortedData.value;
@@ -93,13 +111,13 @@ export function useTable(data, options = {}) {
     });
 
     const paginatedData = computed(() => {
-        const start = (currentPage.value - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
+        const start = (currentPage.value - 1) * itemsPerPage.value;
+        const end = start + itemsPerPage.value;
         return filteredData.value.slice(start, end);
     });
 
     const totalPages = computed(() => {
-        return Math.ceil(filteredData.value.length / itemsPerPage);
+        return Math.ceil(filteredData.value.length / itemsPerPage.value);
     });
 
     const pageNumbers = computed(() => {

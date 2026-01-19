@@ -16,6 +16,7 @@ const exportError = ref(null);
 const excludedAssets = ref({});
 const isDragging = ref(false); // 드래그 상태 추적
 const isCopied = ref(false);
+const showHidden = ref(false); // 체크된(숨겨진) 자산 표시 여부
 
 const closeModal = () => {
   emit('close');
@@ -121,27 +122,56 @@ const toggleAllExclude = (event) => {
 };
 
 const visibleAssets = computed(() => {
+  if (showHidden.value) return exportAssets.value;
   return exportAssets.value.filter(asset => !excludedAssets.value[asset.asset_number]?.checked);
 });
 
 const copyToClipboard = () => {
-  // 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청 반영)
-  const dataToCopy = exportAssets.value;
+  // 현재 가시성 상태에 관계없이 '보이는' 자산만 포함 (사용자 최신 요청 반영)
+  const dataToCopy = visibleAssets.value;
   
   if (dataToCopy.length === 0) return;
 
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
-  const tsvContent = [
+  
+  // HTML 버전 (요청하신 스타일 적용)
+  const htmlTable = `
+    <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; font-size: 13px; font-family: sans-serif; border: 1px solid #000000; width: 100%;">
+      <thead>
+        <tr style="background-color: #bbbbbb;">
+          ${headers.map(h => `<th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000; font-weight: bold;">${h}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${dataToCopy.map(asset => {
+          const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
+          return `
+            <tr style="color: #000000;">
+              <td style="border: 1px solid #000000; padding: 8px;">${asset.asset_number || ''}</td>
+              <td style="border: 1px solid #000000; padding: 8px;">${asset.cj_id || ''}</td>
+              <td style="border: 1px solid #000000; padding: 8px;">${asset.user_name || ''}</td>
+              <td style="border: 1px solid #000000; padding: 8px;">${dateStr}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+
+  // 텍스트 버전 (Fallback)
+  const plainText = [
     headers.join('\t'),
     ...dataToCopy.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
-      return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
-        .map(value => String(value).replace(/\t/g, ' ').replace(/\n/g, ' '))
-        .join('\t');
+      return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr].join('\t');
     })
   ].join('\n');
 
-  navigator.clipboard.writeText(tsvContent).then(() => {
+  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
+  const blobText = new Blob([plainText], { type: 'text/plain' });
+  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
+
+  navigator.clipboard.write(data).then(() => {
     isCopied.value = true;
     setTimeout(() => {
       isCopied.value = false;
@@ -190,7 +220,29 @@ onMounted(async () => {
   <div v-if="isOpen" class="modal-overlay" @click.self="!isDragging && closeModal()">
     <div class="modal-content" @mousedown="handleMouseDown" @mouseup="handleMouseUp">
       <div class="modal-header">
-        <h2>변경 Export</h2>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <h2>변경 Export</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button 
+              class="header-copy-btn" 
+              @click="copyToClipboard" 
+              :title="isCopied ? '복사 완료!' : '클립보드 복사'"
+              :disabled="exportAssets.length === 0"
+            >
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
+              <span v-else style="color: #27ae60; font-size: 14px; font-weight: bold;">✓</span>
+            </button>
+            
+            <button 
+              class="btn-toggle-hidden" 
+              @click="showHidden = !showHidden"
+              :class="{ active: showHidden }"
+              :title="showHidden ? '체크된 항목 숨기기' : '체크된 항목 표시'"
+            >
+              {{ showHidden ? '숨김 항목 제외' : '모든 항목 표시' }}
+            </button>
+          </div>
+        </div>
         <button class="modal-close-btn" @click="closeModal">✕</button>
       </div>
       <div class="modal-body">
@@ -227,13 +279,6 @@ onMounted(async () => {
           </table>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
             <button class="btn btn-secondary" @click="closeModal">닫기</button>
-            <button class="btn btn-primary btn-copy" @click="copyToClipboard" :disabled="exportAssets.length === 0">
-              {{ isCopied ? '✓' : '복사' }}
-            </button>
-            <button class="btn btn-primary btn-tsv" @click="downloadExportData" :disabled="exportAssets.length === 0">
-              <img src="/images/down.png" alt="download" class="btn-icon" />
-              tsv
-            </button>
           </div>
         </div>
         <div v-else class="tracking-logs-empty">데이터가 없습니다.</div>
@@ -249,6 +294,46 @@ onMounted(async () => {
 .modal-header h2 { margin: 0; color: #333; }
 .modal-close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
 .modal-close-btn:hover { color: #333; }
+.header-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5e88af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.header-copy-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  color: #4a6f8f;
+}
+.header-copy-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.btn-toggle-hidden {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: #fdfdfd;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.btn-toggle-hidden:hover {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+.btn-toggle-hidden.active {
+  background: #5e88af;
+  color: white;
+  border-color: #4a6f8f;
+}
 .modal-body { padding: 20px; }
 .alert { padding: 15px 20px; border-radius: 5px; margin-bottom: 20px; font-size: 16px; }
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }

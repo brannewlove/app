@@ -8,7 +8,7 @@ const { success, error } = require('../utils/response');
  * 자동완성 검색 API
  * 쿼리 파라미터:
  * - query: 검색어
- * - table: 테이블명 (users, assets, trde)
+ * - table: 테이블명 (users, assets, trade)
  * - column: 검색 컬럼명
  */
 router.get('/', async (req, res) => {
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
     const { query = '', table = 'users', column = 'user_id', state, in_user, not_in_user } = req.query;
 
     // 테이블 검증
-    const allowedTables = ['users', 'assets', 'trde'];
+    const allowedTables = ['users', 'assets', 'trade'];
     if (!allowedTables.includes(table)) {
       return error(res, '유효하지 않은 테이블명', 400);
     }

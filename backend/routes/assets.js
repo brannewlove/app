@@ -6,15 +6,30 @@ const { success, error } = require('../utils/response');
 /* GET assets listing - 모든 자산 조회 */
 router.get('/', async (req, res, next) => {
   try {
-    const [assets] = await pool.query(
-      `SELECT 
+    const { onlyReplacements } = req.query;
+    let query = `
+      SELECT 
         a.*,
-        u.cj_id as user_cj_id,
         u.name as user_name,
         u.part as user_part
       FROM assets a
-      LEFT JOIN users u ON a.in_user = u.cj_id`
-    );
+      LEFT JOIN users u ON a.in_user = u.cj_id
+    `;
+
+    if (onlyReplacements === 'true') {
+      query = `
+        SELECT 
+          a.*,
+          u_repl.name as replacement_user_name,
+          u_repl.part as replacement_user_part
+        FROM assets a
+        LEFT JOIN assets a_repl ON a.replacement = a_repl.asset_number
+        LEFT JOIN users u_repl ON a_repl.in_user = u_repl.cj_id
+        WHERE a.replacement IS NOT NULL AND a.replacement != ""
+      `;
+    }
+
+    const [assets] = await pool.query(query);
     success(res, assets);
   } catch (err) {
     error(res, err.message);
@@ -61,8 +76,15 @@ router.put('/:id', async (req, res, next) => {
       return error(res, '자산을 찾을 수 없습니다.', 404);
     }
 
-    // 업데이트 실행 (생성 열 contract_month 제외, 날짜 형식 변환)
-    const { asset_id, contract_month, ...dataToUpdate } = updateData;
+    // 업데이트 실행 (생성 열 및 조인 필드 제외)
+    const {
+      asset_id,
+      contract_month,
+      user_cj_id,
+      user_name,
+      user_part,
+      ...dataToUpdate
+    } = updateData;
 
     // 날짜 형식 변환 (ISO 8601 -> MySQL DATE)
     if (dataToUpdate.day_of_start && typeof dataToUpdate.day_of_start === 'string') {

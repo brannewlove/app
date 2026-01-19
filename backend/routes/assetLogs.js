@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
         t.ex_user,
         u2.name as ex_user_name,
         t.timestamp
-      FROM trde t
+      FROM trade t
       LEFT JOIN users u1 ON t.cj_id = u1.cj_id
       LEFT JOIN users u2 ON t.ex_user = u2.cj_id
       WHERE t.asset_number = ?
@@ -120,7 +120,7 @@ router.get('/currentUsers', async (req, res) => {
           timestamp,
           work_type,
           ROW_NUMBER() OVER (PARTITION BY asset_number ORDER BY timestamp DESC) as rn
-        FROM trde
+        FROM trade
         WHERE work_type LIKE '%입고%' OR work_type LIKE '%출고%'
       ) t
       LEFT JOIN users u ON t.cj_id = u.cj_id

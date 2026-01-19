@@ -155,17 +155,17 @@ async function runBackup() {
                 u.name as user_name,
                 u.part as user_part
             FROM assets a
-            LEFT JOIN users u ON a.in_user COLLATE utf8mb4_unicode_ci = u.cj_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN users u ON a.in_user = u.cj_id
             ORDER BY a.asset_id DESC
         `);
         const [trades] = await pool.query(`
             SELECT t.*, u.name as name, u.part as part,
                    e.name as ex_user_name, e.part as ex_user_part,
                    a.model as model
-            FROM trde t 
-            LEFT JOIN users u ON t.cj_id COLLATE utf8mb4_unicode_ci = u.cj_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN users e ON t.ex_user COLLATE utf8mb4_unicode_ci = e.cj_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN assets a ON t.asset_number COLLATE utf8mb4_unicode_ci = a.asset_number COLLATE utf8mb4_unicode_ci
+            FROM trade t 
+            LEFT JOIN users u ON t.cj_id = u.cj_id
+            LEFT JOIN users e ON t.ex_user = e.cj_id
+            LEFT JOIN assets a ON t.asset_number = a.asset_number
             ORDER BY t.trade_id DESC
         `);
 

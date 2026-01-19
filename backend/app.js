@@ -13,6 +13,7 @@ var selectBarRouter = require('./routes/selectBar');
 var assetLogsRouter = require('./routes/assetLogs');
 var dbTestRouter = require('./routes/db-test');
 var confirmedAssetsRouter = require('./routes/confirmedAssets');
+var confirmedReplacementsRouter = require('./routes/confirmedReplacements');
 var returnedAssetsRouter = require('./routes/returnedAssets');
 var importRouter = require('./routes/import');
 var backupRouter = require('./routes/backup');
@@ -55,20 +56,31 @@ app.use('/api/trades', tradesRouter);
 app.use('/api/selectBar', selectBarRouter);
 app.use('/api/assetLogs', assetLogsRouter);
 app.use('/api/confirmedAssets', confirmedAssetsRouter);
+app.use('/api/confirmedReplacements', confirmedReplacementsRouter);
 app.use('/api/returned-assets', returnedAssetsRouter);
 app.use('/api/import', importRouter);
 app.use('/api/backup', backupRouter);
 app.use('/db-test', dbTestRouter);
 
-// 매일 13:00 자동 백업 스케줄 등록 (환경변수 설정 시에만 실행)
-if (process.env.ENABLE_BACKUP_SCHEDULER === 'true') {
-  cron.schedule('0 13 * * *', () => {
-    console.log('Scheduled Backup: 13:00');
-    runBackup().catch(err => console.error('Scheduled backup failed:', err));
-  });
-} else {
-  console.log('Backup scheduler is disabled (ENABLE_BACKUP_SCHEDULER != true)');
-}
+const pool = require('./utils/db');
+
+// 매일 13:00 자동 백업 스케줄 등록
+cron.schedule('0 13 * * *', async () => {
+  try {
+    // DB에서 자동 백업 활성화 여부 확인
+    const [rows] = await pool.query("SELECT s_value FROM settings WHERE s_key = 'auto_backup_enabled'");
+    const isEnabled = rows.length > 0 ? rows[0].s_value === 'true' : true;
+
+    if (isEnabled) {
+      console.log('Scheduled Backup: 13:00 (Enabled)');
+      await runBackup();
+    } else {
+      console.log('Scheduled Backup: 13:00 (Skipped - Disabled in settings)');
+    }
+  } catch (err) {
+    console.error('Scheduled backup failed:', err);
+  }
+});
 
 // 개발 환경에서만 Express 기본 라우터 사용
 if (process.env.NODE_ENV !== 'production') {
