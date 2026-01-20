@@ -446,11 +446,18 @@ const handleManualBackup = async () => {
 
 .file-input-group input {
     padding: 10px;
-    border: 2px dashed #ddd;
+    border: 2px dashed var(--border-color);
     border-radius: 8px;
-    background: #fafafa;
+    padding: 30px;
+    text-align: center;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
+    background: #fdfdfd;
+}
+
+.upload-area.active {
+    border: 2px solid var(--brand-blue);
+    background: #f0f7ff;
 }
 
 .file-input-group input:hover {
@@ -467,7 +474,7 @@ const handleManualBackup = async () => {
 .tab-btn {
     flex: 1;
     padding: 10px 20px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--border-color);
     background: white;
     border-radius: 8px;
     cursor: pointer;
@@ -503,7 +510,7 @@ const handleManualBackup = async () => {
 .paste-textarea {
     width: 100%;
     padding: 12px;
-    border: 2px solid #ddd;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     font-family: 'Courier New', monospace;
     font-size: 13px;
@@ -603,7 +610,7 @@ const handleManualBackup = async () => {
 }
 
 .backup-card {
-    border-left: 5px solid #4285f4;
+    border-left: 5px solid var(--brand-blue);
 }
 
 .backup-info ul {
@@ -624,17 +631,17 @@ const handleManualBackup = async () => {
     content: "•";
     position: absolute;
     left: 0;
-    color: #4285f4;
+    color: var(--brand-blue);
 }
 
 .btn-backup {
-    background: #4285f4;
+    background: var(--brand-blue);
     color: white;
     padding: 10px 24px;
 }
 
 .btn-backup:hover:not(:disabled) {
-    background: #3367d6;
+    background: var(--brand-blue-dark);
 }
 
 .mb-20 {
@@ -688,7 +695,7 @@ const handleManualBackup = async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: var(--border-color);
   -webkit-transition: .4s;
   transition: .4s;
 }
@@ -706,11 +713,11 @@ const handleManualBackup = async () => {
 }
 
 input:checked + .slider {
-  background-color: #4285f4;
+  background-color: var(--brand-blue);
 }
 
 input:focus + .slider {
-  box-shadow: 0 0 1px #4285f4;
+  box-shadow: 0 0 1px var(--brand-blue);
 }
 
 input:checked + .slider:before {

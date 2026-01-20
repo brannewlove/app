@@ -133,6 +133,32 @@ function formatTradesForSheet(data) {
 }
 
 /**
+ * 데이터를 [사용자관리] 시트 형식으로 변환 (한글 헤더, 특정 순서)
+ */
+function formatUsersForSheet(data) {
+    if (!data || data.length === 0) return [];
+
+    const headerMap = {
+        'cj_id': '사원ID',
+        'name': '성명',
+        'part': '부서',
+        'state': '상태',
+        'sec_level': '권한레벨'
+    };
+
+    const headers = Object.values(headerMap);
+    const keys = Object.keys(headerMap);
+
+    const rows = data.map(item => keys.map(key => {
+        let val = item[key];
+        if (val === null || val === undefined) return '';
+        return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
+    }));
+
+    return [headers, ...rows];
+}
+
+/**
  * 자산 및 거래 데이터 백업 실행
  */
 async function runBackup() {
@@ -167,6 +193,9 @@ async function runBackup() {
             LEFT JOIN users e ON t.ex_user = e.cj_id
             LEFT JOIN assets a ON t.asset_number = a.asset_number
             ORDER BY t.trade_id DESC
+        `);
+        const [users] = await pool.query(`
+            SELECT * FROM users ORDER BY user_id ASC
         `);
 
         // 2. 구글 시트 파일 생성
@@ -230,6 +259,11 @@ async function runBackup() {
                         addSheet: {
                             properties: { title: '거래관리' }
                         }
+                    },
+                    {
+                        addSheet: {
+                            properties: { title: '사용자관리' }
+                        }
                     }
                 ]
             }
@@ -238,13 +272,15 @@ async function runBackup() {
         // 4. 데이터 저장
         const assetData = formatAssetsForSheet(assets);
         const tradeData = formatTradesForSheet(trades);
+        const userData = formatUsersForSheet(users);
 
         await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,
             resource: {
                 data: [
                     { range: '자산관리!A1', values: assetData },
-                    { range: '거래관리!A1', values: tradeData }
+                    { range: '거래관리!A1', values: tradeData },
+                    { range: '사용자관리!A1', values: userData }
                 ],
                 valueInputOption: 'RAW'
             }

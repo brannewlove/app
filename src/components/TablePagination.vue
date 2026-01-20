@@ -64,7 +64,7 @@ defineEmits(['prev', 'next', 'go-to']);
 }
 
 .pagination-btn:disabled {
-  background: #ccc;
+  background: var(--border-color);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -79,7 +79,7 @@ defineEmits(['prev', 'next', 'go-to']);
   padding: 8px 12px;
   background: #f0f0f0;
   color: #333;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
@@ -88,7 +88,7 @@ defineEmits(['prev', 'next', 'go-to']);
 }
 
 .page-number:hover {
-  background: #e0e0e0;
+  background: var(--border-color);
 }
 
 .page-number.active {

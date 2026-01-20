@@ -509,7 +509,7 @@ onMounted(() => {
 
 .register-table th, .register-table td {
   padding: 10px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   text-align: left;
 }
 
@@ -562,8 +562,8 @@ onMounted(() => {
 }
 
 .btn-add { background: #777; color: white; }
-.btn-submit { background: #5e88af; color: white; }
-.btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+.btn-submit { background: var(--brand-blue); color: white; }
+.btn-submit:disabled { background: var(--border-color); cursor: not-allowed; }
 
 .btn-delete-row {
   background: none;

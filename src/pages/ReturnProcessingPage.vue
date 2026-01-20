@@ -136,7 +136,18 @@
     <div v-if="isExportModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="e => handleOverlayMouseUp(e, closeExportModal)">
       <div class="modal-content export-modal">
         <div class="modal-header">
-          <h2>반납 메일 추출</h2>
+          <div style="display: flex; align-items: center; gap: 15px;">
+            <h2>반납 메일 추출</h2>
+            <button 
+              class="header-copy-btn" 
+              @click="copyToClipboard" 
+              :title="isCopied ? '복사 완료!' : '클립보드 복사'"
+              :disabled="exportAssets.length === 0"
+            >
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
+              <span v-else style="color: #27ae60; font-size: 14px; font-weight: bold;">✓</span>
+            </button>
+          </div>
           <button @click="closeExportModal" class="close-btn">✕</button>
         </div>
         
@@ -144,7 +155,7 @@
           <p class="export-desc">렌탈사 반납요청메일 필요 건.</p>
           
           <div v-if="exportAssets.length > 0" class="export-table-container">
-            <table id="exportTable" class="export-data-table">
+            <table class="export-data-table">
               <thead>
                 <tr>
                   <th>반납유형</th>
@@ -167,9 +178,6 @@
         </div>
         
         <div class="modal-footer">
-          <button v-if="exportAssets.length > 0" @click="copyTable" class="btn btn-copy">
-            {{ isCopied ? '✓' : '복사' }}
-          </button>
           <button @click="closeExportModal" class="btn btn-close">닫기</button>
         </div>
       </div>
@@ -213,9 +221,9 @@
             '{{ selectedAssetForAction?.asset_number }}' 자산에 대해 어떤 처리를 원하십니까?
           </p>
           <div style="display: flex; flex-direction: column; gap: 12px;">
-            <button @click="handleActionChoice('complete')" class="btn btn-confirm" style="background: #A52A2A; width: 100%;">반납 완료 (렌탈사 반납)</button>
-            <button @click="handleActionChoice('reuse')" class="btn btn-confirm" style="background: #4682B4; width: 100%;">재사용 처리 (사내 재고)</button>
-            <button @click="handleActionChoice('replacement')" class="btn btn-confirm" style="background: #5e88af; width: 100%;">고장교체 처리 (렌탈사 교체)</button>
+            <button @click="handleActionChoice('complete')" class="btn btn-confirm" style="background: var(--confirm-color); width: 100%;">반납 완료 (렌탈사 반납)</button>
+            <button @click="handleActionChoice('replacement')" class="btn btn-confirm" style="background: var(--confirm-color); width: 100%;">고장교체 처리 (렌탈사 교체)</button>
+            <button @click="handleActionChoice('reuse')" class="btn btn-confirm" style="background: var(--brand-blue); width: 100%;">재사용 처리 (사내 재고)</button>
           </div>
         </div>
         <div class="modal-footer">
@@ -547,23 +555,56 @@ const closeExportModal = () => {
   isCopied.value = false; // 모달 닫을 때 상태 초기화
 };
 
-const copyTable = () => {
-  const el = document.getElementById('exportTable');
-  if (!el) return;
-  const range = document.createRange();
-  range.selectNode(el);
-  window.getSelection().removeAllRanges();
-  window.getSelection().addRange(range);
-  try {
-    document.execCommand('copy');
+const copyToClipboard = () => {
+  const dataToCopy = exportAssets.value;
+  if (dataToCopy.length === 0) return;
+
+  const headers = ['반납유형', '자산번호', '반납사유', '비고'];
+  
+  // HTML 버전 (요청하신 스타일 적용: 1px 검정 테두리, 회색 헤더 배경, 폰트 12px)
+  const htmlTable = `
+    <table border="1" cellspacing="0" cellpadding="8" style="border-collapse: collapse; font-size: 12px; font-family: sans-serif; border: 1px solid #000000; width: 100%;">
+      <thead>
+        <tr style="background-color: #bbbbbb;">
+          ${headers.map(h => `<th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000; font-weight: bold;">${h}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${dataToCopy.map(asset => `
+          <tr style="color: #000000;">
+            <td style="border: 1px solid #000000; padding: 8px;">${asset.return_type || ''}</td>
+            <td style="border: 1px solid #000000; padding: 8px;">${asset.asset_number || ''}</td>
+            <td style="border: 1px solid #000000; padding: 8px;">${asset.return_reason || ''}</td>
+            <td style="border: 1px solid #000000; padding: 8px;">${asset.remarks || ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  // 텍스트 버전 (Fallback)
+  const plainText = [
+    headers.join('\t'),
+    ...dataToCopy.map(asset => [
+      asset.return_type || '',
+      asset.asset_number || '',
+      asset.return_reason || '',
+      asset.remarks || ''
+    ].join('\t'))
+  ].join('\n');
+
+  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
+  const blobText = new Blob([plainText], { type: 'text/plain' });
+  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
+
+  navigator.clipboard.write(data).then(() => {
     isCopied.value = true;
     setTimeout(() => {
       isCopied.value = false;
     }, 2000);
-  } catch (err) {
-    console.error('Failed to copy:', err);
-  }
-  window.getSelection().removeAllRanges();
+  }).catch(err => {
+    console.error('클립보드 복사 실패:', err);
+  });
 };
 
 const handleReleaseStatusChange = (asset) => {
@@ -723,9 +764,30 @@ h1 {
   gap: 10px;
 }
 
+.header-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--brand-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.header-copy-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  color: #4a6f8f;
+}
+.header-copy-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* TSV 버튼 스타일 */
 .btn-csv {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   border: none;
   padding: 8px 15px;
@@ -795,7 +857,7 @@ h2 {
 .inline-input {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 13px;
 }
@@ -818,13 +880,13 @@ h2 {
   min-width: 52px; /* 텍스트 변경시에도 크기 유지 */
 }
 
-.btn-complete { background: #A52A2A; }
-.btn-reuse { background: #4682B4; }
-.btn-process { background: #5e88af; } /* 처리 버튼 색상 */
+.btn-complete { background: var(--confirm-color); }
+.btn-reuse { background: var(--brand-blue); }
+.btn-process { background: var(--brand-blue); } /* 처리 버튼 색상 */
 .btn-cancel-return { background: #556B2F; }
 
 .btn-action:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
-.btn-action:disabled { background: #ccc; cursor: not-allowed; }
+.btn-action:disabled { background: var(--border-color); cursor: not-allowed; }
 
 .vertical-header { height: 100px; padding: 10px 5px !important; text-align: center !important; }
 .vertical-header div { writing-mode: vertical-rl; white-space: nowrap; margin: 0 auto; }

@@ -248,7 +248,7 @@ const copyAssetInfo = () => {
 .tracking-flow { display: flex; gap: 20px; overflow-x: auto; padding: 24px; scroll-behavior: smooth; border: 1px solid #eef2f7; border-radius: 12px; background: #f1f3f5; box-shadow: inset 0 2px 4px rgba(0,0,0,0.03); }
 .tracking-flow::-webkit-scrollbar { height: 14px; }
 .tracking-flow::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-.tracking-flow::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; border: 3px solid #f1f1f1; }
+.tracking-flow::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; border: 3px solid #f1f1f1; }
 .tracking-flow::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
 .flow-item { display: flex; align-items: center; gap: 12px; min-width: max-content; }

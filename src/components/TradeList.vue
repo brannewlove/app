@@ -205,9 +205,9 @@ const download = () => {
 h2 { color: #555; margin: 0; font-size: 20px; }
 /* 검색 관련 스타일은 global.css를 따르되 필요한 경우 여기서 조정 */
 .search-container { margin-bottom: 20px; }
-.btn-pagination, .btn-page { padding: 10px 15px; margin: 0 2px; background: #f0f0f0; color: #333; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; font-size: 14px; }
-.btn-pagination:hover:not(:disabled), .btn-page:hover { background: #e0e0e0; }
-.btn-pagination:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+.btn-pagination, .btn-page { padding: 10px 15px; margin: 0 2px; background: var(--bg-color); color: #333; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-weight: 500; transition: all 0.2s ease; font-size: 14px; }
+.btn-pagination:hover:not(:disabled), .btn-page:hover { background: var(--border-color); }
+.btn-pagination:disabled { background: var(--border-color); cursor: not-allowed; opacity: 0.6; }
 .trades-table { 
   width: 100%; 
   border-collapse: separate; 
@@ -228,8 +228,8 @@ h2 { color: #555; margin: 0; font-size: 20px; }
   color: white; 
   background: var(--primary-color); 
 }
-.sortable-header:hover:not(.active) { background: rgba(255,255,255,0.15); }
-.sortable-header.active { background: rgba(0,0,0,0.2); color: var(--accent-color); }
+.sortable-header:hover:not(.active) { background: #555; }
+.sortable-header.active { background: #222; color: var(--accent-color); }
 .actions-header { 
   background: var(--primary-color); 
   color: white; 

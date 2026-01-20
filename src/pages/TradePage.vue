@@ -202,14 +202,14 @@ h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
 .alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-register { background: #5e88af; color: white; }
+.btn-register { background: var(--brand-blue); color: white; }
 .btn-register:hover { background: #4a6f8f; }
 .btn-export-replacement { background: #794A8D; color: white; }
 .btn-export-replacement:hover { background: #603a70; }
 
 /* TSV 버튼 스타일 */
 .btn-csv {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   display: flex;
   align-items: center;

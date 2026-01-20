@@ -266,7 +266,7 @@ onMounted(async () => {
                     <input type="checkbox" :checked="excludedReplacements[asset.asset_number]?.checked || false" @change="() => toggleAssetExclude(asset.asset_number)" />
                   </td>
                   <td>{{ asset.asset_number }}</td>
-                  <td style="font-weight: bold; color: #5e88af;">{{ asset.replacement }}</td>
+                  <td style="font-weight: bold; color: var(--brand-blue);">{{ asset.replacement }}</td>
                   <td>{{ asset.model }}</td>
                   <td style="font-size: 0.9em; color: #666;">{{ asset.serial_number || '-' }}</td>
                   <td>{{ asset.replacement_user_name || '-' }}</td>
@@ -299,7 +299,7 @@ onMounted(async () => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #5e88af;
+  color: var(--brand-blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,7 +319,7 @@ onMounted(async () => {
   padding: 4px 10px;
   font-size: 12px;
   border-radius: 4px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   background: #fdfdfd;
   color: #666;
   cursor: pointer;
@@ -328,24 +328,24 @@ onMounted(async () => {
 }
 .btn-toggle-hidden:hover {
   background: #f5f5f5;
-  border-color: #ccc;
+  border-color: var(--border-color);
 }
 .btn-toggle-hidden.active {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   border-color: #4a6f8f;
 }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 .table-container { border: 1px solid #eee; border-radius: 4px; overflow: hidden; }
 .export-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: bold; color: #333; }
+.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid var(--border-color); font-weight: bold; color: #333; }
 .export-table td { padding: 12px; border-bottom: 1px solid #eee; }
 .export-table tbody tr:hover { background: #f9f9f9; }
 
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-primary { background: #5e88af; color: white; }
+.btn-primary { background: var(--brand-blue); color: white; }
 .btn-primary:hover { background: #4a6f8f; }
-.btn-secondary { background: white; color: #333; border: 1px solid #ddd; }
+.btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }
 .btn-copy, .btn-tsv { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .btn-icon { width: 14px; height: 14px; filter: brightness(0) invert(1); }
 .alert { padding: 15px; border-radius: 5px; margin-bottom: 15px; }

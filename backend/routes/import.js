@@ -81,13 +81,51 @@ router.post('/assets', async (req, res) => {
             return response.error(res, `필수 정보(자산번호, 시작일, 종료일)가 모두 누락되어 처리할 데이터가 없습니다. (제외된 건수: ${skippedCount}건)`, 400);
         }
 
+        // 2. 기존 데이터 가져오기 (신규/업데이트 및 변경사항 확인용)
+        const columnsToCompare = Object.keys(validData[0]);
+        const assetNumbers = validData.map(row => String(row.asset_number));
+        const [existingRows] = await pool.query(
+            `SELECT ${columnsToCompare.map(c => `\`${c}\``).join(', ')} FROM assets WHERE asset_number IN (?)`,
+            [assetNumbers]
+        );
+
+        const existingMap = new Map();
+        existingRows.forEach(row => existingMap.set(String(row.asset_number), row));
+
         const result = await performUpsert('assets', 'asset_number', validData);
 
-        // MySQL affectedRows는 신규(1), 업데이트(2), 변경없음(0)을 합산하므로 배치 작업에서 정확한 구분은 어렵습니다.
         const totalCount = rawData.length;
         const processedCount = validData.length;
 
-        let message = `총 ${totalCount}건 중 ${processedCount}건 처리 완료`;
+        let insertedCount = 0;
+        let updatedCount = 0;
+
+        validData.forEach(row => {
+            const key = String(row.asset_number);
+            if (!existingMap.has(key)) {
+                insertedCount++;
+            } else {
+                const existing = existingMap.get(key);
+                const isChanged = columnsToCompare.some(col => {
+                    let dbVal = existing[col];
+                    let inputVal = row[col];
+
+                    // null/empty 처리
+                    if (dbVal === null || dbVal === undefined) dbVal = '';
+                    if (inputVal === null || inputVal === undefined) inputVal = '';
+
+                    // Date 객체 처리 (YYYY-MM-DD 형식이면 날짜만 비교)
+                    if (dbVal instanceof Date) {
+                        dbVal = dbVal.toISOString().split('T')[0];
+                    }
+
+                    return String(dbVal) !== String(inputVal).trim();
+                });
+                if (isChanged) updatedCount++;
+            }
+        });
+
+        let message = `총 ${totalCount}건 중 ${processedCount}건 처리 완료 (신규: ${insertedCount}, 업데이트: ${updatedCount})`;
         if (skippedCount > 0) {
             message += `, 필수정보 누락으로 ${skippedCount}건 제외됨`;
         }
@@ -95,8 +133,8 @@ router.post('/assets', async (req, res) => {
         response.success(res, {
             total: totalCount,
             processed: processedCount,
-            inserted: updatedCount,
-            updated: insertedCount,
+            inserted: insertedCount,
+            updated: updatedCount,
             skipped: skippedCount,
             message: message
         });
@@ -109,14 +147,73 @@ router.post('/assets', async (req, res) => {
 // 사용자 데이터 임포트
 router.post('/users', async (req, res) => {
     try {
-        const result = await performUpsert('users', 'cj_id', req.body);
+        const rawData = req.body;
+        if (!Array.isArray(rawData) || rawData.length === 0) {
+            return response.error(res, '처리할 데이터가 없습니다.', 400);
+        }
 
-        const totalCount = req.body.length;
+        // 필수 필드 검증 (cj_id)
+        const validData = rawData.filter(row => row.cj_id && String(row.cj_id).trim() !== '');
+        const skippedCount = rawData.length - validData.length;
+
+        if (validData.length === 0) {
+            return response.error(res, `필수 정보(사용자 ID)가 누락되어 처리할 데이터가 없습니다.`, 400);
+        }
+
+        // 기존 데이터 가져오기 (신규/업데이트 및 변경사항 확인용)
+        const columnsToCompare = Object.keys(validData[0]);
+        const cjIds = validData.map(row => String(row.cj_id));
+        const [existingRows] = await pool.query(
+            `SELECT ${columnsToCompare.map(c => `\`${c}\``).join(', ')} FROM users WHERE cj_id IN (?)`,
+            [cjIds]
+        );
+
+        const existingMap = new Map();
+        existingRows.forEach(row => existingMap.set(String(row.cj_id), row));
+
+        const result = await performUpsert('users', 'cj_id', validData);
+
+        const totalCount = rawData.length;
+        const processedCount = validData.length;
+
+        let insertedCount = 0;
+        let updatedCount = 0;
+
+        validData.forEach(row => {
+            const key = String(row.cj_id);
+            if (!existingMap.has(key)) {
+                insertedCount++;
+            } else {
+                const existing = existingMap.get(key);
+                const isChanged = columnsToCompare.some(col => {
+                    let dbVal = existing[col];
+                    let inputVal = row[col];
+
+                    if (dbVal === null || dbVal === undefined) dbVal = '';
+                    if (inputVal === null || inputVal === undefined) inputVal = '';
+
+                    if (dbVal instanceof Date) {
+                        dbVal = dbVal.toISOString().split('T')[0];
+                    }
+
+                    return String(dbVal) !== String(inputVal).trim();
+                });
+                if (isChanged) updatedCount++;
+            }
+        });
+
+        let message = `총 ${totalCount}건 중 ${processedCount}건 처리 완료 (신규: ${insertedCount}, 업데이트: ${updatedCount})`;
+        if (skippedCount > 0) {
+            message += `, 필수정보 누락으로 ${skippedCount}건 제외됨`;
+        }
 
         response.success(res, {
             total: totalCount,
-            affected: result.affectedRows,
-            message: `총 ${totalCount}건 처리 완료`
+            processed: processedCount,
+            inserted: insertedCount,
+            updated: updatedCount,
+            skipped: skippedCount,
+            message: message
         });
     } catch (err) {
         console.error('User Import Error:', err);

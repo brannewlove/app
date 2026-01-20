@@ -347,7 +347,7 @@ h2 {
 
 /* TSV 버튼 스타일 */
 .btn-csv {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   display: flex;
   align-items: center;

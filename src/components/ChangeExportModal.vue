@@ -298,7 +298,7 @@ onMounted(async () => {
   background: none;
   border: none;
   cursor: pointer;
-  color: #5e88af;
+  color: var(--brand-blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -318,7 +318,7 @@ onMounted(async () => {
   padding: 4px 10px;
   font-size: 12px;
   border-radius: 4px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   background: #fdfdfd;
   color: #666;
   cursor: pointer;
@@ -327,10 +327,10 @@ onMounted(async () => {
 }
 .btn-toggle-hidden:hover {
   background: #f5f5f5;
-  border-color: #ccc;
+  border-color: var(--border-color);
 }
 .btn-toggle-hidden.active {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   border-color: #4a6f8f;
 }
@@ -341,7 +341,7 @@ onMounted(async () => {
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
 .btn-primary { background: #666; color: white; }
 .btn-primary:hover { background: #555; }
-.btn-primary:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
+.btn-primary:disabled { background: var(--border-color); cursor: not-allowed; opacity: 0.6; }
 
 .btn-tsv, .btn-copy {
   display: flex;
@@ -357,10 +357,10 @@ onMounted(async () => {
   filter: brightness(0) invert(1); /* 흰색으로 변경 */
 }
 
-.btn-secondary { background: white; color: #333; border: 1px solid #ddd; }
+.btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }
 .btn-secondary:hover { background: #f5f5f5; }
 .export-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
-.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: bold; color: #333; }
+.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid var(--border-color); font-weight: bold; color: #333; }
 .export-table td { padding: 12px; border-bottom: 1px solid #eee; }
 .export-table tbody tr:hover { background: #f9f9f9; }
 .export-table tbody tr.excluded { opacity: 0.6; text-decoration: line-through; }

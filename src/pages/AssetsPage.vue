@@ -52,7 +52,12 @@ const {
   sortDirection
 } = useTable(assets, {
   itemsPerPage: itemsPerPage,
-  filterFn: assetsFilterFn
+  filterFn: assetsFilterFn,
+  searchFields: [
+    'category', 'model', 'asset_number', 'serial_number',
+    'in_user', 'user_name', 'user_part', 'state',
+    'day_of_start', 'day_of_end', 'contract_month'
+  ]
 });
 
 const isModalOpen = ref(false);
@@ -64,7 +69,7 @@ const isAssetCopied = ref(false);
 const assetModalFields = [
   'category', 'model', 'asset_number', 'serial_number',
   'day_of_start', 'day_of_end', 'contract_month',
-  'in_user', 'user_name', 'user_part', 'state'
+  'in_user', 'user_name', 'user_part', 'state', 'replacement'
 ];
 const stateOptions = ['useable', 'rent', 'repair', 'termination', 'process-ter'];
 
@@ -521,7 +526,8 @@ const getHeaderDisplayName = (columnName) => {
     'day_of_start': '시작일',
     'day_of_end': '종료일',
     'unit_price': '월단가',
-    'contract_month': '계약월'
+    'contract_month': '계약월',
+    'replacement': '불량교체'
   };
   return headerMap[columnName] || columnName;
 };
@@ -921,11 +927,13 @@ h2 {
 .btn-confirm:hover:not(:disabled) { background: #229954; }
 
 /* 퀵 거래 등록 스타일 */
-.btn-trade { background: #5e88af; color: white; }
-.btn-trade:hover { background: #4a6f8f; }
+.btn-trade { background: var(--brand-blue); color: white; }
+.btn-trade:hover {
+  background: var(--brand-blue-dark);
+ }
 
 .btn-csv {
-  background: #5e88af;
+  background: var(--brand-blue);
   color: white;
   display: flex;
   align-items: center;
@@ -980,7 +988,7 @@ h2 {
   padding: 0 10px;
   background-color: #f5f5f5;
   border-radius: 4px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   font-size: 13px;
   color: #666;
   display: flex;

@@ -109,7 +109,7 @@ router.put('/:id', async (req, res, next) => {
 
     for (const key in updateData) {
       // Exclude non-database fields from update
-      if (['return_id', 'created_at', 'processing'].includes(key)) continue;
+      if (['return_id', 'created_at', 'processing', 'asset_id'].includes(key)) continue;
 
       fields.push(`${key} = ?`);
       // Handle boolean checkboxes

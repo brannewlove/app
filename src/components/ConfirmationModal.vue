@@ -57,7 +57,7 @@ const handleMouseUp = () => {
 .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
 .btn-primary { background: #666; color: white; }
 .btn-primary:hover { background: #555; }
-.btn-secondary { background: white; color: #333; border: 1px solid #ddd; }
+.btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }
 .btn-secondary:hover { background: #f5f5f5; }
 .confirm-modal-footer .btn { padding: 10px 30px; }
 </style>

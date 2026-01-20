@@ -133,7 +133,7 @@ const handleLogin = async () => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 400px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
 }
 
 .login-box h1 {
@@ -164,7 +164,7 @@ const handleLogin = async () => {
 
 .form-input {
   padding: 12px 15px;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   transition: all 0.3s ease;
