@@ -1,7 +1,7 @@
 <template>
   <div class="page-content">
     <h1>반납 처리 관리</h1>
-    <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
+    <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
 
     <div class="assets-section">
@@ -145,7 +145,7 @@
               :disabled="exportAssets.length === 0"
             >
               <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
-              <span v-else style="color: #27ae60; font-size: 14px; font-weight: bold;">✓</span>
+              <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
           <button @click="closeExportModal" class="close-btn">✕</button>
@@ -268,6 +268,8 @@ import returnedAssetsApi from '../api/returnedAssets';
 import axios from 'axios';
 import { useTable } from '../composables/useTable';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
+import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
 
 const returnedAssets = ref([]);
 const loading = ref(false);
@@ -628,17 +630,7 @@ const shouldHighlight = (handoverDate) => {
   return Math.ceil(Math.abs(today.getTime() - handover.getTime()) / (1000 * 60 * 60 * 24)) >= 14 && handover.getTime() < today.getTime();
 };
 
-const formatDateTime = (datetime) => {
-  if (!datetime) return '';
-  const date = new Date(datetime);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
+// formatDateTime is now imported
 
 const isEndDateExpired = (endDate) => {
   if (!endDate) return false;
@@ -653,6 +645,8 @@ const downloadCSV = () => {
         alert('다운로드할 데이터가 없습니다.');
         return;
     }
+    
+    const filename = getTimestampFilename('ReturnProcessing');
 
     const csvHeaders = [
         '반납유형', '종료일', '모델', '자산번호', '반납사유', 
@@ -660,14 +654,6 @@ const downloadCSV = () => {
         '출고여부', '전산실입고', '로우포맷', '전산반납', '메일반납', '실재반납',
         '비고', '생성일'
     ];
-
-    const escapeCSV = (val) => {
-        let s = String(val === null || val === undefined ? '' : val);
-        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-            s = '"' + s.replace(/"/g, '""') + '"';
-        }
-        return s;
-    };
 
     const csvData = returnedAssets.value.map(asset => [
         asset.return_type || '',
@@ -689,20 +675,7 @@ const downloadCSV = () => {
         formatDateTime(asset.created_at)
     ]);
 
-    const csvContent = [
-        csvHeaders.map(h => escapeCSV(h)).join(','),
-        ...csvData.map(row => row.map(val => escapeCSV(val)).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const timestamp = new Date().toISOString().replace(/[:T]/g, '_').split('.')[0];
-    link.href = url;
-    link.setAttribute('download', `ReturnProcessing_${timestamp}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCSVFile(filename, csvHeaders, csvData);
 };
 
 const handleKeyDown = (event) => {
@@ -819,6 +792,21 @@ h1 {
   height: 14px;
   object-fit: contain;
   filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 
 .returns-table {

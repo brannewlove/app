@@ -60,72 +60,31 @@ async function checkAuthStatus() {
 }
 
 /**
- * 데이터를 [자산관리] 시트 형식으로 변환 (한글 헤더, 특정 순서)
+ * 데이터를 Google Sheets 형식으로 변환 (날짜 처리 포함)
  */
-function formatAssetsForSheet(data) {
-    if (!data || data.length === 0) return [];
-
-    const headerMap = {
-        'asset_number': '자산번호',
-        'model': '모델',
-        'category': '분류',
-        'serial_number': '시리얼번호',
-        'state': '상태',
-        'in_user': '사용자ID',
-        'user_name': '사용자명',
-        'user_part': '부서',
-        'day_of_start': '시작일',
-        'day_of_end': '종료일',
-        'contract_month': '계약월'
-    };
-
-    const headers = Object.values(headerMap);
-    const keys = Object.keys(headerMap);
-
-    const rows = data.map(item => keys.map(key => {
-        let val = item[key];
-        if (val === null || val === undefined) return '';
-        if (key === 'day_of_start' || key === 'day_of_end') {
-            const date = new Date(val);
-            return isNaN(date.getTime()) ? val : date.toISOString().split('T')[0];
-        }
-        return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
-    }));
-
-    return [headers, ...rows];
-}
-
-/**
- * 데이터를 [거래관리] 시트 형식으로 변환 (영문 헤더, 특정 순서)
- */
-function formatTradesForSheet(data) {
-    if (!data || data.length === 0) return [];
-
-    const headers = [
-        'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
-        'ex_user', 'ex_user_name', 'ex_user_part',
-        'cj_id', 'name', 'part', 'memo'
-    ];
-
-    const formatDateTime = (dateString) => {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const seconds = String(date.getSeconds()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    };
+function formatGenericForSheet(data, headers) {
+    if (!data || data.length === 0) return [headers];
 
     const rows = data.map(item => headers.map(header => {
         let val = item[header];
         if (val === null || val === undefined) return '';
-        if (header === 'timestamp') {
-            return formatDateTime(val);
+
+        // 날짜 객체 또는 날짜 문자열 감지
+        if (val instanceof Date) {
+            const date = val;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            // 시간 정보가 있으면 날짜+시간, 없으면 날짜만
+            if (hours === '00' && minutes === '00' && seconds === '00') {
+                return `${year}-${month}-${day}`;
+            }
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         }
+
         return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
     }));
 
@@ -133,37 +92,11 @@ function formatTradesForSheet(data) {
 }
 
 /**
- * 데이터를 [사용자관리] 시트 형식으로 변환 (한글 헤더, 특정 순서)
- */
-function formatUsersForSheet(data) {
-    if (!data || data.length === 0) return [];
-
-    const headerMap = {
-        'cj_id': '사원ID',
-        'name': '성명',
-        'part': '부서',
-        'state': '상태',
-        'sec_level': '권한레벨'
-    };
-
-    const headers = Object.values(headerMap);
-    const keys = Object.keys(headerMap);
-
-    const rows = data.map(item => keys.map(key => {
-        let val = item[key];
-        if (val === null || val === undefined) return '';
-        return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
-    }));
-
-    return [headers, ...rows];
-}
-
-/**
- * 자산 및 거래 데이터 백업 실행
+ * 모든 데이터베이스 테이블 백업 실행
  */
 async function runBackup() {
     try {
-        console.log('구글 시트 백업 시작 (OAuth 방식 + 컬럼 동기화)...');
+        console.log('구글 시트 전체 테이블 백업 시작...');
         const folderId = process.env.GOOGLE_BACKUP_FOLDER_ID;
 
         if (!folderId) {
@@ -174,31 +107,11 @@ async function runBackup() {
         const drive = google.drive({ version: 'v3', auth });
         const sheets = google.sheets({ version: 'v4', auth });
 
-        // 1. 데이터 가져오기
-        const [assets] = await pool.query(`
-            SELECT 
-                a.*,
-                u.name as user_name,
-                u.part as user_part
-            FROM assets a
-            LEFT JOIN users u ON a.in_user = u.cj_id
-            ORDER BY a.asset_id DESC
-        `);
-        const [trades] = await pool.query(`
-            SELECT t.*, u.name as name, u.part as part,
-                   e.name as ex_user_name, e.part as ex_user_part,
-                   a.model as model
-            FROM trade t 
-            LEFT JOIN users u ON t.cj_id = u.cj_id
-            LEFT JOIN users e ON t.ex_user = e.cj_id
-            LEFT JOIN assets a ON t.asset_number = a.asset_number
-            ORDER BY t.trade_id DESC
-        `);
-        const [users] = await pool.query(`
-            SELECT * FROM users ORDER BY user_id ASC
-        `);
+        // 1. 모든 테이블 목록 가져오기
+        const [tableRows] = await pool.query('SHOW TABLES');
+        const tableNames = tableRows.map(row => Object.values(row)[0]);
 
-        // 2. 구글 시트 파일 생성
+        // 2. 구글 시트 파일 생성 준비
         const now = new Date();
         const timestamp = now.getFullYear() +
             String(now.getMonth() + 1).padStart(2, '0') +
@@ -207,7 +120,7 @@ async function runBackup() {
             String(now.getMinutes()).padStart(2, '0') +
             String(now.getSeconds()).padStart(2, '0');
 
-        const fileName = `ASDB_${timestamp}`;
+        const fileName = `ASDB_FULL_${timestamp}`;
 
         const fileMetadata = {
             name: fileName,
@@ -224,7 +137,7 @@ async function runBackup() {
         const spreadsheetId = spreadsheet.data.id;
         console.log(`새 시트 생성됨: ${spreadsheetId} (${fileName})`);
 
-        // 2-1. 소유권 이전 (개인 이메일로)
+        // 2-1. 소유권 이전 (설정된 경우)
         const personalEmail = process.env.GOOGLE_PERSONAL_EMAIL;
         if (personalEmail && personalEmail !== 'your-email@gmail.com') {
             try {
@@ -237,61 +150,65 @@ async function runBackup() {
                         emailAddress: personalEmail
                     }
                 });
-                console.log(`소유권이 ${personalEmail}로 이전되었습니다.`);
             } catch (permErr) {
                 console.error('소유권 이전 실패:', permErr.message);
-                // 소유권 이전 실패는 백업 자체의 실패로 간주하지 않음
             }
         }
 
-        // 3. 시트 초기화
+        // 3. 테이블별 데이터 가져오기 및 시트 생성
+        const backupData = [];
+        const sheetRequests = [];
+
+        for (let i = 0; i < tableNames.length; i++) {
+            const tableName = tableNames[i];
+            const [rows] = await pool.query(`SELECT * FROM \`${tableName}\``);
+            const [columns] = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+            const headers = columns.map(c => c.Field);
+
+            const formattedData = formatGenericForSheet(rows, headers);
+
+            backupData.push({
+                range: `'${tableName}'!A1`,
+                values: formattedData
+            });
+
+            if (i === 0) {
+                sheetRequests.push({
+                    updateSheetProperties: {
+                        properties: { sheetId: 0, title: tableName },
+                        fields: 'title'
+                    }
+                });
+            } else {
+                sheetRequests.push({
+                    addSheet: {
+                        properties: { title: tableName }
+                    }
+                });
+            }
+        }
+
+        // 시트들 생성 및 제목 변경
         await sheets.spreadsheets.batchUpdate({
             spreadsheetId,
-            resource: {
-                requests: [
-                    {
-                        updateSheetProperties: {
-                            properties: { sheetId: 0, title: '자산관리' },
-                            fields: 'title'
-                        }
-                    },
-                    {
-                        addSheet: {
-                            properties: { title: '거래관리' }
-                        }
-                    },
-                    {
-                        addSheet: {
-                            properties: { title: '사용자관리' }
-                        }
-                    }
-                ]
-            }
+            resource: { requests: sheetRequests }
         });
 
-        // 4. 데이터 저장
-        const assetData = formatAssetsForSheet(assets);
-        const tradeData = formatTradesForSheet(trades);
-        const userData = formatUsersForSheet(users);
-
+        // 데이터 채우기 (범위 사용을 위해 시트 생성 이후 실행)
         await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,
             resource: {
-                data: [
-                    { range: '자산관리!A1', values: assetData },
-                    { range: '거래관리!A1', values: tradeData },
-                    { range: '사용자관리!A1', values: userData }
-                ],
+                data: backupData,
                 valueInputOption: 'RAW'
             }
         });
 
-        console.log('데이터 업로드 완료.');
+        console.log(`총 ${tableNames.length}개 테이블 백업 완료.`);
 
-        // 5. 50개 파일 유지 로직 (오래된 파일 삭제)
+        // 5. 로테이션 (기존 로직 유지)
         await rotateBackups(drive, folderId);
 
-        return { success: true, fileName, spreadsheetId };
+        return { success: true, fileName, spreadsheetId, tableCount: tableNames.length };
     } catch (err) {
         console.error('백업 실패:', err);
         throw err;

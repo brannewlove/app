@@ -93,7 +93,7 @@ const checkBackupStatus = async () => {
       notifications.value.unshift({
         id: Date.now(),
         type: 'backup',
-        title: '⚠️ 구글 인증 만료',
+        title: '구글 인증 만료',
         message: status.message,
         read: false,
         timestamp: new Date()
@@ -175,7 +175,7 @@ watch(() => router.currentRoute.value.path, () => {
               </div>
               <div v-else class="notification-list">
                 <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ unread: !n.read }">
-                  <div class="notification-title">{{ n.title }}</div>
+                  <div class="notification-title"><img src="/images/warning.png" alt="warning" class="warning-icon" /> {{ n.title }}</div>
                   <div class="notification-message">{{ n.message }}</div>
                 </div>
               </div>
@@ -360,6 +360,14 @@ watch(() => router.currentRoute.value.path, () => {
   height: 20px;
   object-fit: contain;
   filter: brightness(0) invert(1); /* 이미지를 흰색으로 변경 */
+}
+
+.warning-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 .notification-btn:hover {

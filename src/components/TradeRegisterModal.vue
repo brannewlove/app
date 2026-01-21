@@ -345,8 +345,8 @@ onMounted(() => {
       
       <div class="modal-body">
         <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
-        <div v-if="successMessage" class="alert alert-success">✅ {{ successMessage }}</div>
-        <div v-if="loading" class="alert alert-info">⏳ 등록 중...</div>
+        <div v-if="successMessage" class="alert alert-success"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ successMessage }}</div>
+        <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 등록 중...</div>
 
         <div class="register-section">
           <div class="table-wrapper">
@@ -405,7 +405,7 @@ onMounted(() => {
                     <input v-model="trade.memo" type="text" placeholder="메모" class="form-input" />
                   </td>
                   <td class="action">
-                    <button @click="removeRow(index)" class="btn-delete-row" title="삭제">🗑️</button>
+                    <button @click="removeRow(index)" class="btn-delete-row" title="삭제"><img src="/images/recyclebin.png" alt="delete" class="delete-icon" /></button>
                   </td>
                 </tr>
               </tbody>
@@ -601,4 +601,22 @@ onMounted(() => {
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
 .alert-success { background: #f1f8e9; color: #558b2f; border-left: 4px solid #8bc34a; }
 .alert-info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #2196f3; }
+
+.loading-icon, .delete-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.loading-icon {
+  margin-right: 4px;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+}
 </style>

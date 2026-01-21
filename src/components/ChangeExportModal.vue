@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { getTimestampFilename } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
 
 defineProps({
   isOpen: {
@@ -182,41 +184,22 @@ const copyToClipboard = () => {
 };
 
 const downloadCSV = () => {
-  // TSV 다운로드 시에는 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청)
   const dataToDownload = exportAssets.value;
   
   if (dataToDownload.length === 0) {
     alert('다운로드할 데이터가 없습니다.');
     return;
   }
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `AssetCurrentUsers_${timestamp}.csv`;
+  
+  const filename = getTimestampFilename('AssetCurrentUsers');
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
 
-  const escapeCSV = (val) => {
-    let s = String(val === null || val === undefined ? '' : val);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-
-  const csvContent = [
-    headers.map(h => escapeCSV(h)).join(','),
-    ...dataToDownload.map(asset => {
-      const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
-      return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
-        .map(value => escapeCSV(value))
-        .join(',');
-    })
-  ].join('\n');
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const dataRows = dataToDownload.map(asset => {
+    const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
+    return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr];
+  });
+  
+  downloadCSVFile(filename, headers, dataRows);
 };
 
 onMounted(async () => {
@@ -239,7 +222,7 @@ onMounted(async () => {
               :disabled="exportAssets.length === 0"
             >
               <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
-              <span v-else style="color: #27ae60; font-size: 14px; font-weight: bold;">✓</span>
+              <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
             
             <button 
@@ -255,7 +238,7 @@ onMounted(async () => {
         <button class="modal-close-btn" @click="closeModal">✕</button>
       </div>
       <div class="modal-body">
-        <div v-if="exportLoading" class="alert alert-info">⏳ 데이터 로딩 중...</div>
+        <div v-if="exportLoading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 데이터 로딩 중...</div>
         <div v-else-if="exportError" class="alert alert-error">❌ {{ exportError }}</div>
         <div v-else-if="exportAssets.length > 0">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -379,4 +362,19 @@ onMounted(async () => {
 .export-table tbody tr.excluded { opacity: 0.6; text-decoration: line-through; }
 .export-table input[type="checkbox"] { cursor: pointer; width: 18px; height: 18px; }
 .tracking-logs-empty { text-align: center; padding: 30px; color: #999; }
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+}
 </style>

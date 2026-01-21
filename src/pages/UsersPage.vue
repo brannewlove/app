@@ -4,6 +4,8 @@ import userApi from '../api/users';
 import { useTable } from '../composables/useTable';
 import TablePagination from '../components/TablePagination.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { getTimestampFilename } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
 
 const users = ref([]);
 const loading = ref(false);
@@ -39,7 +41,8 @@ const {
   nextPage,
   goToPage,
   sortColumn,
-  sortDirection
+  sortDirection,
+  isManualSort
 } = useTable(displayedUsers, {
   itemsPerPage: 20
 });
@@ -77,7 +80,7 @@ const getTableHeaders = (data) => {
 // 컬럼 라벨 매핑
 const columnLabels = {
   'cj_id': 'CJ ID',
-  'name': '이름',
+  'name': '사용자명',
   'part': '부서',
   'sec_level': '보안등급',
   'state': '상태',
@@ -339,43 +342,18 @@ const downloadCSV = () => {
     return;
   }
   
-  // 현재 시간 포맷팅
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const date = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
-  const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
-  const filename = `UsersPage_${timestamp}.csv`;
+  const filename = getTimestampFilename('UsersPage');
   
-  // CSV 헤더 생성 (실제 출력되는 컬럼들만)
+  // CSV 헤더 생성
   const headers = getTableHeaders(users.value);
+  const headerRow = headers.map(h => columnLabels[h] || h);
   
-  const escapeCSV = (val) => {
-    let s = String(val === null || val === undefined ? '' : val);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-
-  const csvContent = [
-    headers.map(h => escapeCSV(columnLabels[h] || h)).join(','),
-    ...users.value.map(user => 
-      headers.map(header => escapeCSV(user[header])).join(',')
-    )
-  ].join('\n');
+  // 데이터 행 생성
+  const dataRows = users.value.map(user => 
+    headers.map(header => user[header])
+  );
   
-  // UTF-8 BOM과 함께 CSV 파일 생성 (Excel 대비)
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadCSVFile(filename, headerRow, dataRows);
 };
 
 
@@ -409,7 +387,7 @@ onMounted(() => {
     </div>
     
     <div v-if="loading" class="alert alert-info">
-      ⏳ 로딩 중...
+      <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...
     </div>
     
     <!-- 임시 사용자 관리 통합 모달 -->
@@ -453,8 +431,9 @@ onMounted(() => {
               v-for="user in users.filter(u => u.is_temporary)" 
               :key="user.user_id" 
               class="temp-user-item"
+              @click="editTempUser(user)"
             >
-              <div class="user-info" @click="editTempUser(user)">
+              <div class="user-info">
                 <div class="user-name">{{ user.name }}</div>
                 <div class="user-cjid">{{ user.cj_id }}</div>
               </div>
@@ -549,7 +528,7 @@ onMounted(() => {
           <thead>
             <tr>
               <th v-for="key in getTableHeaders(users)" :key="key" @click="handleSort(key)"
-                class="sortable-header" :class="{ active: sortColumn === key }">
+                class="sortable-header" :class="{ active: isManualSort && sortColumn === key }">
                 <div class="header-content">
                   <span>{{ columnLabels[key] || key }}</span>
                   <span class="sort-icon">{{ getSortIcon(key) }}</span>
@@ -698,6 +677,14 @@ h2 {
   height: 14px;
   object-fit: contain;
   filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 /* 임시 사용자 모달 */

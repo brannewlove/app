@@ -94,32 +94,32 @@ router.post('/', async (req, res, next) => {
             case '출고-신규지급':
             case '출고-신규교체':
               await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND state = ?',
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 [cj_id, 'useable', asset_number, 'wait']
               );
               break;
             case '출고-사용자변경':
               await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND state = ?',
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 [cj_id, 'useable', asset_number, 'useable']
               );
               break;
             case '출고-재고교체':
             case '출고-재고지급':
               await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'useable', asset_number, 'cjenc_inno', 'useable']
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
+                [cj_id, 'useable', asset_number, 'useable']
               );
               break;
             case '출고-대여':
               await connection.query(
-                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user = ? AND state = ?',
-                [cj_id, 'rent', asset_number, 'cjenc_inno', 'useable']
+                'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
+                [cj_id, 'rent', asset_number, 'useable']
               );
               break;
             case '출고-수리':
               await connection.query(
-                'UPDATE assets SET state = ? WHERE asset_number = ? AND state = ?',
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 ['repair', asset_number, 'useable']
               );
               break;
@@ -134,8 +134,8 @@ router.post('/', async (req, res, next) => {
               let targetState = 'useable';
               if (work_type === '입고-대여반납') {
                 await connection.query(
-                  'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND in_user != ? AND state = ?',
-                  [targetInUser, targetState, asset_number, targetInUser, 'rent']
+                  'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
+                  [targetInUser, targetState, asset_number, 'rent']
                 );
               } else {
                 await connection.query(
@@ -153,7 +153,7 @@ router.post('/', async (req, res, next) => {
               break;
             case '입고-수리반납':
               await connection.query(
-                'UPDATE assets SET state = ? WHERE asset_number = ? AND state = ?',
+                'UPDATE assets SET state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 ['useable', asset_number, 'repair']
               );
               break;

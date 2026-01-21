@@ -291,7 +291,7 @@ const handleManualBackup = async () => {
             <!-- 자산 임포트 섹션 -->
             <div class="import-card">
                 <div v-if="result && result.type === 'import-assets'" class="alert alert-success mb-15">
-                    ✅ {{ result.message }}
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
                 </div>
                 <div v-if="error && error.includes('자산')" class="alert alert-error mb-15">
                     ❌ {{ error }}
@@ -358,7 +358,7 @@ const handleManualBackup = async () => {
             <!-- 사용자 임포트 섹션 -->
             <div class="import-card">
                 <div v-if="result && result.type === 'import-users'" class="alert alert-success mb-15">
-                    ✅ {{ result.message }}
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
                 </div>
                 <div v-if="error && error.includes('사용자')" class="alert alert-error mb-15">
                     ❌ {{ error }}
@@ -425,7 +425,7 @@ const handleManualBackup = async () => {
             <!-- 구글 시트 백업 섹션 -->
             <div class="import-card backup-card">
                 <div v-if="result && result.type === 'backup'" class="alert alert-success mb-15">
-                    ✅ {{ result.message }}
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
                 </div>
                 <div v-if="error && error.includes('백업')" class="alert alert-error mb-15">
                     ❌ {{ error }}
@@ -469,7 +469,7 @@ const handleManualBackup = async () => {
             <!-- 저장된 필터 관리 섹션 -->
             <div class="import-card">
                 <div v-if="result && result.type === 'filter'" class="alert alert-success mb-15">
-                    ✅ {{ result.message }}
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
                 </div>
                 <div v-if="error && error.includes('필터')" class="alert alert-error mb-15">
                     ❌ {{ error }}
@@ -498,7 +498,7 @@ const handleManualBackup = async () => {
                                     </button>
                                 </div>
                                 <button @click="toggleProtection(filter)" class="btn-lock" :title="filter.is_protected ? '잠금 해제' : '보호 모드 (삭제 방지)'">
-                                    {{ filter.is_protected ? '🔒' : '🔓' }}
+                                    <img :src="filter.is_protected ? '/images/lock.png' : '/images/unlock.png'" :alt="filter.is_protected ? 'Locked' : 'Unlocked'" class="lock-icon-img" />
                                 </button>
                             </div>
                         </div>
@@ -513,7 +513,7 @@ const handleManualBackup = async () => {
         </div>
 
         <div class="notice-section">
-            <h3>📢 주의사항</h3>
+            <h3>주의사항</h3>
             <ul>
                 <li>파일 형식은 <strong>Tab-Separated Values (TSV)</strong>이어야 합니다.</li>
                 <li>첫 번째 행은 반드시 컬럼명(헤더)이어야 합니다.</li>
@@ -1029,6 +1029,12 @@ input:checked + .slider:before {
     background: white;
 }
 
+.lock-icon-img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+}
+
 .btn-lock:hover {
     background: #f0f0f0;
     border-color: #ccc;
@@ -1045,5 +1051,12 @@ input:checked + .slider:before {
 
 .mb-40 {
     margin-bottom: 40px;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, toRef } from 'vue';
 
 const props = defineProps({
   trades: {
@@ -8,13 +8,33 @@ const props = defineProps({
   },
 });
 
+import { useTable } from '../composables/useTable';
+import { formatDateTime } from '../utils/dateUtils';
+
 const emit = defineEmits(['download', 'track-asset']);
 
-const currentPage = ref(1);
-const itemsPerPage = 20;
-const sortColumn = ref(null);
-const sortDirection = ref('desc');
-const searchQuery = ref('');
+const tradesRef = toRef(props, 'trades');
+
+const {
+  filteredData: filteredTrades,
+  paginatedData: paginatedTrades,
+  searchQuery,
+  sortColumn,
+  sortDirection,
+  isManualSort,
+  handleSort,
+  getSortIcon,
+  currentPage,
+  totalPages,
+  pageNumbers,
+  prevPage,
+  nextPage,
+  goToPage
+} = useTable(tradesRef, {
+  itemsPerPage: 20,
+  initialSortColumn: 'trade_id',
+  initialSortDirection: 'desc' 
+});
 
 // 테이블 컬럼 순서 및 라벨 정의
 const columnOrder = [
@@ -29,56 +49,6 @@ const columnLabels = {
   'cj_id': '사용자ID', 'name': '이름', 'part': '부서', 'memo': '메모'
 };
 
-const filteredTrades = computed(() => {
-  if (!searchQuery.value) {
-    return sortedTrades.value;
-  }
-  const keywords = searchQuery.value.toLowerCase().split(/\s+/).filter(k => k.length > 0);
-  if (keywords.length === 0) {
-    return sortedTrades.value;
-  }
-  return sortedTrades.value.filter(trade => {
-    const tradeString = Object.values(trade).map(value => String(value).toLowerCase()).join(' ');
-    return keywords.every(keyword => tradeString.includes(keyword));
-  });
-});
-
-watch(searchQuery, () => {
-  currentPage.value = 1;
-});
-
-const sortedTrades = computed(() => {
-  const activeSort = sortColumn.value || 'trade_id';
-  const sortDir = sortColumn.value ? sortDirection.value : 'desc';
-  return [...props.trades].sort((a, b) => {
-    let aValue = a[activeSort];
-    let bValue = b[activeSort];
-    if (aValue === null || aValue === undefined) aValue = '';
-    if (bValue === null || bValue === undefined) bValue = '';
-    if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
-      return sortDir === 'asc' ? parseFloat(aValue) - parseFloat(bValue) : parseFloat(bValue) - parseFloat(aValue);
-    }
-    aValue = String(aValue).toLowerCase();
-    bValue = String(bValue).toLowerCase();
-    return sortDir === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-  });
-});
-
-const handleSort = (column) => {
-  if (sortColumn.value === column) {
-    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortColumn.value = column;
-    sortDirection.value = 'asc';
-  }
-  currentPage.value = 1;
-};
-
-const getSortIcon = (column) => {
-  if (sortColumn.value !== column) return '⇳';
-  return sortDirection.value === 'asc' ? '⇧' : '⇩';
-};
-
 const orderedColumns = computed(() => {
   if (!props.trades[0]) return [];
   const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
@@ -89,45 +59,10 @@ const orderedColumns = computed(() => {
     'created_at', 'updated_at'
   ];
   const allHeaders = Object.keys(props.trades[0]);
+  // props.trades[0] might change if list updates, but computed tracks dependencies
   const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
   return [...ordered, ...remaining];
 });
-
-const paginatedTrades = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage;
-  const end = start + itemsPerPage;
-  return filteredTrades.value.slice(start, end);
-});
-
-const totalPages = computed(() => Math.ceil(filteredTrades.value.length / itemsPerPage));
-
-const pageNumbers = computed(() => {
-  const pages = [];
-  const maxPages = 5;
-  let start = Math.max(1, currentPage.value - 2);
-  let end = Math.min(totalPages.value, start + maxPages - 1);
-  if (end - start < maxPages - 1) {
-    start = Math.max(1, end - maxPages + 1);
-  }
-  for (let i = start; i <= end; i++) pages.push(i);
-  return pages;
-});
-
-const prevPage = () => { if (currentPage.value > 1) currentPage.value--; };
-const nextPage = () => { if (currentPage.value < totalPages.value) currentPage.value++; };
-const goToPage = (page) => { currentPage.value = page; };
-
-const formatDateTime = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
 
 const download = () => {
     emit('download', props.trades);
@@ -154,7 +89,7 @@ const download = () => {
       <table class="trades-table">
       <thead>
         <tr>
-          <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" class="sortable-header" :class="{ active: sortColumn === header }">
+          <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" class="sortable-header" :class="{ active: isManualSort && sortColumn === header }">
             <div class="header-content">
               <span>{{ columnLabels[header] || header }}</span>
               <span class="sort-icon">{{ getSortIcon(header) }}</span>

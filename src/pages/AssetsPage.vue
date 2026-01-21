@@ -9,6 +9,9 @@ import assetApi from '../api/assets';
 import filterApi from '../api/filters';
 import { useTable } from '../composables/useTable';
 import axios from 'axios';
+import { getTimestampFilename } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
+import { parseAndFilter } from '../utils/QueryParser';
 
 const assets = ref([]);
 const loading = ref(false);
@@ -37,29 +40,61 @@ const getRawQuery = (query) => {
   return match ? match[1] : query;
 };
 
+const activeSavedFilter = ref(null);
+
+const activeSavedFilterQuery = computed(() => {
+  if (!activeSavedFilter.value) return '';
+  const data = typeof activeSavedFilter.value.filter_data === 'string'
+    ? JSON.parse(activeSavedFilter.value.filter_data)
+    : activeSavedFilter.value.filter_data;
+  return data.searchQuery || '';
+});
+
+const searchPlaceholder = computed(() => {
+  if (activeSavedFilter.value) {
+    return `필터 적용: ${activeSavedFilter.value.name}`;
+  }
+  return "검색...";
+});
+
+const clearSearch = () => {
+  searchQuery.value = '';
+  activeSavedFilter.value = null;
+};
+
 const assetsFilterFn = (asset) => {
-  const rawQuery = getRawQuery(searchQuery.value);
-  // 가용재고 특수 필터 처리
-  if (rawQuery === '가용재고') {
-    return asset.state === 'useable' && asset.in_user === 'cjenc_inno';
+  // 1. 저장된 필터 적용
+  const savedQuery = activeSavedFilterQuery.value;
+  if (savedQuery) {
+    if (savedQuery === '가용재고') {
+      if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
+    } else if (savedQuery === '1인 다PC 보유자') {
+      if (!(multiPcUserIds.value.has(asset.in_user) && 
+            (asset.category === '노트북' || asset.category === '데스크탑') && 
+            asset.state === 'useable')) return false;
+    } else {
+      if (!parseAndFilter(asset, savedQuery, filterColumns.map(c => c.val))) return false;
+    }
   }
 
-  // 1인 다PC 보유자 특수 필터 처리
-  if (rawQuery === '1인 다PC 보유자') {
-    return multiPcUserIds.value.has(asset.in_user) && 
-           (asset.category === '노트북' || asset.category === '데스크탑') && 
-           asset.state === 'useable';
+  // 2. 추가 검색어 적용 (특수 예약어 처리)
+  if (searchQuery.value === '가용재고') {
+    if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
+  } else if (searchQuery.value === '1인 다PC 보유자') {
+    if (!(multiPcUserIds.value.has(asset.in_user) && 
+          (asset.category === '노트북' || asset.category === '데스크탑') && 
+          asset.state === 'useable')) return false;
   }
 
-  // Common filter for excluding 'termination' when not searching (original logic)
-  const isExcluded = !searchQuery.value && asset.state === 'termination';
+  // 3. 기본 제외 로직 (검색어가 없을 때만 termination 제외)
+  const isExcluded = !searchQuery.value && !savedQuery && asset.state === 'termination';
   if (isExcluded) return false;
 
   return true;
 };
 
 const itemsPerPage = computed(() => {
-  return getRawQuery(searchQuery.value) === '가용재고' ? 50 : 20;
+  return (activeSavedFilterQuery.value === '가용재고' || searchQuery.value === '가용재고') ? 50 : 20;
 });
 
 const {
@@ -75,7 +110,8 @@ const {
   nextPage,
   goToPage,
   sortColumn,
-  sortDirection
+  sortDirection,
+  isManualSort
 } = useTable(assets, {
   itemsPerPage: itemsPerPage,
   filterFn: assetsFilterFn,
@@ -110,7 +146,7 @@ const assetModalFields = [
   'day_of_start', 'day_of_end', 'contract_month',
   'in_user', 'user_name', 'user_part', 'state', 'replacement'
 ];
-const stateOptions = ['useable', 'rent', 'repair', 'termination', 'process-ter'];
+const stateOptions = ['useable', 'wait', 'hold', 'rent', 'repair', 'termination', 'process-ter'];
 
 // 반납 처리 모달 상태
 const isReturnModalOpen = ref(false);
@@ -346,8 +382,8 @@ const applySavedFilter = (filter) => {
     ? JSON.parse(filter.filter_data) 
     : filter.filter_data;
   
-  const query = data.searchQuery || '';
-  searchQuery.value = query ? `${filter.name} (${query})` : filter.name;
+  activeSavedFilter.value = filter;
+  searchQuery.value = ""; 
   activeFilter.value = data.activeFilter || null;
   isFilterDropdownOpen.value = false;
 };
@@ -468,18 +504,20 @@ const validateTradeForQuick = (trade, asset) => {
   const { state: asset_state, in_user: asset_in_user } = asset;
 
   if (!work_type) return { valid: false, message: '작업 유형을 선택해주세요.' };
+  
+  const isHold = asset_state && asset_state.toLowerCase() === 'hold';
 
   // 작업유형별 유효성 검사 (TradeRegisterPage 로직)
   switch (work_type) {
     // 출고 그룹
     case '출고-신규지급':
     case '출고-신규교체':
-      if (asset_state !== 'wait') return { valid: false, message: `상태가 "${asset_state}"입니다. "wait" 상태만 가능합니다.` };
+      if (!isHold && asset_state !== 'wait') return { valid: false, message: `상태가 "${asset_state}"입니다. "wait" 상태만 가능합니다.` };
       if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
       break;
 
     case '출고-사용자변경':
-      if (asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
       if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
       if (asset_in_user && cj_id === asset_in_user) return { valid: false, message: '현재 사용자와 다른 사용자를 선택해야 합니다.' };
       break;
@@ -487,13 +525,13 @@ const validateTradeForQuick = (trade, asset) => {
     case '출고-재고교체':
     case '출고-재고지급':
     case '출고-대여':
-      if (asset_in_user !== 'cjenc_inno') return { valid: false, message: `보유자가 "${asset_in_user}"입니다. "cjenc_inno"여야 합니다.` };
-      if (asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+      if (!isHold && asset_in_user !== 'cjenc_inno') return { valid: false, message: `보유자가 "${asset_in_user}"입니다. "cjenc_inno"여야 합니다.` };
+      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
       if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
       break;
 
     case '출고-수리':
-      if (asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
       break;
 
     // 입고 그룹
@@ -503,17 +541,17 @@ const validateTradeForQuick = (trade, asset) => {
     case '입고-임의반납':
     case '입고-휴직반납':
     case '입고-재입사예정':
-      if (asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
-      if (asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+      if (!isHold && asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
+      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
       break;
 
     case '입고-대여반납':
-      if (asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
-      if (asset_state !== 'rent') return { valid: false, message: `상태가 "${asset_state}"입니다. "rent" 상태만 가능합니다.` };
+      if (!isHold && asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
+      if (!isHold && asset_state !== 'rent') return { valid: false, message: `상태가 "${asset_state}"입니다. "rent" 상태만 가능합니다.` };
       break;
 
     case '입고-수리반납':
-      if (asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "repair" 상태만 가능합니다.` };
+      if (!isHold && asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "repair" 상태만 가능합니다.` };
       break;
   }
 
@@ -569,6 +607,8 @@ const submitQuickTrade = async () => {
     } else {
       quickTradeError.value = response.data.error || '등록 실패';
     }
+  } catch (err) {
+    quickTradeError.value = '등록 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message);
   } finally {
     loading.value = false;
   }
@@ -584,6 +624,9 @@ const currentWorkTypeFilter = computed(() => {
   return (wt) => {
     const type = wt.work_type;
     
+    // 0. 상태가 'hold'인 경우 모든 작업 선택 가능
+    if (state && state.toLowerCase() === 'hold') return true;
+
     // 1. 상태가 'wait' (신규/대기)인 경우
     if (state === 'wait') {
       return ['출고-신규지급', '출고-신규교체'].includes(type);
@@ -720,41 +763,23 @@ const downloadCSV = () => {
     return;
   }
   
-  const now = new Date();
-  const timestamp = now.toISOString().replace(/[:T]/g, '_').split('.')[0];
-  const filename = `AssetsPage_${timestamp}.csv`;
+  const filename = getTimestampFilename('AssetsPage');
   
   const headers = getTableHeaders(filteredAssets.value);
+  const headerRow = headers.map(h => getHeaderDisplayName(h));
   
-  const escapeCSV = (val) => {
-    let s = String(val === null || val === undefined ? '' : val);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-
-  const csvContent = [
-    headers.map(h => escapeCSV(getHeaderDisplayName(h))).join(','),
-    ...filteredAssets.value.map(asset => 
-      headers.map(header => {
-        let value = asset[header] || '';
-        if ((header === 'day_of_start' || header === 'day_of_end') && value) {
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) value = date.toISOString().split('T')[0];
-        }
-        return escapeCSV(value);
-      }).join(',')
-    )
-  ].join('\n');
+  const dataRows = filteredAssets.value.map(asset => 
+    headers.map(header => {
+      let value = asset[header] || '';
+      if ((header === 'day_of_start' || header === 'day_of_end') && value) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) value = date.toISOString().split('T')[0];
+      }
+      return value;
+    })
+  );
   
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadCSVFile(filename, headerRow, dataRows);
 };
 
 const copyAssetInfoDetailed = () => {
@@ -816,29 +841,26 @@ onMounted(() => {
   fetchSavedFilters();
 
   // 가용재고 필터 시 복합 정렬 적용
-  watch(activeFilter, (newFilter) => {
-    if (newFilter === 'available') {
+  watch([activeFilter, activeSavedFilterQuery], ([newFilter, newSavedQuery]) => {
+    if (newFilter === 'available' || newSavedQuery === '가용재고') {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
-    } else if (!newFilter && getRawQuery(searchQuery.value) !== '1인 다PC 보유자') {
-      // 필터 해제 시 기본 정렬로 복구 (다른 특수 필터가 없을 때)
+    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC 보유자') {
+      // 필터 해제 시 기본 정렬로 복구
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
     }
   });
 
-  // 특수 필터(1인 다PC 보유자, 가용재고) 검색 시 정렬 적용
-  watch(searchQuery, (newQuery) => {
-    const rawQuery = getRawQuery(newQuery);
-    if (rawQuery === '1인 다PC 보유자') {
+  // 특수 필터 검색 시 정렬 적용
+  watch([searchQuery, activeSavedFilterQuery], ([newQuery, newSavedQuery]) => {
+    if (newQuery === '1인 다PC 보유자' || newSavedQuery === '1인 다PC 보유자') {
       sortColumn.value = 'in_user';
       sortDirection.value = 'asc';
-    } else if (rawQuery === '가용재고') {
+    } else if (newQuery === '가용재고' || newSavedQuery === '가용재고') {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
-    } else {
-      // 특수 필터가 아닌 다른 필터나 검색어로 바뀔 때 정렬 초기화
-      // (기존에 특수 필터 정렬이 남아있는 현상 방지)
+    } else if (!newQuery && !newSavedQuery) {
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
     }
@@ -869,7 +891,7 @@ onMounted(() => {
     </div>
     
     <div v-if="loading" class="alert alert-info">
-      ⏳ 로딩 중...
+      <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...
     </div>
     
     <div v-if="isModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
@@ -879,7 +901,7 @@ onMounted(() => {
             <h2 style="margin: 0;">자산 정보</h2>
             <button class="copy-btn-small" @click="copyAssetInfoDetailed" title="클립보드 복사">
               <img v-if="!isAssetCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
-              <span v-else class="check-mark-black">✓</span>
+              <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
           <button @click="closeModal" class="close-btn">✕</button>
@@ -901,7 +923,7 @@ onMounted(() => {
 
           <!-- 퀵 거래 등록 섹션 -->
           <div v-if="isQuickTradeOpen" class="quick-trade-section">
-            <h3>거래 등록</h3>
+            <h3><img src="/images/edit.png" alt="edit" class="header-icon-small" /> 거래 등록</h3>
             <div v-if="quickTradeError" class="alert-small alert-error">{{ quickTradeError }}</div>
             <div v-if="quickTradeSuccess" class="alert-small alert-success">{{ quickTradeSuccess }}</div>
             
@@ -965,7 +987,7 @@ onMounted(() => {
         <div class="modal-header">
           <h2>
             <span v-if="returnModalType === 'confirm'">반납 처리 확인</span>
-            <span v-else-if="returnModalType === 'success'">✅ 처리 완료</span>
+            <span v-else-if="returnModalType === 'success'"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> 처리 완료</span>
             <span v-else>❌ 오류 발생</span>
           </h2>
           <button @click="closeReturnModal" class="close-btn">✕</button>
@@ -1042,9 +1064,7 @@ onMounted(() => {
       <div class="search-container">
         <div ref="filterDropdownRef" class="filter-dropdown-wrapper">
           <button @click="isFilterDropdownOpen = !isFilterDropdownOpen" class="btn btn-saved-filters" title="저장된 필터">
-            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-            </svg>
+            <img src="/images/filter_list.png" alt="filter" class="btn-icon-small" />
             저장된 필터
           </button>
           <div v-if="isFilterDropdownOpen" class="filter-dropdown-menu">
@@ -1056,8 +1076,8 @@ onMounted(() => {
           </div>
         </div>
         <div class="search-input-wrapper">
-          <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
-          <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
+          <input v-model="searchQuery" type="text" :placeholder="searchPlaceholder" class="search-input" />
+          <button v-if="searchQuery || activeSavedFilter" @click="clearSearch" class="clear-btn">✕</button>
         </div>
         <button @click="openSaveFilterModal" class="btn btn-save-filter" title="현재 필터 저장">
           <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1104,7 +1124,7 @@ onMounted(() => {
         <table class="assets-table">
           <thead>
             <tr>
-              <th v-for="key in getTableHeaders(assets)" :key="key" @click="handleSort(key)" class="sortable-header" :class="{ active: sortColumn === key }">
+              <th v-for="key in getTableHeaders(assets)" :key="key" @click="handleSort(key)" class="sortable-header" :class="{ active: isManualSort && sortColumn === key }">
                 <div class="header-content">
                   <span>{{ getHeaderDisplayName(key) }}</span>
                   <span class="sort-icon">{{ getSortIcon(key) }}</span>
@@ -1299,10 +1319,6 @@ h2 {
   gap: 8px;
 }
 
-.quick-trade-section h3::before {
-  content: '📝';
-}
-
 .quick-trade-form {
   background: #fdfdfd;
   padding: 15px;
@@ -1373,6 +1389,28 @@ h2 {
   color: #333;
   font-size: 16px;
   font-weight: bold;
+}
+
+.checkmark-icon, .loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.btn-icon-small, .header-icon-small {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 
 /* 저장된 필터 관련 스타일 */

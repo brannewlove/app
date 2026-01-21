@@ -19,7 +19,11 @@ router.get('/', async (req, res, next) => {
     if (onlyReplacements === 'true') {
       query = `
         SELECT 
-          a.*,
+          a.asset_id,
+          a.asset_number,
+          a.replacement,
+          a_repl.model,
+          a_repl.serial_number,
           u_repl.name as replacement_user_name,
           u_repl.part as replacement_user_part
         FROM assets a

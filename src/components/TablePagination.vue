@@ -33,7 +33,7 @@ defineEmits(['prev', 'next', 'go-to']);
         {{ totalPages }}
       </button>
     </div>
-    <button @click="$emit('next')" :disabled="currentPage === totalPages" class="pagination-btn">다음 →</button>
+    <button @click="$emit('next')" :disabled="currentPage === totalPages" class="pagination-btn">다음 <img src="/images/right-arrow.png" alt="next" class="arrow-icon" /></button>
   </div>
 </template>
 
@@ -101,5 +101,13 @@ defineEmits(['prev', 'next', 'go-to']);
 .ellipsis {
   color: #999;
   padding: 0 5px;
+}
+
+.arrow-icon {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-left: 2px;
 }
 </style>

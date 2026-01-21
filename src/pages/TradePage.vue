@@ -6,6 +6,8 @@ import ChangeExportModal from '../components/ChangeExportModal.vue';
 import ReplacementExportModal from '../components/ReplacementExportModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
+import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
 
 const trades = ref([]);
 const loading = ref(false);
@@ -57,17 +59,7 @@ const closeTrackingModal = () => {
   trackingCategory.value = '';
 };
 
-const formatDateTime = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-};
+// formatDateTime is now imported
 
 const downloadCSV = () => {
   const tradesData = trades.value || [];
@@ -75,44 +67,26 @@ const downloadCSV = () => {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
   }
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `TradePage_${timestamp}.csv`;
+  
+  const filename = getTimestampFilename('TradePage');
 
-  // 헤더는 영문 키값으로 원복 (이전 요청사항 반영)
   const headers = [
     'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
     'ex_user', 'ex_user_name', 'ex_user_part',
     'cj_id', 'name', 'part', 'memo'
   ];
 
-  const escapeCSV = (val) => {
-    let s = String(val === null || val === undefined ? '' : val);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-
-  const csvContent = [
-    headers.map(h => escapeCSV(h)).join(','),
-    ...tradesData.map(trade => 
-      headers.map(header => {
-        let value = trade[header];
-        if (header === 'timestamp') {
-          value = formatDateTime(value);
-        }
-        return escapeCSV(value);
-      }).join(',')
-    )
-  ].join('\n');
+  const dataRows = tradesData.map(trade => 
+    headers.map(header => {
+      let value = trade[header];
+      if (header === 'timestamp') {
+        value = formatDateTime(value);
+      }
+      return value;
+    })
+  );
   
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadCSVFile(filename, headers, dataRows);
 };
 
 const showConfirm = (message, callback) => {
@@ -159,7 +133,7 @@ onUnmounted(() => {
     <h1>거래 관리</h1>
     
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
-    <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
+    <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
 
     <TradeList v-if="!loading" :trades="trades" @download="downloadCSV" @track-asset="handleTrackAsset">
       <template #actions>
@@ -234,5 +208,13 @@ h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid
   height: 14px;
   object-fit: contain;
   filter: brightness(0) invert(1); /* 흰색으로 변경 */
+}
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 </style>

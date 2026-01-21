@@ -169,7 +169,7 @@ const copyAssetInfo = () => {
             <h3 style="margin: 0; font-size: 16px; color: #333;">자산 정보</h3>
             <button class="copy-btn-small" @click="copyAssetInfo" title="클립보드 복사">
               <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
-              <span v-else class="check-mark-black">✓</span>
+              <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
           <div class="asset-info-summary">
@@ -184,7 +184,7 @@ const copyAssetInfo = () => {
         </div>
 
         <div v-if="trackingLoading" class="alert alert-info">
-          ⏳ 로딩 중...
+          <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...
         </div>
 
         <div v-else-if="trackingLogs.length > 0">
@@ -198,7 +198,7 @@ const copyAssetInfo = () => {
                 </div>
                 <div class="flow-date">{{ new Date(log.timestamp).toLocaleString('ko-KR') }}</div>
               </div>
-              <div v-if="index < trackingLogs.length - 1" class="flow-arrow">→</div>
+              <div v-if="index < trackingLogs.length - 1" class="flow-arrow"><img src="/images/right-arrow.png" alt="arrow" class="arrow-icon" /></div>
             </div>
           </div>
         </div>
@@ -291,5 +291,27 @@ const copyAssetInfo = () => {
   color: #333;
   font-size: 16px;
   font-weight: bold;
+}
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.arrow-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 </style>

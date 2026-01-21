@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import { getTimestampFilename } from '../utils/dateUtils';
+import { downloadCSVFile } from '../utils/exportUtils';
 
 defineProps({
   isOpen: {
@@ -174,39 +176,22 @@ const downloadCSV = () => {
     alert('다운로드할 데이터가 없습니다.');
     return;
   }
-  const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `AssetReplacements_${timestamp}.csv`;
+  
+  const filename = getTimestampFilename('AssetReplacements');
   const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', '사용자명', '부서'];
 
-  const escapeCSV = (val) => {
-    let s = String(val === null || val === undefined ? '' : val);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-      s = '"' + s.replace(/"/g, '""') + '"';
-    }
-    return s;
-  };
-
-  const csvContent = [
-    headers.map(h => escapeCSV(h)).join(','),
-    ...dataToDownload.map(asset => {
-      return [
-        asset.asset_number || '', 
-        asset.replacement || '', 
-        asset.model || '', 
-        asset.serial_number || '',
-        asset.replacement_user_name || '-', 
-        asset.replacement_user_part || '-'
-      ].map(value => escapeCSV(value)).join(',');
-    })
-  ].join('\n');
+  const dataRows = dataToDownload.map(asset => {
+    return [
+      asset.asset_number || '', 
+      asset.replacement || '', 
+      asset.model || '', 
+      asset.serial_number || '',
+      asset.replacement_user_name || '-', 
+      asset.replacement_user_part || '-'
+    ];
+  });
   
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadCSVFile(filename, headers, dataRows);
 };
 
 onMounted(async () => {
@@ -229,7 +214,7 @@ onMounted(async () => {
               :disabled="replacementAssets.length === 0"
             >
               <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
-              <span v-else style="color: #27ae60; font-size: 14px; font-weight: bold;">✓</span>
+              <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
             
             <button 
@@ -245,7 +230,7 @@ onMounted(async () => {
         <button class="modal-close-btn" @click="closeModal">✕</button>
       </div>
       <div class="modal-body">
-        <div v-if="loading" class="alert alert-info">⏳ 데이터 로딩 중...</div>
+        <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 데이터 로딩 중...</div>
         <div v-else-if="error" class="alert alert-error">❌ {{ error }}</div>
         <div v-else-if="replacementAssets.length > 0">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -359,4 +344,19 @@ onMounted(async () => {
 .alert-info { background: #f0f7ff; color: #004085; }
 .alert-error { background: #fff5f5; color: #c53030; }
 .empty-state { text-align: center; padding: 50px; color: #999; }
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+}
 </style>
