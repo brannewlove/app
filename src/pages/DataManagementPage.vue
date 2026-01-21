@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import importApi from '../api/import';
+import filterApi from '../api/filters';
 
 const loading = ref(false);
 const result = ref(null);
@@ -115,7 +116,7 @@ const handleImport = async (type) => {
         }
 
         result.value = {
-            type,
+            type: type === 'assets' ? 'import-assets' : 'import-users',
             total: response.total || data.length,
             inserted: response.inserted || 0,
             updated: response.updated || 0,
@@ -160,8 +161,98 @@ const toggleAutoBackup = async () => {
     }
 };
 
+const savedFilters = ref([]);
+const fetchFilters = async () => {
+    try {
+        const response = await filterApi.getFilters('assets');
+        // 필터 관리에서 설정된 값 그대로 보여주고 저장하도록 수정
+        savedFilters.value = response.map(f => {
+            let data = {};
+            try {
+                data = (typeof f.filter_data === 'string' ? JSON.parse(f.filter_data) : f.filter_data) || {};
+            } catch (e) {
+                console.error('Failed to parse filter_data for ID:', f.id, e);
+            }
+            return { 
+                ...f, 
+                edit_name: f.name,
+                is_protected: !!data.is_protected // 명시적으로 불리언 변환
+            };
+        });
+    } catch (err) {
+        console.error('Failed to fetch filters:', err);
+    }
+};
+
+const toggleProtection = (filter) => {
+    filter.is_protected = !filter.is_protected;
+};
+
+const moveFilter = (index, direction) => {
+    const newFilters = [...savedFilters.value];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newFilters.length) return;
+    
+    [newFilters[index], newFilters[targetIndex]] = [newFilters[targetIndex], newFilters[index]];
+    savedFilters.value = newFilters;
+};
+
+const deleteFilter = async (id) => {
+    if (!confirm('정말로 이 필터를 삭제하시겠습니까?')) return;
+    try {
+        loading.value = true;
+        await filterApi.deleteFilter(id);
+        await fetchFilters();
+        result.value = { message: '필터가 삭제되었습니다.', type: 'filter' };
+    } catch (err) {
+        error.value = '필터 삭제 실패: ' + err.message;
+    } finally {
+        loading.value = false;
+    }
+};
+
+const saveFilterChanges = async () => {
+    try {
+        loading.value = true;
+        // 1. 순서 업데이트
+        const orders = savedFilters.value.map((f, i) => ({ id: f.id, sort_order: i }));
+        await filterApi.reorderFilters(orders);
+        
+        // 2. 이름 및 보호 상태 업데이트 (수정된 것만)
+        for (const filter of savedFilters.value) {
+            let data = {};
+            try {
+                data = (typeof filter.filter_data === 'string' ? JSON.parse(filter.filter_data) : filter.filter_data) || {};
+            } catch (e) {
+                data = {};
+            }
+            
+            const originalProtected = !!data.is_protected;
+            const isNameChanged = filter.edit_name !== filter.name;
+            const isProtectionChanged = filter.is_protected !== originalProtected;
+            
+            if (isNameChanged || isProtectionChanged) {
+                // filter_data 업데이트
+                const updatedData = { ...data, is_protected: filter.is_protected };
+                await filterApi.updateFilter(filter.id, { 
+                    name: filter.edit_name,
+                    filter_data: updatedData
+                });
+            }
+        }
+        
+        await fetchFilters();
+        result.value = { message: '필터 설정이 저장되었습니다.', type: 'filter' };
+    } catch (err) {
+        error.value = '설정 저장 중 오류 발생: ' + err.message;
+    } finally {
+        loading.value = false;
+    }
+};
+
 onMounted(() => {
     fetchBackupConfig();
+    fetchFilters();
 });
 
 const handleManualBackup = async () => {
@@ -196,19 +287,19 @@ const handleManualBackup = async () => {
         <h1>데이터 관리</h1>
         <p class="description">TSV 파일을 업로드하여 자산 및 사용자 정보를 일괄 업데이트(Upsert)할 수 있습니다.</p>
 
-        <div v-if="error" class="alert alert-error">
-            ❌ {{ error }}
-        </div>
-
-        <div v-if="result && result.type !== 'backup'" class="alert alert-success">
-            ✅ {{ result.message }}
-        </div>
-
-        <div class="import-grid">
+        <div class="management-grid">
             <!-- 자산 임포트 섹션 -->
             <div class="import-card">
+                <div v-if="result && result.type === 'import-assets'" class="alert alert-success mb-15">
+                    ✅ {{ result.message }}
+                </div>
+                <div v-if="error && error.includes('자산')" class="alert alert-error mb-15">
+                    ❌ {{ error }}
+                </div>
                 <div class="card-header">
-                    <span class="icon">📦</span>
+                    <span class="icon">
+                        <img src="/images/boxes.png" alt="assets" class="header-icon-img" />
+                    </span>
                     <h2>자산 데이터 임포트</h2>
                 </div>
                 <div class="card-body">
@@ -226,7 +317,7 @@ const handleManualBackup = async () => {
                             :class="['tab-btn', { active: assetInputMode === 'paste' }]"
                             @click="assetInputMode = 'paste'"
                         >
-                            📋 직접 입력
+                            <img src="/images/clipboard.png" alt="paste" class="btn-inline-icon" /> 직접 입력
                         </button>
                     </div>
                     
@@ -241,7 +332,7 @@ const handleManualBackup = async () => {
                         <div class="label-with-button">
                             <label for="asset-paste">TSV 데이터 붙여넣기</label>
                             <button @click="copyHeaders('assets')" class="btn-copy-header" title="헤더 복사">
-                                📋 헤더 복사
+                                <img src="/images/clipboard.png" alt="copy" class="btn-inline-icon" /> 헤더 복사
                             </button>
                         </div>
                         <textarea 
@@ -266,8 +357,16 @@ const handleManualBackup = async () => {
 
             <!-- 사용자 임포트 섹션 -->
             <div class="import-card">
+                <div v-if="result && result.type === 'import-users'" class="alert alert-success mb-15">
+                    ✅ {{ result.message }}
+                </div>
+                <div v-if="error && error.includes('사용자')" class="alert alert-error mb-15">
+                    ❌ {{ error }}
+                </div>
                 <div class="card-header">
-                    <span class="icon">👥</span>
+                    <span class="icon">
+                        <img src="/images/groups.png" alt="users" class="header-icon-img" />
+                    </span>
                     <h2>사용자 데이터 임포트</h2>
                 </div>
                 <div class="card-body">
@@ -285,7 +384,7 @@ const handleManualBackup = async () => {
                             :class="['tab-btn', { active: userInputMode === 'paste' }]"
                             @click="userInputMode = 'paste'"
                         >
-                            📋 직접 입력
+                            <img src="/images/clipboard.png" alt="paste" class="btn-inline-icon" /> 직접 입력
                         </button>
                     </div>
                     
@@ -300,7 +399,7 @@ const handleManualBackup = async () => {
                         <div class="label-with-button">
                             <label for="user-paste">TSV 데이터 붙여넣기</label>
                             <button @click="copyHeaders('users')" class="btn-copy-header" title="헤더 복사">
-                                📋 헤더 복사
+                                <img src="/images/clipboard.png" alt="copy" class="btn-inline-icon" /> 헤더 복사
                             </button>
                         </div>
                         <textarea 
@@ -322,31 +421,33 @@ const handleManualBackup = async () => {
                     </button>
                 </div>
             </div>
-        </div>
 
-        <!-- 구글 시트 백업 섹션 -->
-        <div v-if="result && result.type === 'backup'" class="alert alert-success mb-20">
-            ✅ {{ result.message }}
-        </div>
-        <div class="backup-section">
+            <!-- 구글 시트 백업 섹션 -->
             <div class="import-card backup-card">
+                <div v-if="result && result.type === 'backup'" class="alert alert-success mb-15">
+                    ✅ {{ result.message }}
+                </div>
+                <div v-if="error && error.includes('백업')" class="alert alert-error mb-15">
+                    ❌ {{ error }}
+                </div>
                 <div class="card-header">
-                    <span class="icon">📊</span>
+                    <span class="icon">
+                        <img src="/images/cloud_backup.png" alt="backup" class="header-icon-img" />
+                    </span>
                     <h2>구글 시트 백업 관리</h2>
                 </div>
                 <div class="card-body">
                     <div class="backup-info">
-                        <p>현재 DB의 자산 및 거래 내역을 구글 시트로 백업합니다.</p>
+                        <p>현재 DB를 구글 시트로 백업합니다.</p>
                         <ul>
-                            <li>자동 백업: 매일 <strong>13:00</strong></li>
-                            <li>보관 정책: 최근 <strong>50개</strong> 파일 유지</li>
+                            <li>매일 <strong>13:00</strong> 자동 백업</li>
+                            <li>최근 <strong>50개</strong> 파일 유지</li>
                         </ul>
                     </div>
                     
-                    <div class="setting-item">
+                    <div class="setting-item no-margin">
                         <div class="setting-label">
                             <strong>자동 백업 활성화</strong>
-                            <span>설정 시 정해진 시간에 자동으로 백업이 실행됩니다.</span>
                         </div>
                         <label class="switch">
                             <input type="checkbox" v-model="autoBackupEnabled" @change="toggleAutoBackup">
@@ -361,6 +462,51 @@ const handleManualBackup = async () => {
                         @click="handleManualBackup"
                     >
                         {{ loading ? '백업 중...' : '지금 즉시 백업하기' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 저장된 필터 관리 섹션 -->
+            <div class="import-card">
+                <div v-if="result && result.type === 'filter'" class="alert alert-success mb-15">
+                    ✅ {{ result.message }}
+                </div>
+                <div v-if="error && error.includes('필터')" class="alert alert-error mb-15">
+                    ❌ {{ error }}
+                </div>
+                <div class="card-header">
+                    <span class="icon">
+                        <img src="/images/filter.png" alt="filter" class="header-icon-img" />
+                    </span>
+                    <h2>저장된 필터 관리</h2>
+                </div>
+                <div class="card-body">
+                    <p>검색 필터의 순서와 이름을 관리합니다.</p>
+                    <div class="filter-list">
+                        <div v-for="(filter, index) in savedFilters" :key="filter.id" class="filter-item">
+                            <div class="filter-order-btns">
+                                <button @click="moveFilter(index, -1)" :disabled="index === 0" class="btn-order">▲</button>
+                                <button @click="moveFilter(index, 1)" :disabled="index === savedFilters.length - 1" class="btn-order">▼</button>
+                            </div>
+                            <div class="filter-name-edit">
+                                <input v-model="filter.edit_name" type="text" class="edit-input" />
+                            </div>
+                            <div class="filter-item-actions">
+                                <div class="delete-btn-area">
+                                    <button v-if="!filter.is_protected" @click="deleteFilter(filter.id)" class="btn-delete" title="삭제">
+                                        <img src="/images/del.png" alt="삭제" class="icon-img" />
+                                    </button>
+                                </div>
+                                <button @click="toggleProtection(filter)" class="btn-lock" :title="filter.is_protected ? '잠금 해제' : '보호 모드 (삭제 방지)'">
+                                    {{ filter.is_protected ? '🔒' : '🔓' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-save" :disabled="loading" @click="saveFilterChanges">
+                        {{ loading ? '저장 중...' : '필터 설정 저장' }}
                     </button>
                 </div>
             </div>
@@ -384,11 +530,16 @@ const handleManualBackup = async () => {
     color: #666;
 }
 
-.import-grid {
+.mb-15 {
+    margin-bottom: 15px;
+}
+
+.management-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 30px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
     margin-bottom: 40px;
+    align-items: stretch;
 }
 
 .import-card {
@@ -412,6 +563,15 @@ const handleManualBackup = async () => {
 
 .card-header .icon {
     font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-icon-img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
 }
 
 .card-header h2 {
@@ -557,6 +717,24 @@ const handleManualBackup = async () => {
     transform: translateY(0);
 }
 
+.btn-inline-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-right: 4px;
+    filter: brightness(0) invert(1); /* 기본적으로 흰색 (다크 배경 버튼용) */
+}
+
+/* 배경이 밝은 버튼(활성화되지 않은 탭) 내부의 아이콘만 검은색으로 */
+.tab-btn:not(.active) .btn-inline-icon {
+    filter: brightness(0);
+}
+
+.btn-copy-header .btn-inline-icon {
+    filter: brightness(0) invert(1);
+}
+
 .card-footer {
     padding: 20px;
     background: #f8f9fa;
@@ -635,13 +813,13 @@ const handleManualBackup = async () => {
 }
 
 .btn-backup {
-    background: var(--brand-blue);
+    background: darkolivegreen;
     color: white;
     padding: 10px 24px;
 }
 
 .btn-backup:hover:not(:disabled) {
-    background: var(--brand-blue-dark);
+    background: #4a5d29;
 }
 
 .mb-20 {
@@ -653,10 +831,14 @@ const handleManualBackup = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding: 12px 15px;
     background: #f8f9fa;
     border-radius: 8px;
     margin-top: 15px;
+}
+
+.setting-item.no-margin {
+    margin-top: 0;
 }
 
 .setting-label {
@@ -732,5 +914,136 @@ input:checked + .slider:before {
 
 .slider.round:before {
   border-radius: 50%;
+}
+
+/* 필터 관리 스타일 */
+.filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    background: #fcfcfc;
+    border: 1px solid #eee;
+    border-radius: 8px;
+}
+
+.filter-order-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.btn-order {
+    padding: 2px 6px;
+    font-size: 10px;
+    background: #eee;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.btn-order:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.filter-name-edit {
+    flex: 1;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.edit-input:focus {
+    border-color: var(--brand-blue);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.1);
+}
+
+.filter-item-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    width: 68px;
+    justify-content: flex-end;
+}
+
+.delete-btn-area {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-delete {
+    background: transparent;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.6;
+}
+
+.btn-delete:hover {
+    background: #ffebee;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.btn-delete .icon-img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
+.btn-lock {
+    background: transparent;
+    border: 1px solid #ddd;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    background: white;
+}
+
+.btn-lock:hover {
+    background: #f0f0f0;
+    border-color: #ccc;
+}
+
+.system-badge {
+    font-size: 11px;
+    background: #e6f7ff;
+    color: #1890ff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #91d5ff;
+}
+
+.mb-40 {
+    margin-bottom: 40px;
 }
 </style>

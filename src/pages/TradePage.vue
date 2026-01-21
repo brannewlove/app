@@ -69,14 +69,14 @@ const formatDateTime = (dateString) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-const downloadTSV = () => {
+const downloadCSV = () => {
   const tradesData = trades.value || [];
   if (tradesData.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `TradePage_${timestamp}.tsv`;
+  const filename = `TradePage_${timestamp}.csv`;
 
   // 헤더는 영문 키값으로 원복 (이전 요청사항 반영)
   const headers = [
@@ -85,25 +85,28 @@ const downloadTSV = () => {
     'cj_id', 'name', 'part', 'memo'
   ];
 
-  const tsvContent = [
-    headers.join('\t'),
+  const escapeCSV = (val) => {
+    let s = String(val === null || val === undefined ? '' : val);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const csvContent = [
+    headers.map(h => escapeCSV(h)).join(','),
     ...tradesData.map(trade => 
       headers.map(header => {
         let value = trade[header];
         if (header === 'timestamp') {
           value = formatDateTime(value);
         }
-        // 빈 값은 빈 문자열로 처리 (사용자 요청 반영)
-        if (value === null || value === undefined) {
-          value = '';
-        }
-        // 탭이나 줄바꿈을 포함한 값 처리
-        return String(value).replace(/\t/g, ' ').replace(/\n/g, ' ');
-      }).join('\t')
+        return escapeCSV(value);
+      }).join(',')
     )
   ].join('\n');
   
-  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -158,15 +161,15 @@ onUnmounted(() => {
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info">⏳ 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" @download="downloadTSV" @track-asset="handleTrackAsset">
+    <TradeList v-if="!loading" :trades="trades" @download="downloadCSV" @track-asset="handleTrackAsset">
       <template #actions>
         <div style="display: flex; gap: 10px;">
           <button @click="isRegisterModalOpen = true" class="btn btn-register">거래 등록</button>
           <button @click="openExportModal" class="btn btn-export">변경 Export</button>
           <button @click="isReplacementExportOpen = true" class="btn btn-export-replacement">교체 Export</button>
-          <button @click="downloadTSV" class="btn btn-csv">
+          <button @click="downloadCSV" class="btn btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
-            tsv
+            csv
           </button>
         </div>
       </template>

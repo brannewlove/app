@@ -6,6 +6,7 @@ import TablePagination from '../components/TablePagination.vue';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 import WorkTypeSearch from '../components/WorkTypeSearch.vue';
 import assetApi from '../api/assets';
+import filterApi from '../api/filters';
 import { useTable } from '../composables/useTable';
 import axios from 'axios';
 
@@ -16,24 +17,49 @@ const selectedAsset = ref(null);
 
 const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
 
+// 1인 다기기 보유자 계산 (노트북 or 데스크탑이 2개 이상이면서 useable 상태)
+const multiPcUserIds = computed(() => {
+  const pcAssets = assets.value.filter(a => 
+    (a.category === '노트북' || a.category === '데스크탑') && a.state === 'useable'
+  );
+  const userCounts = {};
+  pcAssets.forEach(a => {
+    if (a.in_user && a.in_user !== 'cjenc_inno') {
+      userCounts[a.in_user] = (userCounts[a.in_user] || 0) + 1;
+    }
+  });
+  return new Set(Object.keys(userCounts).filter(id => userCounts[id] >= 2));
+});
+
+const getRawQuery = (query) => {
+  if (!query) return '';
+  const match = query.match(/^.+ \((.+)\)$/);
+  return match ? match[1] : query;
+};
+
 const assetsFilterFn = (asset) => {
+  const rawQuery = getRawQuery(searchQuery.value);
+  // 가용재고 특수 필터 처리
+  if (rawQuery === '가용재고') {
+    return asset.state === 'useable' && asset.in_user === 'cjenc_inno';
+  }
+
+  // 1인 다PC 보유자 특수 필터 처리
+  if (rawQuery === '1인 다PC 보유자') {
+    return multiPcUserIds.value.has(asset.in_user) && 
+           (asset.category === '노트북' || asset.category === '데스크탑') && 
+           asset.state === 'useable';
+  }
+
   // Common filter for excluding 'termination' when not searching (original logic)
   const isExcluded = !searchQuery.value && asset.state === 'termination';
   if (isExcluded) return false;
 
-  // Active status filters
-  if (activeFilter.value === 'available') {
-    return asset.state === 'useable' && asset.in_user === 'cjenc_inno';
-  } else if (activeFilter.value === 'rent') {
-    return asset.state === 'rent';
-  } else if (activeFilter.value === 'repair') {
-    return asset.state === 'repair';
-  }
   return true;
 };
 
 const itemsPerPage = computed(() => {
-  return activeFilter.value === 'available' ? 50 : 20;
+  return getRawQuery(searchQuery.value) === '가용재고' ? 50 : 20;
 });
 
 const {
@@ -58,6 +84,19 @@ const {
     'in_user', 'user_name', 'user_part', 'state',
     'day_of_start', 'day_of_end', 'contract_month'
   ]
+});
+
+// 분류별 상세 개수 계산
+const categoryStats = computed(() => {
+  const stats = {};
+  filteredAssets.value.forEach(asset => {
+    const cat = asset.category || '기타';
+    stats[cat] = (stats[cat] || 0) + 1;
+  });
+  return Object.entries(stats)
+    .sort((a, b) => b[1] - a[1]) // 개수 많은 순 정렬
+    .map(([cat, count]) => `${cat} ${count}`)
+    .join(', ');
 });
 
 const isModalOpen = ref(false);
@@ -89,6 +128,70 @@ const quickTradeForm = ref({
 });
 const quickTradeSuccess = ref(null);
 const quickTradeError = ref(null);
+
+// Saved Filters 상태
+const savedFilters = ref([]);
+const isSaveModalOpen = ref(false);
+const newFilterName = ref('');
+const isFilterDropdownOpen = ref(false);
+const filterDropdownRef = ref(null);
+const guideContainerRef = ref(null);
+
+const handleClickOutside = (event) => {
+  // 필터 드롭다운 닫기
+  if (filterDropdownRef.value && !filterDropdownRef.value.contains(event.target)) {
+    isFilterDropdownOpen.value = false;
+  }
+  // 가이드 팝업 닫기
+  if (guideContainerRef.value && !guideContainerRef.value.contains(event.target)) {
+    filterGuideOpen.value = false;
+  }
+};
+
+// Filter Builder 상태
+const isBuilderOpen = ref(false);
+const builderConfig = ref({
+  column: 'category',
+  operator: ':',
+  value: ''
+});
+const filterGuideOpen = ref(false);
+
+const filterColumns = [
+  { val: 'category', label: '분류' },
+  { val: 'model', label: '모델' },
+  { val: 'asset_number', label: '자산번호' },
+  { val: 'serial_number', label: '시리얼번호' },
+  { val: 'in_user', label: '사용자ID' },
+  { val: 'user_name', label: '사용자명' },
+  { val: 'user_part', label: '부서' },
+  { val: 'state', label: '상태' },
+  { val: 'unit_price', label: '월단가' },
+  { val: 'contract_month', label: '계약월' }
+];
+
+const operators = [
+  { val: ':', label: '포함' },
+  { val: '=', label: '일치' },
+  { val: '!=', label: '불일치' },
+  { val: '>', label: '초과' },
+  { val: '<', label: '미만' },
+  { val: '>=', label: '이상' },
+  { val: '<=', label: '이하' }
+];
+
+const addCondition = (type) => {
+  const { column, operator, value } = builderConfig.value;
+  if (!value) return;
+
+  const condition = `${column}${operator}${value}`;
+  if (!searchQuery.value) {
+    searchQuery.value = condition;
+  } else {
+    searchQuery.value += ` ${type} ${condition}`;
+  }
+  builderConfig.value.value = '';
+};
 
 const isAssetProcessedForReturn = (asset) => {
   return asset.state === 'process-ter' || asset.state === 'termination';
@@ -178,6 +281,85 @@ const fetchAssets = async () => {
     error.value = err.message;
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchSavedFilters = async () => {
+  try {
+    const filters = await filterApi.getFilters('assets');
+    // filter_data에서 is_protected 상태 추출
+    savedFilters.value = filters.map(f => {
+      let data = {};
+      try {
+        data = (typeof f.filter_data === 'string' ? JSON.parse(f.filter_data) : f.filter_data) || {};
+      } catch (e) {
+        console.error('Failed to parse filter_data:', e);
+      }
+      return {
+        ...f,
+        is_protected: !!data.is_protected
+      };
+    });
+  } catch (err) {
+    console.error('Failed to fetch saved filters:', err);
+  }
+};
+
+const openSaveFilterModal = () => {
+  if (!searchQuery.value && !activeFilter.value) {
+    alert('저장할 검색어나 필터가 없습니다.');
+    return;
+  }
+  newFilterName.value = '';
+  isSaveModalOpen.value = true;
+};
+
+const saveCurrentFilter = async () => {
+  if (!newFilterName.value.trim()) {
+    alert('필터 이름을 입력해주세요.');
+    return;
+  }
+
+  try {
+    loading.value = true;
+    const filterData = {
+      searchQuery: searchQuery.value,
+      activeFilter: activeFilter.value,
+      is_protected: false // 초기화 시 보호 해제 상태로 저장
+    };
+    await filterApi.saveFilter({
+      name: newFilterName.value,
+      page_context: 'assets',
+      filter_data: filterData
+    });
+    isSaveModalOpen.value = false;
+    await fetchSavedFilters();
+  } catch (err) {
+    alert('필터 저장 실패: ' + err.message);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const applySavedFilter = (filter) => {
+  const data = typeof filter.filter_data === 'string' 
+    ? JSON.parse(filter.filter_data) 
+    : filter.filter_data;
+  
+  const query = data.searchQuery || '';
+  searchQuery.value = query ? `${filter.name} (${query})` : filter.name;
+  activeFilter.value = data.activeFilter || null;
+  isFilterDropdownOpen.value = false;
+};
+
+const deleteSavedFilter = async (id) => {
+  if (!confirm('이 필터를 삭제하시겠습니까?')) return;
+  
+  try {
+    await filterApi.deleteFilter(id);
+    await fetchSavedFilters();
+  } catch (err) {
+    alert('필터 삭제 실패: ' + err.message);
   }
 };
 
@@ -532,7 +714,7 @@ const getHeaderDisplayName = (columnName) => {
   return headerMap[columnName] || columnName;
 };
 
-const downloadTSV = () => {
+const downloadCSV = () => {
   if (filteredAssets.value.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
     return;
@@ -540,11 +722,20 @@ const downloadTSV = () => {
   
   const now = new Date();
   const timestamp = now.toISOString().replace(/[:T]/g, '_').split('.')[0];
-  const filename = `AssetsPage_${timestamp}.tsv`;
+  const filename = `AssetsPage_${timestamp}.csv`;
   
   const headers = getTableHeaders(filteredAssets.value);
-  const tsvContent = [
-    headers.map(h => getHeaderDisplayName(h)).join('\t'),
+  
+  const escapeCSV = (val) => {
+    let s = String(val === null || val === undefined ? '' : val);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const csvContent = [
+    headers.map(h => escapeCSV(getHeaderDisplayName(h))).join(','),
     ...filteredAssets.value.map(asset => 
       headers.map(header => {
         let value = asset[header] || '';
@@ -552,13 +743,12 @@ const downloadTSV = () => {
           const date = new Date(value);
           if (!isNaN(date.getTime())) value = date.toISOString().split('T')[0];
         }
-        if (typeof value === 'string') return value.replace(/\t/g, ' ').replace(/\n/g, ' ');
-        return value;
-      }).join('\t')
+        return escapeCSV(value);
+      }).join(',')
     )
   ].join('\n');
   
-  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -606,7 +796,7 @@ const copyAssetInfoDetailed = () => {
 };
 
 const getExpirationClass = (asset) => {
-  if (activeFilter.value !== 'available' || !asset.day_of_end) return '';
+  if (getRawQuery(searchQuery.value) !== '가용재고' || !asset.day_of_end) return '';
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -623,14 +813,32 @@ const getExpirationClass = (asset) => {
 
 onMounted(() => {
   fetchAssets();
+  fetchSavedFilters();
 
   // 가용재고 필터 시 복합 정렬 적용
   watch(activeFilter, (newFilter) => {
     if (newFilter === 'available') {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
+    } else if (!newFilter && getRawQuery(searchQuery.value) !== '1인 다PC 보유자') {
+      // 필터 해제 시 기본 정렬로 복구 (다른 특수 필터가 없을 때)
+      sortColumn.value = 'asset_id';
+      sortDirection.value = 'asc';
+    }
+  });
+
+  // 특수 필터(1인 다PC 보유자, 가용재고) 검색 시 정렬 적용
+  watch(searchQuery, (newQuery) => {
+    const rawQuery = getRawQuery(newQuery);
+    if (rawQuery === '1인 다PC 보유자') {
+      sortColumn.value = 'in_user';
+      sortDirection.value = 'asc';
+    } else if (rawQuery === '가용재고') {
+      sortColumn.value = ['category', 'model'];
+      sortDirection.value = 'asc';
     } else {
-      // 필터 해제 시 기본 정렬로 복구 (필요시)
+      // 특수 필터가 아닌 다른 필터나 검색어로 바뀔 때 정렬 초기화
+      // (기존에 특수 필터 정렬이 남아있는 현상 방지)
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
     }
@@ -644,7 +852,11 @@ onMounted(() => {
     }
   };
   window.addEventListener('keydown', handleKeyDown);
-  onUnmounted(() => window.removeEventListener('keydown', handleKeyDown));
+  window.addEventListener('click', handleClickOutside);
+  onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('click', handleClickOutside);
+  });
 });
 </script>
 
@@ -775,24 +987,118 @@ onMounted(() => {
     
     <div v-if="assets.length > 0" class="assets-section">
       <div class="assets-header-actions">
-        <h2>자산 목록 ({{ filteredAssets.length }}개)</h2>
-        <div class="filter-actions">
-          <button @click="activeFilter = activeFilter === 'available' ? null : 'available'" :class="{ active: activeFilter === 'available' }" class="btn btn-filter">가용재고</button>
-          <button @click="activeFilter = activeFilter === 'rent' ? null : 'rent'" :class="{ active: activeFilter === 'rent' }" class="btn btn-filter">대여중</button>
-          <button @click="activeFilter = activeFilter === 'repair' ? null : 'repair'" :class="{ active: activeFilter === 'repair' }" class="btn btn-filter">수리중</button>
-          <button @click="downloadTSV" class="btn btn-csv">
-            <img src="/images/down.png" alt="download" class="btn-icon" />
-            tsv
+        <div class="header-title-group">
+          <h2>자산 목록 ({{ filteredAssets.length }}개)</h2>
+        </div>
+        <div class="filter-actions-group">
+          <div class="filter-actions">
+            <button @click="downloadCSV" class="btn btn-csv">
+              <img src="/images/down.png" alt="download" class="btn-icon" />
+              csv
+            </button>
+          </div>
+          <div class="filter-builder-actions">
+            <button @click="isBuilderOpen = !isBuilderOpen" class="btn btn-builder" :class="{ active: isBuilderOpen }" title="단계별 필터 설정">
+              <img src="/images/setting.png" alt="settings" class="builder-icon" />
+              필터 빌더
+            </button>
+            <div ref="guideContainerRef" class="guide-wrapper">
+              <button @click="filterGuideOpen = !filterGuideOpen" class="btn-guide-trigger" title="검색 가이드">
+                <img src="/images/infor.png" alt="guide" class="guide-icon" />
+              </button>
+              <div v-if="filterGuideOpen" class="search-guide-popup">
+                <h4>고급 검색 문법 가이드</h4>
+                <ul>
+                  <li><strong>컬럼 지정</strong>: <code>model:ThinkPad</code></li>
+                  <li><strong>논리 연산</strong>: <code>A AND B</code>, <code>A OR B</code></li>
+                  <li><strong>비교 연산</strong>: <code>unit_price > 50000</code></li>
+                  <li><strong>우선 순위</strong>: <code>(A OR B) AND C</code></li>
+                  <li><strong>일반 검색</strong>: 단어만 입력 시 전체 필드 검색</li>
+                </ul>
+                <button @click="filterGuideOpen = false" class="guide-close">닫기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 필터 빌더 UI -->
+      <div v-if="isBuilderOpen" class="filter-builder-panel">
+        <div class="builder-row">
+          <select v-model="builderConfig.column" class="builder-input">
+            <option v-for="col in filterColumns" :key="col.val" :value="col.val">{{ col.label }}</option>
+          </select>
+          <select v-model="builderConfig.operator" class="builder-input small">
+            <option v-for="op in operators" :key="op.val" :value="op.val">{{ op.label }}</option>
+          </select>
+          <input v-model="builderConfig.value" type="text" placeholder="값 입력..." class="builder-input flex-1" @keyup.enter="addCondition('AND')" />
+          <div class="builder-actions">
+            <button @click="addCondition('AND')" class="btn btn-and">AND 추가</button>
+            <button @click="addCondition('OR')" class="btn btn-or">OR 추가</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-container">
+        <div ref="filterDropdownRef" class="filter-dropdown-wrapper">
+          <button @click="isFilterDropdownOpen = !isFilterDropdownOpen" class="btn btn-saved-filters" title="저장된 필터">
+            <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+            저장된 필터
           </button>
+          <div v-if="isFilterDropdownOpen" class="filter-dropdown-menu">
+            <div v-if="savedFilters.length === 0" class="dropdown-item empty">저장된 필터가 없습니다.</div>
+            <div v-for="filter in savedFilters" :key="filter.id" class="dropdown-item" @click="applySavedFilter(filter)">
+              <span class="filter-name">{{ filter.name }}</span>
+              <button v-if="!filter.is_protected" @click.stop="deleteSavedFilter(filter.id)" class="btn-delete-filter">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="search-input-wrapper">
+          <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
+          <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
+        </div>
+        <button @click="openSaveFilterModal" class="btn btn-save-filter" title="현재 필터 저장">
+          <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          저장
+        </button>
+      </div>
+      
+      <!-- 필터 저장 모달 -->
+      <div v-if="isSaveModalOpen" class="modal-overlay" @click.self="isSaveModalOpen = false">
+        <div class="modal-content save-filter-modal">
+          <div class="modal-header">
+            <h2>현재 필터 저장</h2>
+            <button @click="isSaveModalOpen = false" class="close-btn">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label>필터 이름</label>
+              <input v-model="newFilterName" type="text" class="form-input" placeholder="예: 가용 노트북, 퇴사자 검색 등" @keyup.enter="saveCurrentFilter" />
+            </div>
+            <div class="filter-preview mt-15">
+              <p><strong>저장될 조건:</strong></p>
+              <ul>
+                <li v-if="searchQuery">검색어: "{{ searchQuery }}"</li>
+                <li v-if="activeFilter">상태 필터: {{ getHeaderDisplayName(activeFilter) }}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button @click="saveCurrentFilter" class="btn btn-save" :disabled="loading">저장</button>
+            <button @click="isSaveModalOpen = false" class="btn btn-cancel">취소</button>
+          </div>
         </div>
       </div>
       
-      <div class="search-container">
-        <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
-        <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
+      <div v-if="searchQuery" class="search-result"> 
+        검색 결과: {{ filteredAssets.length }}개 
+        <span class="category-summary">({{ categoryStats }})</span>
       </div>
-      
-      <div v-if="searchQuery" class="search-result"> 검색 결과: {{ filteredAssets.length }}개 </div>
       
       <div class="table-wrapper">
         <table class="assets-table">
@@ -876,9 +1182,38 @@ h1 {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
-.filter-actions {
+.header-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.category-summary {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: normal;
+  margin-left: 8px;
+}
+
+.search-result {
+  margin-bottom: 15px;
+  font-weight: bold;
+  color: #2c3e50;
+  display: flex;
+  align-items: center;
+}
+
+.filter-actions-group {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.filter-actions, .filter-builder-actions {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -1039,4 +1374,244 @@ h2 {
   font-size: 16px;
   font-weight: bold;
 }
+
+/* 저장된 필터 관련 스타일 */
+.search-container {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.search-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-dropdown-wrapper {
+  position: relative;
+}
+
+.btn-saved-filters, .btn-save-filter {
+  background: #eee;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+}
+
+.btn-saved-filters:hover, .btn-save-filter:hover {
+  background: #e0e0e0;
+}
+
+.btn-save-filter {
+  background: #f8f9fa;
+}
+
+.btn-saved-filters .btn-icon-svg, .btn-save-filter .btn-icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.filter-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 400px;
+  margin-top: 5px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown-item {
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.dropdown-item.empty {
+  color: #999;
+  font-size: 13px;
+  cursor: default;
+}
+
+.filter-name {
+  font-size: 14px;
+  color: #333;
+}
+
+.btn-delete-filter {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 5px;
+}
+
+.btn-delete-filter:hover {
+  color: #ff4d4f;
+}
+
+.save-filter-modal {
+  max-width: 400px;
+}
+
+.filter-preview {
+  background: #f9f9f9;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.filter-preview ul {
+  margin: 5px 0 0 20px;
+  padding: 0;
+}
+
+/* 고급 검색 UI 스타일 */
+.btn-builder {
+  background: #f0f4f8;
+  border: 1px solid #d1d9e6;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-builder.active {
+  background: #e2e8f0;
+  border-color: #cbd5e0;
+}
+
+.guide-wrapper {
+  position: relative;
+}
+
+.btn-guide-trigger {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.btn-guide-trigger:hover {
+  background: #f0f0f0;
+}
+
+.guide-icon, .builder-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
+}
+
+.builder-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.search-guide-popup {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 280px;
+  background: white;
+  border: 1px solid #ddd;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  z-index: 1001;
+  margin-top: 5px;
+}
+
+.search-guide-popup h4 {
+  margin: 0 0 10px 0;
+  color: #2d3748;
+  font-size: 15px;
+}
+
+.search-guide-popup ul {
+  padding-left: 15px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #4a5568;
+}
+
+.guide-close {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 5px;
+  background: #f7fafc;
+  border: 1px solid #edf2f7;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.filter-builder-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.builder-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.builder-input {
+  padding: 8px;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  background: white;
+  font-size: 14px;
+}
+
+.builder-input.small { width: 80px; }
+
+.builder-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.btn-and { background: #4a5568; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+.btn-or { background: #718096; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+
+.btn-and:hover { background: #2d3748; }
+.btn-or:hover { background: #4a5568; }
 </style>

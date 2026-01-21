@@ -181,7 +181,7 @@ const copyToClipboard = () => {
   });
 };
 
-const downloadExportData = () => {
+const downloadCSV = () => {
   // TSV 다운로드 시에는 체크 여부와 상관없이 '모든' 자산 포함 (사용자 요청)
   const dataToDownload = exportAssets.value;
   
@@ -190,18 +190,27 @@ const downloadExportData = () => {
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `AssetCurrentUsers_${timestamp}.tsv`;
+  const filename = `AssetCurrentUsers_${timestamp}.csv`;
   const headers = ['자산ID', '사용자ID', '사용자명', '최종변경시간'];
-  const tsvContent = [
-    headers.join('\t'),
+
+  const escapeCSV = (val) => {
+    let s = String(val === null || val === undefined ? '' : val);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const csvContent = [
+    headers.map(h => escapeCSV(h)).join(','),
     ...dataToDownload.map(asset => {
       const dateStr = new Date(asset.timestamp).toLocaleString('ko-KR');
       return [asset.asset_number || '', asset.cj_id || '', asset.user_name || '', dateStr]
-        .map(value => String(value).replace(/\t/g, ' ').replace(/\n/g, ' '))
-        .join('\t');
+        .map(value => escapeCSV(value))
+        .join(',');
     })
   ].join('\n');
-  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -279,6 +288,10 @@ onMounted(async () => {
           </table>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
             <button class="btn btn-secondary" @click="closeModal">닫기</button>
+            <button class="btn btn-primary btn-tsv" @click="downloadCSV" :disabled="exportAssets.length === 0">
+              <img src="/images/down.png" alt="download" class="btn-icon" />
+              csv
+            </button>
           </div>
         </div>
         <div v-else class="tracking-logs-empty">데이터가 없습니다.</div>

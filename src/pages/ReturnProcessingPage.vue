@@ -11,9 +11,9 @@
           <button @click="openExportModal" class="btn btn-export">
             반납메일 Export ({{ exportAssets.length }})
           </button>
-          <button @click="downloadTSV" class="btn btn-csv">
+          <button @click="downloadCSV" class="btn btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
-            tsv
+            csv
           </button>
         </div>
       </div>
@@ -87,7 +87,7 @@
                   <div style="font-size: 0.85em; color: #666;">{{ asset.department || '-' }}</div>
                 </div>
               </td>
-              <td>
+              <td :class="{ 'status-checked': asset.release_status }">
                 <input type="date" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
                        :class="['inline-input', { 'warning-highlight': shouldHighlight(asset.handover_date) }]" />
               </td>
@@ -648,20 +648,28 @@ const isEndDateExpired = (endDate) => {
   return end < today;
 };
 
-const downloadTSV = () => {
+const downloadCSV = () => {
     if (returnedAssets.value.length === 0) {
         alert('다운로드할 데이터가 없습니다.');
         return;
     }
 
-    const tsvHeaders = [
+    const csvHeaders = [
         '반납유형', '종료일', '모델', '자산번호', '반납사유', 
         '사용자ID', '사용자명', '부서', '인계일', 
         '출고여부', '전산실입고', '로우포맷', '전산반납', '메일반납', '실재반납',
         '비고', '생성일'
     ];
 
-    const tsvData = returnedAssets.value.map(asset => [
+    const escapeCSV = (val) => {
+        let s = String(val === null || val === undefined ? '' : val);
+        if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+            s = '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+    };
+
+    const csvData = returnedAssets.value.map(asset => [
         asset.return_type || '',
         asset.end_date || '',
         asset.model || '',
@@ -681,17 +689,17 @@ const downloadTSV = () => {
         formatDateTime(asset.created_at)
     ]);
 
-    const tsvContent = [
-        tsvHeaders.join('\t'),
-        ...tsvData.map(row => row.map(val => String(val).replace(/\t/g, ' ').replace(/\n/g, ' ')).join('\t'))
+    const csvContent = [
+        csvHeaders.map(h => escapeCSV(h)).join(','),
+        ...csvData.map(row => row.map(val => escapeCSV(val)).join(','))
     ].join('\n');
 
-    const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const timestamp = new Date().toISOString().replace(/[:T]/g, '_').split('.')[0];
     link.href = url;
-    link.setAttribute('download', `ReturnProcessing_${timestamp}.tsv`);
+    link.setAttribute('download', `ReturnProcessing_${timestamp}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -860,6 +868,21 @@ h2 {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 13px;
+  box-sizing: border-box;
+  background-color: white;
+  transition: all 0.2s;
+}
+
+.status-checked .inline-input {
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.status-checked .inline-input:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+  outline: none;
+  border-color: white;
 }
 
 .action-buttons {
@@ -914,7 +937,7 @@ input[type="checkbox"] {
 }
 
 .status-checked {
-  background-color: #e6ffed !important; /* 연한 녹색 배경 */
-  border-bottom-color: #b7eb8f !important;
+  background-color: darkolivegreen !important;
+  color: white;
 }
 </style>

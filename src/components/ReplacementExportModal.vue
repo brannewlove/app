@@ -168,17 +168,26 @@ const copyToClipboard = () => {
   });
 };
 
-const downloadTSV = () => {
+const downloadCSV = () => {
   const dataToDownload = visibleAssets.value;
   if (dataToDownload.length === 0) {
     alert('다운로드할 데이터가 없습니다.');
     return;
   }
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '');
-  const filename = `AssetReplacements_${timestamp}.tsv`;
+  const filename = `AssetReplacements_${timestamp}.csv`;
   const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', '사용자명', '부서'];
-  const tsvContent = [
-    headers.join('\t'),
+
+  const escapeCSV = (val) => {
+    let s = String(val === null || val === undefined ? '' : val);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      s = '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+
+  const csvContent = [
+    headers.map(h => escapeCSV(h)).join(','),
     ...dataToDownload.map(asset => {
       return [
         asset.asset_number || '', 
@@ -187,13 +196,11 @@ const downloadTSV = () => {
         asset.serial_number || '',
         asset.replacement_user_name || '-', 
         asset.replacement_user_part || '-'
-      ]
-        .map(value => String(value).replace(/\t/g, ' ').replace(/\n/g, ' '))
-        .join('\t');
+      ].map(value => escapeCSV(value)).join(',');
     })
   ].join('\n');
   
-  const blob = new Blob(['\uFEFF' + tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -277,9 +284,9 @@ onMounted(async () => {
           </div>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
             <button class="btn btn-secondary" @click="closeModal">닫기</button>
-            <button class="btn btn-primary btn-tsv" @click="downloadTSV" :disabled="visibleAssets.length === 0">
+            <button class="btn btn-primary btn-tsv" @click="downloadCSV" :disabled="visibleAssets.length === 0">
               <img src="/images/down.png" alt="download" class="btn-icon" />
-              tsv
+              csv
             </button>
           </div>
         </div>

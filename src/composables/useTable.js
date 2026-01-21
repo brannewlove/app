@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue';
+import { parseAndFilter } from '../utils/QueryParser';
 
 export function useTable(data, options = {}) {
     // itemsPerPage를 반응형으로 관리 (Ref나 Computed가 들어오면 .value로 접근)
@@ -93,21 +94,7 @@ export function useTable(data, options = {}) {
 
         if (!searchQuery.value) return result;
 
-        const keywords = searchQuery.value
-            .toLowerCase()
-            .split(/\s+/)
-            .filter(k => k.length > 0);
-
-        if (keywords.length === 0) return result;
-
-        return result.filter(item => {
-            const itemString = (searchFields.length > 0
-                ? searchFields.map(f => item[f])
-                : Object.values(item)
-            ).map(v => String(v).toLowerCase()).join(' ');
-
-            return keywords.every(keyword => itemString.includes(keyword));
-        });
+        return result.filter(item => parseAndFilter(item, searchQuery.value, searchFields));
     });
 
     const paginatedData = computed(() => {

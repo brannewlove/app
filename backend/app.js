@@ -17,6 +17,7 @@ var confirmedReplacementsRouter = require('./routes/confirmedReplacements');
 var returnedAssetsRouter = require('./routes/returnedAssets');
 var importRouter = require('./routes/import');
 var backupRouter = require('./routes/backup');
+var filtersRouter = require('./routes/filters');
 const { runBackup } = require('./utils/googleSheets');
 const cron = require('node-cron');
 
@@ -60,6 +61,7 @@ app.use('/api/confirmedReplacements', confirmedReplacementsRouter);
 app.use('/api/returned-assets', returnedAssetsRouter);
 app.use('/api/import', importRouter);
 app.use('/api/backup', backupRouter);
+app.use('/api/saved-filters', filtersRouter);
 app.use('/db-test', dbTestRouter);
 
 const pool = require('./utils/db');
