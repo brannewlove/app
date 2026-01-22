@@ -1,7 +1,9 @@
 var express = require('express');
 var router = express.Router();
+const { body } = require('express-validator');
 const pool = require('../utils/db');
 const { success, error } = require('../utils/response');
+const { validate } = require('../middleware/validator');
 
 /* GET assets listing - 모든 자산 조회 */
 router.get('/', async (req, res, next) => {
@@ -67,7 +69,11 @@ router.get('/:id', async (req, res, next) => {
 });
 
 /* PUT asset - 자산 정보 수정 */
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', [
+  body('asset_number').notEmpty().withMessage('Asset Number is required'),
+  // Add more validations as needed, e.g., model, serial_number checks
+  validate
+], async (req, res, next) => {
   try {
     const { id } = req.params;
     const updateData = req.body;

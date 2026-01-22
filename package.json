@@ -12,6 +12,9 @@
     "preview": "vite preview",
     "dev:backend": "cd backend && nodemon --watch . --watch .. server.js",
     "dev:frontend": "vite",
+    "test": "vitest run && npm run test:backend",
+    "test:frontend": "vitest",
+    "test:backend": "cd backend && npm test",
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:all": "npm run build && cd backend && npm install --omit=dev",
     "start": "cd backend && set NODE_ENV=production& node server.js"
@@ -22,11 +25,14 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",
+    "@vue/test-utils": "^2.4.6",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
+    "happy-dom": "^20.3.4",
     "nodemon": "^3.1.11",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.5",
+    "vitest": "^4.0.18",
     "vue": "^3.5.26"
   }
 }

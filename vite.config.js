@@ -23,7 +23,10 @@ export default defineConfig({
         rewrite: (path) => path
       }
     },
-    middlewareMode: false,
     historyApiFallback: true
+  },
+  test: {
+    environment: 'happy-dom',
+    exclude: ['backend/**', 'node_modules/**', 'dist/**']
   }
 })
