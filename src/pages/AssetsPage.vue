@@ -68,7 +68,7 @@ const assetsFilterFn = (asset) => {
   if (savedQuery) {
     if (savedQuery === '가용재고') {
       if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-    } else if (savedQuery === '1인 다PC 보유자') {
+    } else if (savedQuery === '1인 다PC사용자') {
       if (!(multiPcUserIds.value.has(asset.in_user) && 
             (asset.category === '노트북' || asset.category === '데스크탑') && 
             asset.state === 'useable')) return false;
@@ -80,7 +80,7 @@ const assetsFilterFn = (asset) => {
   // 2. 추가 검색어 적용 (특수 예약어 처리)
   if (searchQuery.value === '가용재고') {
     if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-  } else if (searchQuery.value === '1인 다PC 보유자') {
+  } else if (searchQuery.value === '1인 다PC사용자') {
     if (!(multiPcUserIds.value.has(asset.in_user) && 
           (asset.category === '노트북' || asset.category === '데스크탑') && 
           asset.state === 'useable')) return false;
@@ -123,7 +123,7 @@ const {
 });
 
 // 분류별 상세 개수 계산
-const categoryStats = computed(() => {
+const categoryBreakdown = computed(() => {
   const stats = {};
   filteredAssets.value.forEach(asset => {
     const cat = asset.category || '기타';
@@ -131,8 +131,7 @@ const categoryStats = computed(() => {
   });
   return Object.entries(stats)
     .sort((a, b) => b[1] - a[1]) // 개수 많은 순 정렬
-    .map(([cat, count]) => `${cat} ${count}`)
-    .join(', ');
+    .map(([category, count]) => ({ category, count }));
 });
 
 const isModalOpen = ref(false);
@@ -323,7 +322,8 @@ const fetchAssets = async () => {
 const fetchSavedFilters = async () => {
   try {
     const filters = await filterApi.getFilters('assets');
-    // filter_data에서 is_protected 상태 추출
+    
+    // DB 필터 데이터 파싱
     savedFilters.value = filters.map(f => {
       let data = {};
       try {
@@ -845,7 +845,7 @@ onMounted(() => {
     if (newFilter === 'available' || newSavedQuery === '가용재고') {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
-    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC 보유자') {
+    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC사용자') {
       // 필터 해제 시 기본 정렬로 복구
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
@@ -854,7 +854,7 @@ onMounted(() => {
 
   // 특수 필터 검색 시 정렬 적용
   watch([searchQuery, activeSavedFilterQuery], ([newQuery, newSavedQuery]) => {
-    if (newQuery === '1인 다PC 보유자' || newSavedQuery === '1인 다PC 보유자') {
+    if (newQuery === '1인 다PC사용자' || newSavedQuery === '1인 다PC사용자') {
       sortColumn.value = 'in_user';
       sortDirection.value = 'asc';
     } else if (newQuery === '가용재고' || newSavedQuery === '가용재고') {
@@ -1115,9 +1115,15 @@ onMounted(() => {
         </div>
       </div>
       
-      <div v-if="searchQuery" class="search-result"> 
-        검색 결과: {{ filteredAssets.length }}개 
-        <span class="category-summary">({{ categoryStats }})</span>
+      <div v-if="searchQuery || activeSavedFilter || activeFilter" class="filter-summary-area">
+        <span class="total-count">검색 결과 <strong>{{ filteredAssets.length }}</strong>건</span>
+        <div class="category-divider"></div>
+        <div class="category-chips">
+          <div v-for="item in categoryBreakdown" :key="item.category" class="category-chip">
+            <span class="chip-label">{{ item.category }}</span>
+            <span class="chip-value">{{ item.count }}</span>
+          </div>
+        </div>
       </div>
       
       <div class="table-wrapper">
@@ -1219,12 +1225,66 @@ h1 {
   margin-left: 8px;
 }
 
-.search-result {
-  margin-bottom: 15px;
-  font-weight: bold;
-  color: #2c3e50;
+.filter-summary-area {
+  margin-bottom: 20px;
+  padding: 10px 15px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
+  gap: 15px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.total-count {
+  font-size: 13px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.category-divider {
+  width: 1px;
+  height: 20px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.total-count strong {
+  color: var(--brand-blue);
+  font-size: 16px;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-chip {
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 13px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.chip-label {
+  padding: 4px 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  border-right: 1px solid #cbd5e1;
+}
+
+.chip-value {
+  padding: 4px 10px;
+  color: var(--brand-blue);
+  font-weight: 700;
 }
 
 .filter-actions-group {

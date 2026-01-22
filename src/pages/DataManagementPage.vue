@@ -165,7 +165,8 @@ const savedFilters = ref([]);
 const fetchFilters = async () => {
     try {
         const response = await filterApi.getFilters('assets');
-        // 필터 관리에서 설정된 값 그대로 보여주고 저장하도록 수정
+        
+        // DB 필터 데이터 파싱
         savedFilters.value = response.map(f => {
             let data = {};
             try {
@@ -176,7 +177,7 @@ const fetchFilters = async () => {
             return { 
                 ...f, 
                 edit_name: f.name,
-                is_protected: !!data.is_protected // 명시적으로 불리언 변환
+                is_protected: !!data.is_protected
             };
         });
     } catch (err) {
@@ -193,6 +194,8 @@ const moveFilter = (index, direction) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= newFilters.length) return;
     
+    // 시스템 필터끼리 혹은 사용자 필터끼리만 이동하게 하거나, 자유롭게 섞게 할 수 있음
+    // 여기서는 모든 필터간 이동 허용하되 시스템 필터는 API 호출 시 제외됨
     [newFilters[index], newFilters[targetIndex]] = [newFilters[targetIndex], newFilters[index]];
     savedFilters.value = newFilters;
 };
@@ -214,11 +217,14 @@ const deleteFilter = async (id) => {
 const saveFilterChanges = async () => {
     try {
         loading.value = true;
+        
         // 1. 순서 업데이트
         const orders = savedFilters.value.map((f, i) => ({ id: f.id, sort_order: i }));
-        await filterApi.reorderFilters(orders);
+        if (orders.length > 0) {
+            await filterApi.reorderFilters(orders);
+        }
         
-        // 2. 이름 및 보호 상태 업데이트 (수정된 것만)
+        // 2. 이름 및 보호 상태 업데이트
         for (const filter of savedFilters.value) {
             let data = {};
             try {
@@ -227,18 +233,12 @@ const saveFilterChanges = async () => {
                 data = {};
             }
             
-            const originalProtected = !!data.is_protected;
-            const isNameChanged = filter.edit_name !== filter.name;
-            const isProtectionChanged = filter.is_protected !== originalProtected;
-            
-            if (isNameChanged || isProtectionChanged) {
-                // filter_data 업데이트
-                const updatedData = { ...data, is_protected: filter.is_protected };
-                await filterApi.updateFilter(filter.id, { 
-                    name: filter.edit_name,
-                    filter_data: updatedData
-                });
-            }
+            // filter_data 업데이트
+            const updatedData = { ...data, is_protected: filter.is_protected };
+            await filterApi.updateFilter(filter.id, { 
+                name: filter.edit_name,
+                filter_data: updatedData
+            });
         }
         
         await fetchFilters();
@@ -1038,15 +1038,6 @@ input:checked + .slider:before {
 .btn-lock:hover {
     background: #f0f0f0;
     border-color: #ccc;
-}
-
-.system-badge {
-    font-size: 11px;
-    background: #e6f7ff;
-    color: #1890ff;
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid #91d5ff;
 }
 
 .mb-40 {
