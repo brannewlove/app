@@ -51,8 +51,10 @@
 3.  **환경 설정**: 개발 폴더의 `.env` 파일 수정.
     ```ini
     DB_HOST=localhost
-    DB_DATABASE=assetdb_dev
-    PORT=3001
+    DB_NAME=assetdb_dev
+    SERVER_PORT=3005
+    VITE_PORT=5175
+    VITE_API_URL=http://localhost:3005
     ```
 
 ### 개발 사이클

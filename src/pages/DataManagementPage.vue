@@ -15,8 +15,8 @@ const assetInputMode = ref('file'); // 'file' or 'paste'
 const userInputMode = ref('file'); // 'file' or 'paste'
 
 // TSV 헤더 정의
-const ASSET_HEADERS = 'category\tmodel\tasset_number\tin_user\tserial_number\tday_of_start\tday_of_end';
-const USER_HEADERS = 'cj_id\tname\tpart';
+const ASSET_HEADERS = 'category\tmodel\tasset_number\tin_user\tserial_number\tday_of_start\tday_of_end\tstate\tunit_price\tcontract_month';
+const USER_HEADERS = 'cj_id\tname\tpart\tstate';
 
 // 헤더 복사 함수
 const copyHeaders = async (type) => {
@@ -338,7 +338,7 @@ const handleManualBackup = async () => {
                         <textarea 
                             id="asset-paste"
                             v-model="assetPasteData"
-                            placeholder="category | model | asset_number | in_user | serial_number | day_of_start | day_of_end"
+                            placeholder="category | model | asset_number | in_user | serial_number | day_of_start | day_of_end | state | unit_price | contract_month"
                             rows="8"
                             class="paste-textarea"
                         ></textarea>
@@ -405,7 +405,7 @@ const handleManualBackup = async () => {
                         <textarea 
                             id="user-paste"
                             v-model="userPasteData"
-                            placeholder="cj_id | name | part"
+                            placeholder="cj_id | name | part | state"
                             rows="8"
                             class="paste-textarea"
                         ></textarea>

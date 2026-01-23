@@ -18,6 +18,10 @@ const props = defineProps({
   initialCategory: {
     type: String,
     default: '',
+  },
+  initialMemo: {
+    type: String,
+    default: '',
   }
 });
 
@@ -36,7 +40,8 @@ watch(() => props.isOpen, (newVal) => {
     selectedAsset.value = { 
       asset_number: props.initialAssetNumber,
       model: props.initialModel,
-      category: props.initialCategory
+      category: props.initialCategory,
+      memo: props.initialMemo
     };
     fetchTrackingLogs();
   }
@@ -103,6 +108,7 @@ const copyAssetInfo = () => {
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산번호</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">분류</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">모델</th>
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">메모</th>
         </tr>
       </thead>
       <tbody>
@@ -110,13 +116,14 @@ const copyAssetInfo = () => {
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${asset_number || '-'}</td>
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${category || '-'}</td>
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${model || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${selectedAsset.value.memo || '-'}</td>
         </tr>
       </tbody>
     </table>
   `;
 
   // 텍스트 버전 (Fallback)
-  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}`;
+  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n메모: ${selectedAsset.value.memo || '-'}`;
 
   const blobHtml = new Blob([htmlTable], { type: 'text/html' });
   const blobText = new Blob([plainText], { type: 'text/plain' });
@@ -156,7 +163,8 @@ const copyAssetInfo = () => {
                   asset_number: item.asset_number,
                   model: item.model,
                   category: item.category,
-                  state: item.state
+                  state: item.state,
+                  memo: item.memo
                 };
                 fetchTrackingLogs();
               }
@@ -176,6 +184,7 @@ const copyAssetInfo = () => {
             <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
             <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
             <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
+            <p><strong>메모:</strong> {{ selectedAsset.memo || '-' }}</p>
           </div>
         </div>
 

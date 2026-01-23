@@ -50,7 +50,7 @@ router.get('/:id', async (req, res, next) => {
     const [asset] = await pool.query(
       `SELECT 
         a.asset_id, a.asset_number, a.category, a.model, a.serial_number, 
-        a.state, a.in_user, a.day_of_start, a.day_of_end, a.unit_price, a.contract_month, a.replacement,
+        a.state, a.in_user, a.day_of_start, a.day_of_end, a.unit_price, a.contract_month, a.replacement, a.memo,
         u.name as user_name,
         u.part as user_part
       FROM assets a

@@ -60,10 +60,10 @@ ENABLE_BACKUP_SCHEDULER=false
 ### 개발 모드
 - **통합 실행**: 루트 폴더에서 `npm run dev:all`
 - **개별 실행**:
-  - Frontend: `npm run dev` (Port 5173)
-  - Backend: `cd backend` -> `npm run dev:backend` (Port 3000)
+  - Frontend: `npm run dev` (.env 의 VITE_PORT 참고)
+  - Backend: `cd backend` -> `npm run dev:backend` (.env 의 SERVER_PORT 참고)
 
 ### 프로덕션 모드
 1. `npm run build` 실행
 2. `cd backend` -> `npm start`
-3. 브라우저에서 `http://localhost:3000` 접속
+3. 브라우저에서 서버 접속 (.env 의 SERVER_PORT 참고)

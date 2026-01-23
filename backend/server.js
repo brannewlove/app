@@ -2,7 +2,7 @@ const app = require("./app");
 const http = require("http");
 
 // 포트 설정
-const port = process.env.PORT || 3000;
+const port = process.env.SERVER_PORT || process.env.PORT || 3000;
 
 const server = http.createServer(app);
 

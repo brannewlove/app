@@ -130,7 +130,9 @@ watch(() => router.currentRoute.value.path, () => {
     <nav v-if="isLoggedIn" class="navbar">
       <div class="navbar-container">
         <div class="navbar-brand">
-          <h1>관리 시스템</h1>
+          <router-link to="/" class="brand-link">
+            <h1>관리 시스템_dev</h1>
+          </router-link>
         </div>
         <ul class="navbar-menu">
           <li>
@@ -238,6 +240,11 @@ watch(() => router.currentRoute.value.path, () => {
   font-size: 24px;
   font-weight: bold;
   margin: 0;
+}
+
+.brand-link {
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .navbar-menu {

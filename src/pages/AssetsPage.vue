@@ -143,7 +143,7 @@ const isAssetCopied = ref(false);
 const assetModalFields = [
   'category', 'model', 'asset_number', 'serial_number',
   'day_of_start', 'day_of_end', 'contract_month',
-  'in_user', 'user_name', 'user_part', 'state', 'replacement'
+  'in_user', 'user_name', 'user_part', 'state', 'replacement', 'memo'
 ];
 const stateOptions = ['useable', 'wait', 'hold', 'rent', 'repair', 'termination', 'process-ter'];
 
@@ -752,7 +752,8 @@ const getHeaderDisplayName = (columnName) => {
     'day_of_end': '종료일',
     'unit_price': '월단가',
     'contract_month': '계약월',
-    'replacement': '불량교체'
+    'replacement': '불량교체',
+    'memo': '메모'
   };
   return headerMap[columnName] || columnName;
 };
@@ -1174,6 +1175,7 @@ onMounted(() => {
       :initial-asset-number="selectedAsset?.asset_number || ''"
       :initial-model="selectedAsset?.model || ''"
       :initial-category="selectedAsset?.category || ''"
+      :initial-memo="selectedAsset?.memo || ''"
       @close="isTrackingOpen = false" 
     />
   </div>

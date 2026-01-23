@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginPage from '../pages/LoginPage.vue'
+import DashboardPage from '../pages/DashboardPage.vue'
 import UsersPage from '../pages/UsersPage.vue'
 import AssetsPage from '../pages/AssetsPage.vue'
 import TradePage from '../pages/TradePage.vue'
@@ -47,7 +48,9 @@ const router = createRouter({
     },
     {
       path: '/',
-      redirect: '/users'
+      name: 'Dashboard',
+      component: DashboardPage,
+      meta: { requiresAuth: true }
     }
   ],
 })
@@ -61,8 +64,8 @@ router.beforeEach((to, from, next) => {
     // 인증이 필요한데 토큰이 없으면 로그인 페이지로
     next('/login');
   } else if (to.path === '/login' && isAuthenticated) {
-    // 이미 로그인되어 있으면 사용자 페이지로
-    next('/users');
+    // 이미 로그인되어 있으면 대시보드로
+    next('/');
   } else if (to.name === 'DataManagement') {
     // 데이터 관리 페이지는 sec_level 100 필수
     const user = JSON.parse(localStorage.getItem('user') || '{}');
