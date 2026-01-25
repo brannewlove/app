@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
         DATE_FORMAT(ra.handover_date, '%Y-%m-%d') as handover_date,
         ra.release_status, ra.it_room_stock, ra.low_format, ra.it_return, ra.mail_return, ra.actual_return,
         ra.complete, ra.remarks, ra.created_at,
-        a.asset_id
+        a.asset_id, a.memo AS asset_memo
       FROM returned_assets ra
       LEFT JOIN assets a ON ra.asset_number = a.asset_number
       ORDER BY ra.created_at DESC`
@@ -109,7 +109,7 @@ router.put('/:id', async (req, res, next) => {
 
     for (const key in updateData) {
       // Exclude non-database fields from update
-      if (['return_id', 'created_at', 'processing', 'asset_id'].includes(key)) continue;
+      if (['return_id', 'created_at', 'processing', 'asset_id', 'asset_memo'].includes(key)) continue;
 
       fields.push(`${key} = ?`);
       // Handle boolean checkboxes

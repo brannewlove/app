@@ -29,6 +29,17 @@ export default defineConfig(({ mode }) => {
       },
       historyApiFallback: true
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-charts': ['chart.js', 'vue-chartjs'],
+            'vendor-utils': ['axios', 'vue-router']
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1000
+    },
     test: {
       environment: 'happy-dom',
       exclude: ['backend/**', 'node_modules/**', 'dist/**']

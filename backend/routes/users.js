@@ -70,7 +70,18 @@ router.get('/:id', async (req, res, next) => {
       return error(res, '사용자를 찾을 수 없습니다.', 404);
     }
 
-    success(res, user[0]);
+    // 자산 현황 조회
+    const [assetCounts] = await pool.query(
+      'SELECT category, COUNT(*) as count FROM assets WHERE in_user = ? GROUP BY category',
+      [user[0].cj_id]
+    );
+
+    const userData = {
+      ...user[0],
+      asset_counts: assetCounts
+    };
+
+    success(res, userData);
   } catch (err) {
     console.error('GET /users/:id 오류:', err);
     error(res, err.message);

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import userApi from '../api/users';
 import { useTable } from '../composables/useTable';
 import TablePagination from '../components/TablePagination.vue';
@@ -47,6 +48,25 @@ const {
   itemsPerPage: 20
 });
 
+const router = useRouter();
+const isCjIdCopied = ref(false);
+
+const goToUserAssets = () => {
+  if (selectedUser.value?.cj_id) {
+    router.push({ path: '/assets', query: { q: selectedUser.value.cj_id } });
+  } else {
+    alert('CJ ID가 없는 사용자입니다.');
+  }
+};
+
+const copyCjId = (cjId) => {
+  if (!cjId) return;
+  navigator.clipboard.writeText(cjId).then(() => {
+    isCjIdCopied.value = true;
+    setTimeout(() => isCjIdCopied.value = false, 2000);
+  });
+};
+
 const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editedUser = ref(null);
@@ -74,7 +94,7 @@ const handleConfirmYes = () => {
 // 테이블 헤더 가져오기 (user_id, password, google_id, is_temporary 제외)
 const getTableHeaders = (data) => {
   if (data.length === 0) return [];
-  return Object.keys(data[0]).filter(key => !['user_id', 'password', 'google_id', 'is_temporary'].includes(key));
+  return Object.keys(data[0]).filter(key => !['user_id', 'password', 'google_id', 'is_temporary', 'asset_counts'].includes(key));
 };
 
 // 컬럼 라벨 매핑
@@ -179,7 +199,10 @@ const saveUser = async () => {
     loading.value = true;
     error.value = null;
     
-    await userApi.updateUser(editedUser.value.user_id, editedUser.value);
+    const dataToUpdate = { ...editedUser.value };
+    delete dataToUpdate.asset_counts; // DB 컬럼이 아니므로 제외
+
+    await userApi.updateUser(editedUser.value.user_id, dataToUpdate);
     
     selectedUser.value = JSON.parse(JSON.stringify(editedUser.value));
     
@@ -447,7 +470,7 @@ onMounted(() => {
         </div>
         
         <div class="modal-footer">
-          <button @click="closeTempUserListModal" class="btn btn-close">닫기</button>
+          <button @click="closeTempUserListModal" class="btn btn-modal btn-close">닫기</button>
         </div>
       </div>
     </div>
@@ -456,17 +479,29 @@ onMounted(() => {
     <div v-if="isModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp($event, closeModal)">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>
-            사용자 정보
-            <span v-if="selectedUser?.is_temporary" class="temp-badge">임시</span>
-          </h2>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <h2 style="margin-bottom: 0;">
+              사용자 정보
+              <span v-if="selectedUser?.is_temporary" class="temp-badge">임시</span>
+            </h2>
+            <button @click="goToUserAssets" class="btn-asset-link" title="자산 관리 페이지에서 보기">
+              <img src="/images/boxes.png" alt="assets" class="header-icon-small" />
+              자산 보기
+            </button>
+          </div>
           <button @click="closeModal" class="close-btn">✕</button>
         </div>
         
         <div class="modal-body">
           <div v-if="selectedUser" class="form-grid">
-            <div v-for="(value, key) in selectedUser" :key="key" v-show="!['user_id', 'password', 'google_id', 'is_temporary'].includes(key)" class="form-group">
-              <label>{{ columnLabels[key] || key }}</label>
+            <div v-for="(value, key) in selectedUser" :key="key" v-show="!['user_id', 'password', 'google_id', 'is_temporary', 'asset_counts'].includes(key)" class="form-group">
+              <label>
+                {{ columnLabels[key] || key }}
+                <button v-if="key === 'cj_id' && value" @click.stop="copyCjId(value)" class="copy-btn-tiny" title="복사" style="margin-left: 5px; vertical-align: middle;">
+                  <img v-if="!isCjIdCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
+                  <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
+                </button>
+              </label>
               <input 
                 v-if="isEditMode"
                 v-model="editedUser[key]"
@@ -480,14 +515,24 @@ onMounted(() => {
               </div>
             </div>
           </div>
+          
+          <div v-if="selectedUser?.asset_counts?.length" class="asset-summary-box">
+            <h3>보유 자산 현황</h3>
+            <div class="asset-chips">
+              <div v-for="item in selectedUser.asset_counts" :key="item.category" class="chip">
+                <span class="chip-label">{{ item.category }}</span>
+                <span class="chip-value">{{ item.count }}</span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="modal-footer">
-          <button v-if="selectedUser?.is_temporary && isEditMode" @click="finalizeUser" class="btn btn-primary">정식 전환</button>
-          <button v-if="!isEditMode" @click="toggleEditMode" class="btn btn-edit">수정</button>
-          <button v-if="isEditMode" @click="saveUser" class="btn btn-save">저장</button>
-          <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-cancel">취소</button>
-          <button @click="closeModal" class="btn btn-close">닫기</button>
+          <button v-if="selectedUser?.is_temporary && isEditMode" @click="finalizeUser" class="btn btn-modal btn-primary">정식 전환</button>
+          <button v-if="!isEditMode" @click="toggleEditMode" class="btn btn-modal btn-edit">수정</button>
+          <button v-if="isEditMode" @click="saveUser" class="btn btn-modal btn-save">저장</button>
+          <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-modal btn-cancel">취소</button>
+          <button @click="closeModal" class="btn btn-modal btn-close">닫기</button>
         </div>
       </div>
     </div>
@@ -502,12 +547,12 @@ onMounted(() => {
     <div v-if="users.length > 0" class="users-section">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>사용자 목록 ({{ filteredUsers.length }}명)</h2>
-        <div style="display: flex; gap: 10px;">
+        <div class="header-actions">
           <!-- 임시 사용자 관리 통합 버튼 -->
-          <button @click="openTempUserListModal" class="btn btn-temp-tracker">
+          <button @click="openTempUserListModal" class="btn btn-header btn-temp-tracker">
             임시 사용자 관리 {{ tempUserCount > 0 ? `(${tempUserCount})` : '' }}
           </button>
-          <button @click="downloadCSV" class="btn btn-csv">
+          <button @click="downloadCSV" class="btn btn-header btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
             csv
           </button>
@@ -570,36 +615,21 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.page-content {
-  padding: 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-h1 {
-  color: #333;
-  margin-bottom: 30px;
-  font-size: 28px;
-  border-bottom: 3px solid #999;
-  padding-bottom: 10px;
-}
-
 .users-section {
-  background: white;
+  background: var(--card-bg);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   width: 100%;
-  box-sizing: border-box;
 }
 
-h2 {
-  color: #555;
-  margin: 0 0 15px 0;
-  font-size: 20px;
+.users-header-actions {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 /* 임시 사용자 배지 */
@@ -608,7 +638,7 @@ h2 {
   background: #ff9800;
   color: white;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 500;
 }
@@ -632,128 +662,17 @@ h2 {
   background-color: #ffe0b2 !important;
 }
 
-/* 임시 사용자 추가 버튼 */
-.btn-add-temp {
-  background: #ff9800;
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 15px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-add-temp:hover {
-  background: #f57c00;
-}
-
 /* TSV 버튼 스타일 */
-.btn-csv {
-  background: var(--brand-blue);
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 15px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-csv:hover {
-  background: #4a6d8d;
-}
-
-.btn-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  filter: brightness(0) invert(1); /* 흰색으로 변경 */
-}
-
-.loading-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-  margin-right: 4px;
-}
-
-/* 임시 사용자 모달 */
-.temp-user-modal {
-  max-width: 400px;
-}
-
-.help-text {
-  margin-top: 10px;
-  font-size: 13px;
-  color: #666;
-}
-
-.required {
-  color: #ff4d4f;
-}
-
-.text-muted {
-  color: #999;
-  font-style: italic;
-}
-
-/* 정식 전환 버튼 */
-.btn-primary {
-  background: #52c41a;
-  color: white;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover {
-  background: #389e0d;
-}
-
-/* 임시 사용자 추적 버튼 (컴팩트) */
-.btn-temp-tracker {
-  background: #794A8D;
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 15px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-temp-tracker:hover {
-  background: #603a70;
-}
+.btn-temp-tracker { background: var(--brand-purple); color: white; }
+.btn-temp-tracker:hover { background: var(--brand-purple-dark); }
+.btn-csv:hover { background: #4a6d8d; }
 
 .btn-temp-tracker.active {
-  background: #4caf50;
+  background: var(--success-color);
 }
 
 .btn-temp-tracker.active:hover {
-  background: #388e3c;
-}
-
-.btn-temp-tracker .icon {
-  font-size: 16px;
+  background: #6da081;
 }
 
 /* 임시 사용자 목록 모달 */
@@ -764,11 +683,10 @@ h2 {
 .temp-user-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
 .temp-user-item {
@@ -777,7 +695,7 @@ h2 {
   align-items: center;
   padding: 12px 15px;
   background: white;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -800,20 +718,14 @@ h2 {
 .temp-user-item .user-name {
   font-weight: 500;
   font-size: 14px;
-  color: #333;
+  color: var(--text-main);
   min-width: 100px;
 }
 
 .temp-user-item .user-cjid {
   font-size: 12px;
-  color: #999;
+  color: var(--text-light);
   font-family: monospace;
-}
-
-.temp-user-item .item-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
 }
 
 .btn-icon-delete {
@@ -821,7 +733,7 @@ h2 {
   border: none;
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition: all 0.2s;
   opacity: 0.6;
   display: flex;
@@ -835,8 +747,8 @@ h2 {
 }
 
 .del-btn-icon {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   object-fit: contain;
 }
 
@@ -847,36 +759,87 @@ h2 {
 
 .add-temp-user-form h3 {
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
   margin-bottom: 10px;
 }
 
 .form-group-inline {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 .form-group-inline .form-input {
   flex: 1;
+  height: 38px;
 }
 
-.divider {
+.form-group-inline .btn {
+  height: 38px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.header-icon-small {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+/* 자산 연결 버튼 */
+.btn-asset-link {
+  background: var(--brand-blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
   border: none;
-  border-top: 1px solid #e0e0e0;
-  margin: 20px 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+.btn-asset-link:hover {
+  filter: brightness(1.1);
 }
 
-.temp-user-list-modal h3 {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 10px;
+/* 복사 버튼 */
+.copy-btn-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-left: 8px;
+  cursor: pointer;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.copy-btn-tiny:hover {
+  transform: scale(1.1);
+  opacity: 0.8;
 }
 
-/* 모달 내부 알림 스타일 */
-.modal-alert {
-  margin-top: 0;
-  margin-bottom: 15px;
-  padding: 10px 15px;
-  font-size: 14px;
+/* 자산 현황 칩 스타일 */
+.asset-summary-box {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--border-color);
 }
+.asset-summary-box h3 {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.asset-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 </style>

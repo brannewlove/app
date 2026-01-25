@@ -8,10 +8,10 @@
       <div class="section-header">
         <h2>반납 처리 목록 ({{ filteredReturnedAssets.length }}개)</h2>
         <div class="header-actions">
-          <button @click="openExportModal" class="btn btn-export">
+          <button @click="openExportModal" class="btn btn-header btn-export">
             반납메일 Export ({{ exportAssets.length }})
           </button>
-          <button @click="downloadCSV" class="btn btn-csv">
+          <button @click="downloadCSV" class="btn btn-header btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
             csv
           </button>
@@ -144,7 +144,7 @@
               :title="isCopied ? '복사 완료!' : '클립보드 복사'"
               :disabled="exportAssets.length === 0"
             >
-              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
@@ -178,7 +178,7 @@
         </div>
         
         <div class="modal-footer">
-          <button @click="closeExportModal" class="btn btn-close">닫기</button>
+          <button @click="closeExportModal" class="btn btn-modal btn-close">닫기</button>
         </div>
       </div>
     </div>
@@ -200,34 +200,78 @@
         </div>
         
         <div class="modal-footer">
-          <button v-if="modalType === 'confirm'" @click="confirmAction" class="btn btn-save" :disabled="pendingAsset?.processing">
+          <button v-if="modalType === 'confirm'" @click="confirmAction" class="btn btn-modal btn-save" :disabled="pendingAsset?.processing">
             {{ pendingAsset?.processing ? '처리 중...' : '확인' }}
           </button>
-          <button v-if="modalType === 'confirm'" @click="closeModal" class="btn btn-cancel" :disabled="pendingAsset?.processing"> 취소 </button>
-          <button v-if="modalType === 'success' || modalType === 'error'" @click="closeModal" class="btn btn-close"> 닫기 </button>
+          <button v-if="modalType === 'confirm'" @click="closeModal" class="btn btn-modal btn-cancel" :disabled="pendingAsset?.processing"> 취소 </button>
+          <button v-if="modalType === 'success' || modalType === 'error'" @click="closeModal" class="btn btn-modal btn-close"> 닫기 </button>
         </div>
       </div>
     </div>
 
-    <!-- 처리 선택 모달 추가 -->
+    <!-- 처리 선택 모달 개선 -->
     <div v-if="isActionChoiceModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="e => handleOverlayMouseUp(e, closeActionChoiceModal)">
-      <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-content" style="max-width: 550px;">
         <div class="modal-header">
-          <h2>처리 선택</h2>
+          <h2>자산 반납 처리</h2>
           <button @click="closeActionChoiceModal" class="close-btn">✕</button>
         </div>
-        <div class="modal-body" style="text-align: center; padding: 30px 20px;">
-          <p style="margin-bottom: 25px; font-weight: 500; font-size: 16px;">
-            '{{ selectedAssetForAction?.asset_number }}' 자산에 대해 어떤 처리를 원하십니까?
-          </p>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            <button @click="handleActionChoice('complete')" class="btn btn-confirm" style="background: var(--confirm-color); width: 100%;">반납 완료 (렌탈사 반납)</button>
-            <button @click="handleActionChoice('replacement')" class="btn btn-confirm" style="background: var(--confirm-color); width: 100%;">고장교체 처리 (렌탈사 교체)</button>
-            <button @click="handleActionChoice('reuse')" class="btn btn-confirm" style="background: var(--brand-blue); width: 100%;">재사용 처리 (사내 재고)</button>
+        <div class="modal-body" style="padding: 25px;">
+          <div class="asset-summary-box">
+            <p><strong>자산번호:</strong> <span class="bold-text">{{ selectedAssetForAction?.asset_number }}</span></p>
+            <p><strong>사용자:</strong> {{ selectedAssetForAction?.user_name }} ({{ selectedAssetForAction?.user_id }})</p>
+            <p><strong>반납사유:</strong> {{ selectedAssetForAction?.return_reason || '-' }}</p>
+          </div>
+
+          <div class="process-form-group">
+            <label>작업 유형 선택</label>
+            <WorkTypeSearch 
+              :initial-value="tradeForm.work_type"
+              placeholder="작업 유형을 검색/선택하세요"
+              :filter-fn="workTypeFilter"
+              @select="handleWorkTypeSelect"
+            />
+          </div>
+
+          <div v-if="tradeForm.work_type" class="process-form-group mt-15">
+            <label>CJ ID (보유자 변경)</label>
+            <div v-if="isCjIdDisabled(tradeForm.work_type)" class="fixed-val">
+              {{ getFixedCjIdDisplay(tradeForm.work_type) }}
+            </div>
+            <AutocompleteSearch 
+              v-else
+              :initial-value="tradeForm.cj_name || tradeForm.cj_id"
+              placeholder="이름/ID 검색"
+              api-table="users"
+              api-column="cj_id"
+              @select="(item) => {
+                tradeForm.cj_id = String(item.cj_id || '');
+                tradeForm.cj_name = String(item.name || '');
+              }"
+            />
+          </div>
+
+          <div class="process-form-group mt-15">
+            <label>메모</label>
+            <input v-model="tradeForm.memo" type="text" class="inline-input" placeholder="거래 메모 입력..." />
+          </div>
+
+          <div v-if="tradeForm.work_type === '반납-고장교체'" class="process-form-group mt-15">
+            <label>교체 자산번호 (본체에 기록됨)</label>
+            <AutocompleteSearch 
+              :initial-value="tradeForm.replacement_asset"
+              placeholder="교체될 자산번호 검색"
+              api-table="assets"
+              api-column="asset_number"
+              @select="(val) => tradeForm.replacement_asset = val.asset_number"
+            />
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="closeActionChoiceModal" class="btn btn-close">취소 (Escape)</button>
+          <button @click="submitTradeAction" class="btn btn-modal btn-save" :disabled="!tradeForm.work_type || loading">
+            {{ loading ? '처리 중...' : '확인 및 거래 등록' }}
+          </button>
+          <button @click="closeActionChoiceModal" class="btn btn-modal btn-cancel">취소</button>
         </div>
       </div>
     </div>
@@ -254,8 +298,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="confirmReplacement" class="btn btn-save" :disabled="!replacementAssetNumber">확인</button>
-          <button @click="closeReplacementModal" class="btn btn-cancel">취소</button>
+          <button @click="confirmReplacement" class="btn btn-modal btn-save" :disabled="!replacementAssetNumber">확인</button>
+          <button @click="closeReplacementModal" class="btn btn-modal btn-cancel">취소</button>
         </div>
       </div>
     </div>
@@ -268,8 +312,15 @@ import returnedAssetsApi from '../api/returnedAssets';
 import axios from 'axios';
 import { useTable } from '../composables/useTable';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
+import WorkTypeSearch from '../components/WorkTypeSearch.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
+import { 
+  isCjIdDisabled, 
+  getFixedCjId, 
+  getFixedCjIdDisplay, 
+  requiresReplacementAsset 
+} from '../constants/workTypes';
 
 const returnedAssets = ref([]);
 const loading = ref(false);
@@ -286,9 +337,17 @@ const isCopied = ref(false);
 const isClickStartedOnOverlay = ref(false);
 
 const isActionChoiceModalOpen = ref(false);
-const isReplacementModalOpen = ref(false);
+const isReplacementModalOpen = ref(false); // 기존 고장교체 전용 모달 (유지하되 거의 안 쓰게 될 수 있음)
 const selectedAssetForAction = ref(null);
-const replacementAssetNumber = ref('');
+
+// 새로운 거래 폼 데이터
+const tradeForm = ref({
+  work_type: '',
+  cj_id: '',
+  cj_name: '',
+  memo: '',
+  replacement_asset: ''
+});
 
 const {
   filteredData: filteredReturnedAssets,
@@ -398,49 +457,89 @@ const cancelReturn = (asset) => {
 // 처리 선택 모달 열기
 const openActionChoiceModal = (asset) => {
   selectedAssetForAction.value = asset;
+  // 기존 반납 사유 및 비고를 기본 메모로 설정
+  const memoParts = [];
+  if (asset.return_reason) memoParts.push(`[사유: ${asset.return_reason}]`);
+  if (asset.remarks) memoParts.push(`[비고: ${asset.remarks}]`);
+
+  tradeForm.value = {
+    work_type: '',
+    cj_id: '',
+    cj_name: '',
+    memo: memoParts.join(' '),
+    replacement_asset: ''
+  };
   isActionChoiceModalOpen.value = true;
 };
 
 const closeActionChoiceModal = () => {
   isActionChoiceModalOpen.value = false;
   selectedAssetForAction.value = null;
-  isClickStartedOnOverlay.value = false;
 };
 
-const handleActionChoice = (choice) => {
-  const asset = selectedAssetForAction.value;
-  // Choice modal은 닫고 다음 단계로 이동
-  closeActionChoiceModal();
+// ... (existing imports, but remove axios import duplicate if present, otherwise ignore)
+
+// ... (existing imports, but remove axios import duplicate if present, otherwise ignore)
+
+// 작업 유형 필터 (입고 및 반납 관련만 표시)
+const workTypeFilter = (wt) => {
+  return wt.category === '입고' || wt.category === '반납';
+};
+
+const handleWorkTypeSelect = (item) => {
+  tradeForm.value.work_type = item.work_type;
   
-  if (choice === 'complete') {
-    completeReturn(asset);
-  } else if (choice === 'reuse') {
-    reuseAsset(asset);
-  } else if (choice === 'replacement') {
-    openReplacementModal(asset);
+  if (isCjIdDisabled(item.work_type)) {
+    const fixedId = getFixedCjId(item.work_type);
+    if (fixedId === 'no-change') {
+       tradeForm.value.cj_id = selectedAssetForAction.value?.user_id || '';
+    } else {
+       tradeForm.value.cj_id = fixedId;
+    }
   }
 };
 
-const openReplacementModal = (asset) => {
-  selectedAssetForAction.value = asset;
-  replacementAssetNumber.value = '';
-  isReplacementModalOpen.value = true;
-};
+const submitTradeAction = async () => {
+  const asset = selectedAssetForAction.value;
+  if (!asset || !tradeForm.value.work_type) return;
 
-const closeReplacementModal = () => {
-  isReplacementModalOpen.value = false;
-  selectedAssetForAction.value = null;
-  replacementAssetNumber.value = '';
-};
+  loading.value = true;
+  try {
+    // 1. 거래 데이터 구성
+    const tradeData = {
+      work_type: tradeForm.value.work_type,
+      asset_number: asset.asset_number,
+      cj_id: tradeForm.value.cj_id,
+      ex_user: asset.user_id,
+      memo: tradeForm.value.memo || null,
+      asset_state: 'useable', // 반납 프로세스로 들어오기 전의 일반적인 상태
+      asset_in_user: asset.user_id,
+      asset_memo: asset.asset_memo
+    };
 
-const confirmReplacement = () => {
-  if (!replacementAssetNumber.value) return;
-  pendingAsset.value = selectedAssetForAction.value;
-  modalAction.value = 'replacement';
-  modalMessage.value = `'${pendingAsset.value.asset_number}' 자산을 '${replacementAssetNumber.value}' 자산으로 고장교체 처리하시겠습니까?`;
-  modalType.value = 'confirm';
-  isReplacementModalOpen.value = false;
-  isModalOpen.value = true;
+    // 2. 거래 등록 API 호출
+    await axios.post('/api/trades', [tradeData]);
+
+    // 3. 고장교체인 경우 자산 정보의 replacement 필드 업데이트
+    // requiresReplacementAsset(tradeForm.value.work_type) 사용
+    if (requiresReplacementAsset(tradeForm.value.work_type) && tradeForm.value.replacement_asset) {
+      if (asset.asset_id) {
+        await axios.put(`/api/assets/${asset.asset_id}`, { replacement: tradeForm.value.replacement_asset });
+      }
+    }
+
+    // 4. 반납 대기 목록에서 삭제
+    await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
+
+    // 5. 로컬 목록에서 제거 및 종료
+    removeAssetFromList(asset.return_id);
+    closeActionChoiceModal();
+    showModal('처리가 성공적으로 완료되었습니다.', 'success');
+  } catch (err) {
+    showModal(`처리 중 오류 발생: ${err.message}`, 'error');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const confirmAction = async () => {
@@ -452,13 +551,16 @@ const confirmAction = async () => {
     if (modalAction.value === 'complete') {
       const memoParts = [];
       if (asset.return_reason) memoParts.push(`[사유: ${asset.return_reason}]`);
-      if (asset.remarks) memoParts.push(asset.remarks);
+      if (asset.remarks) memoParts.push(`[비고: ${asset.remarks}]`);
       const tradeData = [{
         work_type: '반납',
         asset_number: asset.asset_number,
         cj_id: 'aj_rent',
         ex_user: asset.user_id,
-        memo: memoParts.length > 0 ? memoParts.join(' ') : null
+        memo: memoParts.length > 0 ? memoParts.join(' ') : null,
+        asset_state: 'useable',
+        asset_in_user: asset.user_id,
+        asset_memo: asset.asset_memo
       }];
       await axios.post('/api/trades', tradeData);
       await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
@@ -698,122 +800,11 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.page-content {
-  padding: 20px;
-}
-
-h1 {
-  color: #333;
-  margin-bottom: 30px;
-  font-size: 28px;
-  border-bottom: 3px solid #999;
-  padding-bottom: 10px;
-}
-
 .assets-section {
-  background: white;
+  background: var(--card-bg);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.table-wrapper {
-  overflow-x: visible; /* sticky 작동을 위해 visible로 변경하거나 height 고정 필요 */
-  width: 100%;
-  margin-top: 10px;
-}
-
-.btn-export { 
-  background: #556B2F; 
-  color: white; 
-  border: none; 
-  padding: 8px 15px; 
-  border-radius: 4px; 
-  cursor: pointer; 
-  font-size: 14px; 
-  font-weight: 600; 
-  transition: background 0.2s; 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.btn-export:hover { background: #33401C; }
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-copy-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--brand-blue);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px;
-  border-radius: 4px;
-  transition: all 0.2s;
-}
-.header-copy-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  color: #4a6f8f;
-}
-.header-copy-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* TSV 버튼 스타일 */
-.btn-csv {
-  background: var(--brand-blue);
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.btn-csv:hover {
-  background: #4a6d8d;
-}
-
-.btn-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  filter: brightness(0) invert(1); /* 흰색으로 변경 */
-}
-
-.loading-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-  margin-right: 4px;
-}
-
-.checkmark-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-}
-
-.returns-table {
-  width: 100%;
-  min-width: 1400px; /* 모든 컬럼이 보이도록 최소 너비 설정 */
-  border-collapse: separate;
-  border-spacing: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .section-header {
@@ -823,24 +814,23 @@ h1 {
   margin-bottom: 20px;
 }
 
-h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #555;
+.returns-table {
+  width: 100%;
+  min-width: 1400px;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .warning-highlight { 
   background-color: #fff3cd !important; 
   color: #856404 !important; 
-  font-weight: bold;
 }
 
 .expired-date {
-  background: linear-gradient(180deg, transparent 40%, #ffeaea 40%) !important;
-  color: #ff4444 !important;
-  font-weight: bold;
-  padding: 0 2px;
+  color: var(--confirm-color) !important;
+  font-weight: 700;
 }
+
 .truncate {
   max-width: 150px;
   white-space: nowrap;
@@ -854,23 +844,20 @@ h2 {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  box-sizing: border-box;
   background-color: white;
-  transition: all 0.2s;
 }
 
-.status-checked .inline-input {
-  background-color: transparent;
-  border-color: rgba(255, 255, 255, 0.3);
+.status-checked {
+  background-color: #556B2F !important;
   color: white;
 }
 
-.status-checked .inline-input:focus {
+.status-checked input:not([type="checkbox"]) {
   background-color: rgba(255, 255, 255, 0.1);
-  outline: none;
-  border-color: white;
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .action-buttons {
@@ -882,19 +869,16 @@ h2 {
 .btn-action {
   padding: 6px 10px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: white;
   font-size: 12px;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
-  min-width: 52px; /* 텍스트 변경시에도 크기 유지 */
+  transition: 0.2s;
 }
 
-.btn-complete { background: var(--confirm-color); }
-.btn-reuse { background: var(--brand-blue); }
-.btn-process { background: var(--brand-blue); } /* 처리 버튼 색상 */
-.btn-cancel-return { background: #556B2F; }
+.btn-process { background: var(--brand-blue); }
+.btn-cancel-return { background: var(--text-muted); }
 
 .btn-action:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
 .btn-action:disabled { background: var(--border-color); cursor: not-allowed; }
@@ -903,29 +887,64 @@ h2 {
 .vertical-header div { writing-mode: vertical-rl; white-space: nowrap; margin: 0 auto; }
 
 .export-modal { max-width: 700px; }
-.export-desc { color: #666; margin-bottom: 15px; }
-.export-table-container { max-height: 400px; overflow-y: auto; }
+.export-desc { color: var(--text-muted); margin-bottom: 15px; }
 
-.export-data-table { width: auto; border-collapse: collapse; border: 1px solid #333; font-size: 12px; }
-.export-data-table th, .export-data-table td { border: 1px solid #333; padding: 8px; }
-.export-data-table th { background: #eee; color: #333; text-align: center; }
-.export-data-table td { text-align: left; }
-
-.btn-copy { background: #535c68; color: white; }
+.export-data-table { border-collapse: collapse; border: 1px solid var(--text-main); font-size: 12px; }
+.export-data-table th, .export-data-table td { border: 1px solid var(--text-main); padding: 8px; }
+.export-data-table th { background: var(--bg-muted); color: var(--text-main); }
 
 input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
 }
 
-.expired-date {
-  color: #ff4444 !important;
-  font-weight: bold;
+.asset-summary-box {
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-light);
+  padding: 15px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
 }
 
-.status-checked {
-  background-color: darkolivegreen !important;
-  color: white;
+.process-form-group {
+  margin-bottom: 20px;
+}
+
+.process-form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fixed-val {
+  padding: 10px 12px;
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.bold-text {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.header-copy-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+  border-radius: var(--radius-sm);
+}
+
+.header-copy-btn:hover:not(:disabled) {
+  background: var(--bg-muted);
 }
 </style>

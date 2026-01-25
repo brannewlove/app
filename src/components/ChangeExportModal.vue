@@ -221,7 +221,7 @@ onMounted(async () => {
               :title="isCopied ? '복사 완료!' : '클립보드 복사'"
               :disabled="exportAssets.length === 0"
             >
-              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
             
@@ -270,8 +270,8 @@ onMounted(async () => {
             </tbody>
           </table>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button class="btn btn-secondary" @click="closeModal">닫기</button>
-            <button class="btn btn-primary btn-tsv" @click="downloadCSV" :disabled="exportAssets.length === 0">
+            <button class="btn btn-modal btn-secondary" @click="closeModal">닫기</button>
+            <button class="btn btn-modal btn-primary btn-tsv" @click="downloadCSV" :disabled="exportAssets.length === 0">
               <img src="/images/down.png" alt="download" class="btn-icon" />
               csv
             </button>
@@ -303,8 +303,8 @@ onMounted(async () => {
   transition: all 0.2s;
 }
 .header-copy-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  color: #4a6f8f;
+  transform: scale(1.1);
+  opacity: 0.8;
 }
 .header-copy-btn:disabled {
   opacity: 0.3;
@@ -334,9 +334,6 @@ onMounted(async () => {
 .alert { padding: 15px 20px; border-radius: 5px; margin-bottom: 20px; font-size: 16px; }
 .alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
 .alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
-.btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-primary { background: #666; color: white; }
-.btn-primary:hover { background: #555; }
 .btn-primary:disabled { background: var(--border-color); cursor: not-allowed; opacity: 0.6; }
 
 .btn-tsv, .btn-copy {
@@ -350,7 +347,7 @@ onMounted(async () => {
   width: 14px;
   height: 14px;
   object-fit: contain;
-  filter: brightness(0) invert(1); /* 흰색으로 변경 */
+  filter: brightness(0) invert(1);
 }
 
 .btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }

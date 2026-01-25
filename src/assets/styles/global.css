@@ -1,4 +1,7 @@
 /* Global Design System & Common Styles */
+* {
+  box-sizing: border-box;
+}
 
 :root {
   --primary-color: #4a4a4a;
@@ -12,12 +15,24 @@
   --brand-blue-dark: #3a6d96;
   --confirm-color: #ca6262;
   --cancel-color: #5aa4aa;
+  --brand-purple: #603a70;
+  --brand-purple-dark: #4d2e5a;
 
   --bg-color: #f5f5f5;
+  --bg-muted: #f8fafc;
+  --bg-dark: #2c3e50;
+
   --card-bg: #ffffff;
   --border-color: #e0e0e0;
+  --border-light: #edf2f7;
+
   --text-main: #333;
   --text-muted: #666;
+  --text-light: #94a3b8;
+
+  --age-safe: #10b981;
+  --age-warning: #f59e0b;
+  --age-danger: #ef4444;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 5px 20px rgba(0, 0, 0, 0.05);
@@ -52,17 +67,185 @@
 
 /* Button Styles */
 .btn {
-  padding: 10px 20px;
   border-radius: var(--radius-sm);
-  font-weight: 700;
   cursor: pointer;
   border: none;
   transition: all 0.2s ease;
-  font-size: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-family: inherit;
+  box-sizing: border-box;
+  line-height: normal;
+}
+
+.btn img {
+  vertical-align: middle;
+}
+
+.btn-icon,
+.builder-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.loading-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.checkmark-icon,
+.copy-icon {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.loading-icon {
+  margin-right: 4px;
+}
+
+/* Page Layout & Header */
+.page-content {
+  padding: 20px;
+}
+
+h1 {
+  color: var(--text-main);
+  margin-bottom: 30px;
+  font-size: 28px;
+  border-bottom: 3px solid #999;
+  padding-bottom: 10px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+/* Utility Classes */
+.text-center {
+  text-align: center !important;
+}
+
+.text-right {
+  text-align: right !important;
+}
+
+.text-left {
+  text-align: left !important;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-8 {
+  gap: 8px;
+}
+
+.gap-16 {
+  gap: 16px;
+}
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 20px 0;
+}
+
+/* Badge & Chip Styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  background: white;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-size: 13px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.chip-label {
+  padding: 4px 10px;
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-weight: 600;
+  border-right: 1px solid var(--border-light);
+}
+
+.chip-value {
+  padding: 4px 10px;
+  color: var(--brand-blue);
+  font-weight: 700;
+}
+
+/* Page Header Action Group */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Page Header Action Buttons (Unified) */
+.btn-header {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  height: 34px;
+}
+
+/* Modal Action Buttons (Unified) */
+.btn-modal {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 18px;
+  height: 38px;
 }
 
 .btn:hover:not(:disabled) {
@@ -78,8 +261,10 @@
   opacity: 0.6;
 }
 
-.btn-edit {
-  background: #4682B4;
+/* Button Themes */
+.btn-edit,
+.btn-register {
+  background: var(--brand-blue);
   color: white;
 }
 
@@ -104,13 +289,61 @@
 }
 
 .btn-csv {
-  background: #794A8D;
+  background: var(--brand-blue);
   color: white;
 }
 
 .btn-export {
+  background: var(--brand-purple);
+  color: white;
+}
+
+.btn-export-replacement {
   background: #556B2F;
   color: white;
+}
+
+.btn-primary {
+  background: var(--brand-blue);
+  color: white;
+}
+
+.btn-secondary {
+  background: #eee;
+  color: #333;
+}
+
+/* Theme Hovers */
+.btn-edit:hover,
+.btn-register:hover,
+.btn-primary:hover,
+.btn-csv:hover {
+  background: var(--brand-blue-dark);
+}
+
+.btn-export:hover {
+  background: var(--brand-purple-dark);
+}
+
+.btn-save:hover,
+.btn-export-replacement:hover {
+  background: #455a25;
+}
+
+.btn-cancel:hover {
+  opacity: 0.9;
+}
+
+.btn-close:hover {
+  background: #6c7a7b;
+}
+
+.btn-delete:hover {
+  background: #c0392b;
+}
+
+.btn-secondary:hover {
+  background: #ddd;
 }
 
 /* Table Styles */
@@ -148,6 +381,14 @@ th {
   background: var(--primary-color);
   /* sticky 작동 시 배경색 유지 */
   z-index: 10;
+}
+
+thead tr:first-child th:first-child {
+  border-top-left-radius: var(--radius-md);
+}
+
+thead tr:first-child th:last-child {
+  border-top-right-radius: var(--radius-md);
 }
 
 td {

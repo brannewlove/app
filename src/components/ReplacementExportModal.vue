@@ -213,7 +213,7 @@ onMounted(async () => {
               :title="isCopied ? '복사 완료!' : '클립보드 복사'"
               :disabled="replacementAssets.length === 0"
             >
-              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" style="width: 20px; height: 20px; object-fit: contain;" />
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
             
@@ -268,8 +268,8 @@ onMounted(async () => {
             </table>
           </div>
           <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button class="btn btn-secondary" @click="closeModal">닫기</button>
-            <button class="btn btn-primary btn-tsv" @click="downloadCSV" :disabled="visibleAssets.length === 0">
+            <button class="btn btn-modal btn-secondary" @click="closeModal">닫기</button>
+            <button class="btn btn-modal btn-primary btn-tsv" @click="downloadCSV" :disabled="visibleAssets.length === 0">
               <img src="/images/down.png" alt="download" class="btn-icon" />
               csv
             </button>
@@ -300,8 +300,8 @@ onMounted(async () => {
   transition: all 0.2s;
 }
 .header-copy-btn:hover:not(:disabled) {
-  background: #f0f0f0;
-  color: #4a6f8f;
+  transform: scale(1.1);
+  opacity: 0.8;
 }
 .header-copy-btn:disabled {
   opacity: 0.3;
@@ -334,10 +334,9 @@ onMounted(async () => {
 .export-table td { padding: 12px; border-bottom: 1px solid #eee; }
 .export-table tbody tr:hover { background: #f9f9f9; }
 
-.btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-primary { background: var(--brand-blue); color: white; }
 .btn-primary:hover { background: #4a6f8f; }
 .btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }
+.btn-secondary:hover { background: #f5f5f5; }
 .btn-copy, .btn-tsv { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .btn-icon { width: 14px; height: 14px; filter: brightness(0) invert(1); }
 .alert { padding: 15px; border-radius: 5px; margin-bottom: 15px; }

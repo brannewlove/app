@@ -12,15 +12,15 @@ DROP TABLE IF EXISTS `assetlogs`;
 
 CREATE TABLE `assetlogs` (
     `log_id` int NOT NULL AUTO_INCREMENT,
-    `asset_id` varchar(200) DEFAULT NULL COMMENT '자산번호',
+    `asset_number` varchar(200) DEFAULT NULL COMMENT '자산번호',
     `work_type` varchar(200) DEFAULT NULL COMMENT '작업 유형',
     `cj_id` varchar(200) DEFAULT NULL COMMENT '사원ID',
     `user_name` varchar(200) DEFAULT NULL COMMENT '사용자명',
     `timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '작업 시간',
     `memo` text COMMENT '메모',
-    `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
+    `created_at` timestamp DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
     PRIMARY KEY (`log_id`),
-    KEY `idx_asset_id` (`asset_id`),
+    KEY `idx_asset_number` (`asset_number`),
     KEY `idx_timestamp` (`timestamp`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '자산 작업 로그 테이블';
 

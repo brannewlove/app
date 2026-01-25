@@ -346,7 +346,7 @@ const handleManualBackup = async () => {
                 </div>
                 <div class="card-footer">
                     <button 
-                        class="btn btn-save" 
+                        class="btn btn-modal btn-save" 
                         :disabled="loading" 
                         @click="handleImport('assets')"
                     >
@@ -413,7 +413,7 @@ const handleManualBackup = async () => {
                 </div>
                 <div class="card-footer">
                     <button 
-                        class="btn btn-save" 
+                        class="btn btn-modal btn-save" 
                         :disabled="loading" 
                         @click="handleImport('users')"
                     >
@@ -457,7 +457,7 @@ const handleManualBackup = async () => {
                 </div>
                 <div class="card-footer">
                     <button 
-                        class="btn btn-backup" 
+                        class="btn btn-modal btn-backup" 
                         :disabled="loading" 
                         @click="handleManualBackup"
                     >
@@ -505,7 +505,7 @@ const handleManualBackup = async () => {
                     </div>
                 </div>
                 <div class="card-footer">
-                    <button class="btn btn-save" :disabled="loading" @click="saveFilterChanges">
+                    <button class="btn btn-modal btn-save" :disabled="loading" @click="saveFilterChanges">
                         {{ loading ? '저장 중...' : '필터 설정 저장' }}
                     </button>
                 </div>
@@ -527,57 +527,45 @@ const handleManualBackup = async () => {
 <style scoped>
 .description {
     margin-bottom: 30px;
-    color: #666;
-}
-
-.mb-15 {
-    margin-bottom: 15px;
+    color: var(--text-muted);
 }
 
 .management-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
     gap: 25px;
     margin-bottom: 40px;
-    align-items: stretch;
 }
 
 .import-card {
-    background: white;
-    border-radius: 12px;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-light);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
 .card-header {
-    background: #f8f9fa;
+    background: var(--bg-muted);
     padding: 20px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-light);
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-.card-header .icon {
-    font-size: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .header-icon-img {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
 }
 
 .card-header h2 {
     margin: 0;
     font-size: 18px;
-    color: #333;
+    color: var(--text-main);
 }
 
 .card-body {
@@ -587,7 +575,7 @@ const handleManualBackup = async () => {
 
 .card-body p {
     margin-bottom: 20px;
-    color: #666;
+    color: var(--text-muted);
     font-size: 14px;
     line-height: 1.6;
 }
@@ -601,28 +589,22 @@ const handleManualBackup = async () => {
 .file-input-group label {
     font-weight: 600;
     font-size: 13px;
-    color: #444;
+    color: var(--text-main);
 }
 
 .file-input-group input {
-    padding: 10px;
-    border: 2px dashed var(--border-color);
-    border-radius: 8px;
     padding: 30px;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
     background: #fdfdfd;
 }
 
-.upload-area.active {
-    border: 2px solid var(--brand-blue);
-    background: #f0f7ff;
-}
-
 .file-input-group input:hover {
-    border-color: #bbb;
-    background: #f0f0f0;
+    border-color: var(--brand-blue);
+    background: var(--bg-muted);
 }
 
 .input-mode-tabs {
@@ -633,46 +615,34 @@ const handleManualBackup = async () => {
 
 .tab-btn {
     flex: 1;
-    padding: 10px 20px;
-    border: 2px solid var(--border-color);
+    padding: 10px;
+    border: 1.5px solid var(--border-color);
     background: white;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     font-size: 14px;
     font-weight: 500;
-    color: #666;
+    color: var(--text-muted);
     transition: all 0.2s;
 }
 
 .tab-btn:hover {
-    border-color: #999;
-    background: #f8f9fa;
+    border-color: var(--brand-blue);
+    color: var(--brand-blue);
 }
 
 .tab-btn.active {
-    border-color: #4a4a4a;
-    background: #4a4a4a;
+    border-color: var(--brand-blue);
+    background: var(--brand-blue);
     color: white;
-}
-
-.paste-input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.paste-input-group label {
-    font-weight: 600;
-    font-size: 13px;
-    color: #444;
 }
 
 .paste-textarea {
     width: 100%;
     padding: 12px;
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
-    font-family: 'Courier New', monospace;
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
     font-size: 13px;
     line-height: 1.5;
     resize: vertical;
@@ -681,77 +651,49 @@ const handleManualBackup = async () => {
 
 .paste-textarea:focus {
     outline: none;
-    border-color: #4a4a4a;
+    border-color: var(--brand-blue);
     background: #fafafa;
-}
-
-.paste-textarea::placeholder {
-    color: #999;
-    font-family: inherit;
 }
 
 .label-with-button {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 8px;
 }
 
 .btn-copy-header {
-    padding: 6px 12px;
-    background: #4a4a4a;
+    padding: 4px 10px;
+    background: var(--bg-dark);
     color: white;
     border: none;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
     cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-copy-header:hover {
-    background: #333;
-    transform: translateY(-1px);
-}
-
-.btn-copy-header:active {
-    transform: translateY(0);
 }
 
 .btn-inline-icon {
-    width: 14px;
-    height: 14px;
-    object-fit: contain;
-    vertical-align: middle;
-    margin-right: 4px;
-    filter: brightness(0) invert(1); /* 기본적으로 흰색 (다크 배경 버튼용) */
-}
-
-/* 배경이 밝은 버튼(활성화되지 않은 탭) 내부의 아이콘만 검은색으로 */
-.tab-btn:not(.active) .btn-inline-icon {
-    filter: brightness(0);
-}
-
-.btn-copy-header .btn-inline-icon {
+    width: 12px;
+    height: 12px;
     filter: brightness(0) invert(1);
+    vertical-align: middle;
+}
+
+.tab-btn:not(.active) .btn-inline-icon {
+    filter: brightness(0) opacity(0.5);
 }
 
 .card-footer {
     padding: 20px;
-    background: #f8f9fa;
-    border-top: 1px solid var(--border-color);
+    background: var(--bg-muted);
+    border-top: 1px solid var(--border-light);
     text-align: right;
-}
-
-.alert-success {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border-left: 4px solid #2e7d32;
 }
 
 .notice-section {
     background: #fff8e1;
     padding: 25px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     border: 1px solid #ffe082;
 }
 
@@ -762,7 +704,7 @@ const handleManualBackup = async () => {
 }
 
 .notice-section ul {
-    list-style-type: none;
+    list-style: none;
     padding: 0;
 }
 
@@ -782,11 +724,6 @@ const handleManualBackup = async () => {
     font-weight: bold;
 }
 
-/* 백업 섹션 스타일 */
-.backup-section {
-    margin-bottom: 40px;
-}
-
 .backup-card {
     border-left: 5px solid var(--brand-blue);
 }
@@ -794,36 +731,32 @@ const handleManualBackup = async () => {
 .backup-info ul {
     list-style: none;
     padding: 0;
-    margin: 10px 0;
+    margin: 15px 0;
 }
 
 .backup-info li {
     font-size: 14px;
-    color: #555;
-    margin-bottom: 5px;
-    padding-left: 15px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding-left: 20px;
     position: relative;
 }
 
 .backup-info li::before {
-    content: "•";
+    content: "✓";
     position: absolute;
     left: 0;
-    color: var(--brand-blue);
+    color: var(--success-color);
+    font-weight: bold;
 }
 
 .btn-backup {
-    background: darkolivegreen;
+    background: var(--success-color);
     color: white;
-    padding: 10px 24px;
 }
 
-.btn-backup:hover:not(:disabled) {
-    background: #4a5d29;
-}
-
-.mb-20 {
-    margin-bottom: 20px;
+.btn-backup:hover {
+    filter: brightness(1.1);
 }
 
 /* Switch 스타일 */
@@ -831,153 +764,84 @@ const handleManualBackup = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 15px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    margin-top: 15px;
+    padding: 15px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-md);
+    margin-top: 20px;
 }
 
-.setting-item.no-margin {
-    margin-top: 0;
-}
-
-.setting-label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+.setting-item.no-margin { margin-top: 0; }
 
 .setting-label strong {
     font-size: 14px;
-    color: #333;
-}
-
-.setting-label span {
-    font-size: 12px;
-    color: #666;
+    color: var(--text-main);
 }
 
 .switch {
   position: relative;
   display: inline-block;
-  width: 46px;
-  height: 24px;
+  width: 44px;
+  height: 22px;
 }
 
-.switch input { 
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
+.switch input { opacity: 0; width: 0; height: 0; }
 
 .slider {
   position: absolute;
   cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background-color: var(--border-color);
-  -webkit-transition: .4s;
-  transition: .4s;
+  transition: .3s;
+  border-radius: 22px;
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
+  height: 18px; width: 18px;
+  left: 2px; bottom: 2px;
   background-color: white;
-  -webkit-transition: .4s;
-  transition: .4s;
-}
-
-input:checked + .slider {
-  background-color: var(--brand-blue);
-}
-
-input:focus + .slider {
-  box-shadow: 0 0 1px var(--brand-blue);
-}
-
-input:checked + .slider:before {
-  -webkit-transform: translateX(22px);
-  -ms-transform: translateX(22px);
-  transform: translateX(22px);
-}
-
-.slider.round {
-  border-radius: 24px;
-}
-
-.slider.round:before {
+  transition: .3s;
   border-radius: 50%;
 }
 
-/* 필터 관리 스타일 */
+input:checked + .slider { background-color: var(--success-color); }
+input:checked + .slider:before { transform: translateX(22px); }
+
+/* 필터 관리 */
 .filter-list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .filter-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 12px;
-    background: #fcfcfc;
-    border: 1px solid #eee;
-    border-radius: 8px;
-}
-
-.filter-order-btns {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    gap: 12px;
+    padding: 8px 15px;
+    background: white;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
 }
 
 .btn-order {
-    padding: 2px 6px;
+    padding: 2px 4px;
     font-size: 10px;
-    background: #eee;
-    border: 1px solid #ddd;
+    background: var(--bg-muted);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
-}
-
-.btn-order:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
 }
 
 .filter-name-edit {
     flex: 1;
 }
 
-.edit-input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 14px;
-}
-
-.edit-input:focus {
-    border-color: var(--brand-blue);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.1);
-}
-
 .filter-item-actions {
     display: flex;
-    flex-direction: row;
+    gap: 8px;
     align-items: center;
-    gap: 12px;
-    width: 68px;
-    justify-content: flex-end;
 }
 
 .delete-btn-area {
@@ -986,6 +850,14 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
 }
 
 .btn-delete {
@@ -998,56 +870,36 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
-    opacity: 0.6;
+    opacity: 0.5;
+    transition: 0.2s;
 }
 
 .btn-delete:hover {
-    background: #ffebee;
+    background: #fee2e2;
     opacity: 1;
-    transform: scale(1.1);
-}
-
-.btn-delete .icon-img {
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
 }
 
 .btn-lock {
-    background: transparent;
-    border: 1px solid #ddd;
+    background: white;
+    border: 1px solid var(--border-color);
     width: 28px;
     height: 28px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
-    background: white;
-}
-
-.lock-icon-img {
-    width: 16px;
-    height: 16px;
-    object-fit: contain;
+    transition: 0.2s;
 }
 
 .btn-lock:hover {
-    background: #f0f0f0;
-    border-color: #ccc;
+    background: var(--bg-muted);
 }
 
-.mb-40 {
-    margin-bottom: 40px;
-}
-
-.checkmark-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
+.icon-img,
+.lock-icon-img {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
 }
 </style>

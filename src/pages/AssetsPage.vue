@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
+import BulkAssetRegisterModal from '../components/BulkAssetRegisterModal.vue';
 import TablePagination from '../components/TablePagination.vue';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 import WorkTypeSearch from '../components/WorkTypeSearch.vue';
@@ -12,6 +13,13 @@ import axios from 'axios';
 import { getTimestampFilename } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 import { parseAndFilter } from '../utils/QueryParser';
+import { 
+  isCjIdDisabled, 
+  getFixedCjId, 
+  getFixedCjIdDisplay, 
+  validateTradeStrict, 
+  getAvailableWorkTypesForAsset 
+} from '../constants/workTypes';
 
 const assets = ref([]);
 const loading = ref(false);
@@ -68,7 +76,7 @@ const assetsFilterFn = (asset) => {
   if (savedQuery) {
     if (savedQuery === '가용재고') {
       if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-    } else if (savedQuery === '1인 다PC사용자') {
+    } else if (savedQuery === '1인 다PC 보유자') {
       if (!(multiPcUserIds.value.has(asset.in_user) && 
             (asset.category === '노트북' || asset.category === '데스크탑') && 
             asset.state === 'useable')) return false;
@@ -80,7 +88,7 @@ const assetsFilterFn = (asset) => {
   // 2. 추가 검색어 적용 (특수 예약어 처리)
   if (searchQuery.value === '가용재고') {
     if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-  } else if (searchQuery.value === '1인 다PC사용자') {
+  } else if (searchQuery.value === '1인 다PC 보유자') {
     if (!(multiPcUserIds.value.has(asset.in_user) && 
           (asset.category === '노트북' || asset.category === '데스크탑') && 
           asset.state === 'useable')) return false;
@@ -139,6 +147,7 @@ const isEditMode = ref(false);
 const editedAsset = ref(null);
 const isClickStartedOnOverlay = ref(false);
 const isTrackingOpen = ref(false); // 추적 모달 상태 추가
+const isBulkRegisterOpen = ref(false); // 대량 등록 모달 상태
 const isAssetCopied = ref(false);
 const assetModalFields = [
   'category', 'model', 'asset_number', 'serial_number',
@@ -449,116 +458,22 @@ const closeQuickTrade = () => {
 };
 
 // 퀵 거래 등록 관련 로직 (TradeRegisterPage에서 차용)
-const isCjIdDisabled = (workType) => {
-  const fixedFields = [
-    '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-휴직반납',
-    '입고-재입사예정', '입고-임의반납', '입고-대여반납', '입고-수리반납',
-    '반납','반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기',
-    '출고-수리'
-  ];
-  return fixedFields.includes(workType);
-};
-
-const getFixedCjId = (workType) => {
-  const fixedMap = {
-    '입고-노후교체': 'cjenc_inno',
-    '입고-불량교체': 'cjenc_inno',
-    '입고-퇴사반납': 'cjenc_inno',
-    '입고-휴직반납': 'no-change',
-    '입고-재입사예정': 'no-change',
-    '입고-임의반납': 'cjenc_inno',
-    '입고-대여반납': 'cjenc_inno',
-    '입고-수리반납': 'no-change',
-    '반납-노후반납': 'aj_rent',
-    '반납-고장교체': 'aj_rent',
-    '반납-조기반납': 'aj_rent',
-    '반납-폐기': 'aj_rent',
-    '반납': 'aj_rent',
-    '출고-수리': 'no-change'
-  };
-  return fixedMap[workType] || '';
-};
-
-const getFixedCjIdDisplay = (workType) => {
-  const displayMap = {
-    '입고-노후교체': '회사 입고 (자동)',
-    '입고-불량교체': '회사 입고 (자동)',
-    '입고-퇴사반납': '회사 입고 (자동)',
-    '입고-휴직반납': '현재 보유자 유지 (자동)',
-    '입고-재입사예정': '현재 보유자 유지 (자동)',
-    '입고-임의반납': '회사 입고 (자동)',
-    '입고-대여반납': '회사 입고 (자동)',
-    '입고-수리반납': '현재 보유자 유지 (자동)',
-    '반납-노후반납': '반납처 (자동)',
-    '반납-고장교체': '반납처 (자동)',
-    '반납-조기반납': '반납처 (자동)',
-    '반납-폐기': '반납처 (자동)',
-    '반납': '반납처 (자동)',
-    '출고-수리': '현재 보유자 유지 (자동)'
-  };
-  return displayMap[workType] || '';
-};
 
 const validateTradeForQuick = (trade, asset) => {
-  const { work_type, cj_id } = trade;
-  const { state: asset_state, in_user: asset_in_user } = asset;
-
+  const { work_type } = trade;
   if (!work_type) return { valid: false, message: '작업 유형을 선택해주세요.' };
-  
-  const isHold = asset_state && asset_state.toLowerCase() === 'hold';
 
-  // 작업유형별 유효성 검사 (TradeRegisterPage 로직)
-  switch (work_type) {
-    // 출고 그룹
-    case '출고-신규지급':
-    case '출고-신규교체':
-      if (!isHold && asset_state !== 'wait') return { valid: false, message: `상태가 "${asset_state}"입니다. "wait" 상태만 가능합니다.` };
-      if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
-      break;
-
-    case '출고-사용자변경':
-      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
-      if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
-      if (asset_in_user && cj_id === asset_in_user) return { valid: false, message: '현재 사용자와 다른 사용자를 선택해야 합니다.' };
-      break;
-
-    case '출고-재고교체':
-    case '출고-재고지급':
-    case '출고-대여':
-      if (!isHold && asset_in_user !== 'cjenc_inno') return { valid: false, message: `보유자가 "${asset_in_user}"입니다. "cjenc_inno"여야 합니다.` };
-      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
-      if (!cj_id) return { valid: false, message: '사용자(CJ ID)를 선택해주세요.' };
-      break;
-
-    case '출고-수리':
-      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
-      break;
-
-    // 입고 그룹
-    case '입고-노후교체':
-    case '입고-불량교체':
-    case '입고-퇴사반납':
-    case '입고-임의반납':
-    case '입고-휴직반납':
-    case '입고-재입사예정':
-      if (!isHold && asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
-      if (!isHold && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
-      break;
-
-    case '입고-대여반납':
-      if (!isHold && asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
-      if (!isHold && asset_state !== 'rent') return { valid: false, message: `상태가 "${asset_state}"입니다. "rent" 상태만 가능합니다.` };
-      break;
-
-    case '입고-수리반납':
-      if (!isHold && asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "repair" 상태만 가능합니다.` };
-      break;
+  // 1. 공통 유효성 검사 (Centralized)
+  const validation = validateTradeStrict(trade, asset);
+  if (!validation.valid) {
+    return validation;
   }
 
+  // 2. 고정 사용자 자동 할당 체크 (유효성 검사 통과 후 할당)
   if (isCjIdDisabled(work_type)) {
     const fixedValue = getFixedCjId(work_type);
     if (fixedValue === 'no-change') {
-      trade.cj_id = asset_in_user;
+      trade.cj_id = asset.in_user;
     } else if (fixedValue) {
       trade.cj_id = fixedValue;
     }
@@ -586,29 +501,42 @@ const submitQuickTrade = async () => {
     quickTradeError.value = null;
     quickTradeSuccess.value = null;
 
+    // 모달을 통해 등록 중임을 표시
+    returnModalMessage.value = '거래를 등록하고 있습니다. 잠시만 기다려 주세요...';
+    returnModalType.value = 'confirm'; // 'confirm' 상태에서 확인 버튼은 loading 중이면 비활성화됨
+    isReturnModalOpen.value = true;
+
     const tradeForSubmit = {
       work_type: trade.work_type,
       asset_number: trade.asset_number,
       cj_id: trade.cj_id,
       ex_user: trade.ex_user,
-      memo: trade.memo
+      memo: trade.memo,
+      asset_state: asset.state,
+      asset_in_user: asset.in_user,
+      asset_memo: asset.memo
     };
 
     const response = await axios.post('/api/trades', [tradeForSubmit]);
 
     if (response.data.success) {
-      quickTradeSuccess.value = '거래가 성공적으로 등록되었습니다.';
+      // 성공 상채로 업데이트
+      returnModalMessage.value = '거래가 성공적으로 등록 되었습니다.';
+      returnModalType.value = 'success';
+
       // 자산 정보 다시 불러오기 (상태/보유자 변경 반영)
       fetchAssetById(asset.asset_id);
-      fetchAssets(); // 목록도 업데이트
-      setTimeout(() => {
-        closeQuickTrade();
-      }, 1500);
+      fetchAssets(); 
+      
+      // 퀵 거래 입력창은 닫음
+      closeQuickTrade();
     } else {
-      quickTradeError.value = response.data.error || '등록 실패';
+      returnModalMessage.value = '등록 실패: ' + (response.data.error || '알 수 없는 오류');
+      returnModalType.value = 'error';
     }
   } catch (err) {
-    quickTradeError.value = '등록 중 오류가 발생했습니다: ' + (err.response?.data?.error || err.message);
+    returnModalMessage.value = '등록 중 오류 발생: ' + (err.response?.data?.error || err.message);
+    returnModalType.value = 'error';
   } finally {
     loading.value = false;
   }
@@ -619,48 +547,10 @@ const currentWorkTypeFilter = computed(() => {
   const asset = selectedAsset.value;
   if (!asset) return () => true;
 
-  const { state, in_user } = asset;
-  
-  return (wt) => {
-    const type = wt.work_type;
-    
-    // 0. 상태가 'hold'인 경우 모든 작업 선택 가능
-    if (state && state.toLowerCase() === 'hold') return true;
+  const availableTypes = getAvailableWorkTypesForAsset(asset);
+  const availableTypeIds = new Set(availableTypes.map(wt => wt.id));
 
-    // 1. 상태가 'wait' (신규/대기)인 경우
-    if (state === 'wait') {
-      return ['출고-신규지급', '출고-신규교체'].includes(type);
-    }
-    
-    // 2. 상태가 'useable' (사용가능/사용중)인 경우
-    if (state === 'useable') {
-      if (in_user === 'cjenc_inno') {
-        // 전산실 재고: 타인에게 출고하거나 렌탈사 반납
-        return [
-          '출고-재고지급', '출고-재고교체', '출고-대여', '출고-수리',
-          '반납', '반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기'
-        ].includes(type);
-      } else {
-        // 사용자 보유: 타인에게 변경하거나 전산실 입고
-        return [
-          '출고-사용자변경', '출고-수리',
-          '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-임의반납', '입고-휴직반납', '입고-재입사예정'
-        ].includes(type);
-      }
-    }
-    
-    // 3. 상태가 'rent' (대여중)인 경우
-    if (state === 'rent') {
-      return type === '입고-대여반납';
-    }
-    
-    // 4. 상태가 'repair' (수리중)인 경우
-    if (state === 'repair') {
-      return type === '입고-수리반납';
-    }
-    
-    return false;
-  };
+  return (wt) => availableTypeIds.has(wt.work_type);
 });
 
 const handleOverlayMouseDown = (e) => {
@@ -752,8 +642,8 @@ const getHeaderDisplayName = (columnName) => {
     'day_of_end': '종료일',
     'unit_price': '월단가',
     'contract_month': '계약월',
-    'replacement': '불량교체',
-    'memo': '메모'
+    'replacement': '고장교체',
+    'memo': '자산메모'
   };
   return headerMap[columnName] || columnName;
 };
@@ -766,7 +656,13 @@ const downloadCSV = () => {
   
   const filename = getTimestampFilename('AssetsPage');
   
-  const headers = getTableHeaders(filteredAssets.value);
+  // 요청된 순서에 맞춰 헤더 목록 정의 (월단가 제외)
+  const headers = [
+    'category', 'model', 'asset_number', 'serial_number', 
+    'day_of_start', 'day_of_end', 'contract_month', 
+    'in_user', 'user_name', 'user_part', 'state', 
+    'replacement', 'memo'
+  ];
   const headerRow = headers.map(h => getHeaderDisplayName(h));
   
   const dataRows = filteredAssets.value.map(asset => 
@@ -786,7 +682,7 @@ const downloadCSV = () => {
 const copyAssetInfoDetailed = () => {
   if (!selectedAsset.value) return;
 
-  const fields = assetModalFields.filter(key => selectedAsset.value[key] !== undefined);
+  const fields = assetModalFields.filter(key => selectedAsset.value[key] !== undefined && key !== 'replacement');
   
   // HTML 버전 (요청하신 스타일 적용: 12px, 헤더 회색배경, 검은색 텍스트, 1px 검은색 테두리)
   const htmlTable = `
@@ -822,7 +718,8 @@ const copyAssetInfoDetailed = () => {
 };
 
 const getExpirationClass = (asset) => {
-  if (getRawQuery(searchQuery.value) !== '가용재고' || !asset.day_of_end) return '';
+  const isAvailableStockFilter = getRawQuery(searchQuery.value) === '가용재고' || activeSavedFilterQuery.value === '가용재고';
+  if (!isAvailableStockFilter || !asset.day_of_end) return '';
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -837,16 +734,22 @@ const getExpirationClass = (asset) => {
   return '';
 };
 
+const route = useRoute();
+
 onMounted(() => {
   fetchAssets();
   fetchSavedFilters();
+
+  if (route.query.q) {
+    searchQuery.value = route.query.q;
+  }
 
   // 가용재고 필터 시 복합 정렬 적용
   watch([activeFilter, activeSavedFilterQuery], ([newFilter, newSavedQuery]) => {
     if (newFilter === 'available' || newSavedQuery === '가용재고') {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
-    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC사용자') {
+    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC 보유자') {
       // 필터 해제 시 기본 정렬로 복구
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
@@ -855,7 +758,7 @@ onMounted(() => {
 
   // 특수 필터 검색 시 정렬 적용
   watch([searchQuery, activeSavedFilterQuery], ([newQuery, newSavedQuery]) => {
-    if (newQuery === '1인 다PC사용자' || newSavedQuery === '1인 다PC사용자') {
+    if (newQuery === '1인 다PC 보유자' || newSavedQuery === '1인 다PC 보유자') {
       sortColumn.value = 'in_user';
       sortDirection.value = 'asc';
     } else if (newQuery === '가용재고' || newSavedQuery === '가용재고') {
@@ -901,7 +804,7 @@ onMounted(() => {
           <div style="display: flex; align-items: center; gap: 10px;">
             <h2 style="margin: 0;">자산 정보</h2>
             <button class="copy-btn-small" @click="copyAssetInfoDetailed" title="클립보드 복사">
-              <img v-if="!isAssetCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
+              <img v-if="!isAssetCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
@@ -916,7 +819,7 @@ onMounted(() => {
                 <select v-if="isEditMode && key === 'state'" v-model="editedAsset[key]" class="form-input">
                   <option v-for="opt in stateOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
-                <input v-else-if="isEditMode" v-model="editedAsset[key]" type="text" class="form-input" :disabled="['asset_id', 'asset_number', 'unit_price'].includes(key)" />
+                <input v-else-if="isEditMode" v-model="editedAsset[key]" type="text" class="form-input" :disabled="['asset_id', 'category', 'asset_number', 'in_user', 'contract_month', 'unit_price', 'replacement'].includes(key)" />
                 <div v-else class="form-value"> {{ formatCellValue(selectedAsset[key], key, selectedAsset) }} </div>
               </div>
             </template>
@@ -959,25 +862,25 @@ onMounted(() => {
                   />
                 </div>
               </div>
-              <div class="form-group mt-15">
-                <label>메모</label>
+              <div class="form-group">
+                <label>거래메모</label>
                 <input v-model="quickTradeForm.memo" type="text" class="form-input" placeholder="거래 메모 입력" />
               </div>
-              <div class="quick-trade-actions mt-15">
-                <button @click="submitQuickTrade" class="btn btn-save" :disabled="loading">등록</button>
-                <button @click="isQuickTradeOpen = false" class="btn btn-cancel">취소</button>
+              <div class="quick-trade-actions">
+                <button @click="submitQuickTrade" class="btn btn-modal btn-save" :disabled="loading">등록</button>
+                <button @click="isQuickTradeOpen = false" class="btn btn-modal btn-cancel">취소</button>
               </div>
             </div>
           </div>
         </div>
         
         <div class="modal-footer">
-          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isQuickTradeOpen = true" class="btn btn-trade">거래</button>
-          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isTrackingOpen = true" class="btn btn-tracking">추적</button>
-          <button v-if="!isEditMode && !isQuickTradeOpen" @click="toggleEditMode" class="btn btn-edit">수정</button>
-          <button v-if="isEditMode" @click="saveAsset" class="btn btn-save">저장</button>
-          <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-cancel">취소</button>
-          <button @click="closeModal" class="btn btn-close">닫기</button>
+          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isQuickTradeOpen = true" class="btn btn-modal btn-trade">거래</button>
+          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isTrackingOpen = true" class="btn btn-modal btn-tracking">추적</button>
+          <button v-if="!isEditMode && !isQuickTradeOpen" @click="toggleEditMode" class="btn btn-modal btn-edit">수정</button>
+          <button v-if="isEditMode" @click="saveAsset" class="btn btn-modal btn-save">저장</button>
+          <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-modal btn-cancel">취소</button>
+          <button @click="closeModal" class="btn btn-modal btn-close">닫기</button>
         </div>
       </div>
     </div>
@@ -987,23 +890,26 @@ onMounted(() => {
       <div class="modal-content return-modal">
         <div class="modal-header">
           <h2>
-            <span v-if="returnModalType === 'confirm'">반납 처리 확인</span>
-            <span v-else-if="returnModalType === 'success'"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> 처리 완료</span>
-            <span v-else>❌ 오류 발생</span>
+            <span v-if="returnModalType === 'confirm'">
+              <img v-if="loading" src="/images/hour-glass.png" alt="loading" class="loading-icon" />
+              {{ loading ? '처리 중...' : (quickTradeForm.work_type ? '거래 등록' : '반납 처리 확인') }}
+            </span>
+            <span v-else-if="returnModalType === 'success'"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> 완료</span>
+            <span v-else>❌ 오류</span>
           </h2>
           <button @click="closeReturnModal" class="close-btn">✕</button>
         </div>
         
-        <div class="modal-body">
-          <p class="return-message">{{ returnModalMessage }}</p>
+        <div class="modal-body" style="text-align: center; padding: 30px 20px;">
+          <p class="return-message" style="font-size: 16px; line-height: 1.6;">{{ returnModalMessage }}</p>
         </div>
         
         <div class="modal-footer">
-          <button v-if="returnModalType === 'confirm'" @click="confirmReturn" class="btn btn-confirm" :disabled="loading">
+          <button v-if="returnModalType === 'confirm'" @click="confirmReturn" class="btn btn-modal btn-confirm" :disabled="loading">
             {{ loading ? '처리 중...' : '확인' }}
           </button>
-          <button v-if="returnModalType === 'confirm'" @click="closeReturnModal" class="btn btn-cancel">취소</button>
-          <button v-if="returnModalType === 'success' || returnModalType === 'error'" @click="closeReturnModal" class="btn btn-close">닫기</button>
+          <button v-if="returnModalType === 'confirm'" @click="closeReturnModal" class="btn btn-modal btn-cancel">취소</button>
+          <button v-if="returnModalType === 'success' || returnModalType === 'error'" @click="closeReturnModal" class="btn btn-modal btn-close">닫기</button>
         </div>
       </div>
     </div>
@@ -1015,13 +921,18 @@ onMounted(() => {
         </div>
         <div class="filter-actions-group">
           <div class="filter-actions">
-            <button @click="downloadCSV" class="btn btn-csv">
+            <!-- New +add button -->
+            <button @click="isBulkRegisterOpen = true" class="btn btn-header btn-csv" title="신규 자산 등록">
+              <img src="/images/edit.png" alt="add" class="btn-icon" />
+              + add
+            </button>
+            <button @click="downloadCSV" class="btn btn-header btn-csv">
               <img src="/images/down.png" alt="download" class="btn-icon" />
               csv
             </button>
           </div>
           <div class="filter-builder-actions">
-            <button @click="isBuilderOpen = !isBuilderOpen" class="btn btn-builder" :class="{ active: isBuilderOpen }" title="단계별 필터 설정">
+            <button @click="isBuilderOpen = !isBuilderOpen" class="btn btn-header btn-builder" :class="{ active: isBuilderOpen }" title="단계별 필터 설정">
               <img src="/images/setting.png" alt="settings" class="builder-icon" />
               필터 빌더
             </button>
@@ -1110,8 +1021,8 @@ onMounted(() => {
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="saveCurrentFilter" class="btn btn-save" :disabled="loading">저장</button>
-            <button @click="isSaveModalOpen = false" class="btn btn-cancel">취소</button>
+            <button @click="saveCurrentFilter" class="btn btn-modal btn-save" :disabled="loading">저장</button>
+            <button @click="isSaveModalOpen = false" class="btn btn-modal btn-cancel">취소</button>
           </div>
         </div>
       </div>
@@ -1120,7 +1031,7 @@ onMounted(() => {
         <span class="total-count">검색 결과 <strong>{{ filteredAssets.length }}</strong>건</span>
         <div class="category-divider"></div>
         <div class="category-chips">
-          <div v-for="item in categoryBreakdown" :key="item.category" class="category-chip">
+          <div v-for="item in categoryBreakdown" :key="item.category" class="chip">
             <span class="chip-label">{{ item.category }}</span>
             <span class="chip-value">{{ item.count }}</span>
           </div>
@@ -1144,6 +1055,9 @@ onMounted(() => {
             <tr v-for="(asset, index) in paginatedAssets" :key="asset.asset_id" @click="handleRowClick(asset)" :class="[{ 'stripe': index % 2 === 1, active: selectedAsset?.asset_id === asset.asset_id }, 'clickable-row']">
               <td v-for="key in getTableHeaders(assets)" :key="key">
                 <span v-if="key === 'day_of_end'" :class="getExpirationClass(asset)" class="expiration-badge">
+                  {{ formatCellValue(asset[key], key, asset) }}
+                </span>
+                <span v-else-if="['category', 'asset_number', 'user_name', 'state'].includes(key)" class="bold-text">
                   {{ formatCellValue(asset[key], key, asset) }}
                 </span>
                 <template v-else> {{ formatCellValue(asset[key], key, asset) }} </template>
@@ -1178,29 +1092,21 @@ onMounted(() => {
       :initial-memo="selectedAsset?.memo || ''"
       @close="isTrackingOpen = false" 
     />
+    
+    <BulkAssetRegisterModal
+      :is-open="isBulkRegisterOpen"
+      @close="isBulkRegisterOpen = false"
+      @success="fetchAssets"
+    />
   </div>
 </template>
 
 <style scoped>
-.page-content {
-  padding: 20px;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-h1 {
-  color: #333;
-  margin-bottom: 30px;
-  font-size: 28px;
-  border-bottom: 3px solid #999;
-  padding-bottom: 10px;
-}
-
 .assets-section {
-  background: white;
+  background: var(--card-bg);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   width: 100%;
   box-sizing: border-box;
 }
@@ -1222,7 +1128,7 @@ h1 {
 
 .category-summary {
   font-size: 0.9rem;
-  color: #666;
+  color: var(--text-muted);
   font-weight: normal;
   margin-left: 8px;
 }
@@ -1230,9 +1136,9 @@ h1 {
 .filter-summary-area {
   margin-bottom: 20px;
   padding: 10px 15px;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   gap: 15px;
@@ -1242,14 +1148,14 @@ h1 {
 
 .total-count {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-light);
   white-space: nowrap;
 }
 
 .category-divider {
   width: 1px;
   height: 20px;
-  background: #cbd5e1;
+  background: var(--border-color);
   flex-shrink: 0;
 }
 
@@ -1264,31 +1170,6 @@ h1 {
   gap: 8px;
 }
 
-.category-chip {
-  display: flex;
-  align-items: center;
-  background: white;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  overflow: hidden;
-  font-size: 13px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-.chip-label {
-  padding: 4px 10px;
-  background: #f1f5f9;
-  color: #475569;
-  font-weight: 600;
-  border-right: 1px solid #cbd5e1;
-}
-
-.chip-value {
-  padding: 4px 10px;
-  color: var(--brand-blue);
-  font-weight: 700;
-}
-
 .filter-actions-group {
   display: flex;
   gap: 20px;
@@ -1301,22 +1182,16 @@ h1 {
   align-items: center;
 }
 
-h2 {
-  color: #555;
-  margin: 0;
-  font-size: 20px;
-}
-
 .btn-filter {
-  background: #999;
+  background: var(--secondary-color);
   color: white;
 }
 
-.btn-filter:hover { background: #888; }
-.btn-filter.active { background: #666; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
+.btn-filter:hover { background: #666; }
+.btn-filter.active { background: var(--primary-color); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2); }
 
-.btn-tracking { background: #777; color: white; }
-.btn-tracking:hover { background: #555; }
+.btn-tracking { background: var(--secondary-color); color: white; }
+.btn-tracking:hover { background: var(--primary-color); }
 
 .btn-action-small {
   transform: scale(0.85);
@@ -1325,56 +1200,39 @@ h2 {
 }
 
 .btn-return-process { background: #6b8e6f; color: white; }
-.btn-returned { background: #6c757d; color: white; cursor: not-allowed; }
+.btn-returned { background: var(--border-color); color: white; cursor: not-allowed; }
 
 .expiration-badge {
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   display: inline-block;
 }
 
 .expire-warning-60 { background-color: #fff9c4; color: #856404; font-weight: bold; }
-.expire-warning-30 { background-color: #ffe0b2; color: #e65100; font-weight: bold; }
+.expire-warning-30 { background-color: #fff176; color: #856404; font-weight: bold; }
 .expire-passed { background-color: #f8bbd0; color: #c2185b; font-weight: bold; }
 
 .return-modal { max-width: 500px; }
-.return-message { font-size: 16px; line-height: 1.6; color: #333; text-align: center; padding: 20px 0; }
+.return-message { font-size: 16px; line-height: 1.6; color: var(--text-main); text-align: center; padding: 20px 0; }
 
-.btn-confirm { background: #27ae60; color: white; padding: 10px 24px; }
+.btn-confirm { background: #27ae60; color: white; }
 .btn-confirm:hover:not(:disabled) { background: #229954; }
 
 /* 퀵 거래 등록 스타일 */
 .btn-trade { background: var(--brand-blue); color: white; }
 .btn-trade:hover {
   background: var(--brand-blue-dark);
- }
-
-.btn-csv {
-  background: var(--brand-blue);
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.btn-csv:hover { background: #4a6d8d; }
-
-.btn-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  filter: brightness(0) invert(1); /* 흰색으로 변경 */
 }
 
 .quick-trade-section {
   margin-top: 25px;
   padding-top: 20px;
-  border-top: 2px dashed #eee;
+  border-top: 2px dashed var(--border-color);
 }
 
 .quick-trade-section h3 {
   font-size: 18px;
-  color: #333;
+  color: var(--text-main);
   margin-bottom: 15px;
   display: flex;
   align-items: center;
@@ -1382,50 +1240,56 @@ h2 {
 }
 
 .quick-trade-form {
-  background: #fdfdfd;
-  padding: 15px;
-  border-radius: 6px;
-  border: 1px solid #f0f0f0;
-}
-
-.form-row {
+  background: var(--bg-muted);
+  padding: 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
   display: flex;
+  flex-direction: column;
   gap: 15px;
 }
 
-.flex-1 { flex: 1; }
-.mt-15 { margin-top: 15px; }
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  width: 100%;
+}
 
 .fixed-user-display {
   height: 40px;
   padding: 0 10px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
+  background-color: var(--bg-color);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   font-size: 13px;
-  color: #666;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
 }
 
+.mt-15 { margin-top: 15px; }
+.mt-20 { margin-top: 20px; }
+
 .quick-trade-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 20px; /* 명시적 마진 추가 */
 }
 
 .alert-small {
   padding: 8px 12px;
   font-size: 13px;
   margin-bottom: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* 복사 버튼 스타일 */
 .copy-btn-small {
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   width: 24px;
   height: 24px;
   display: flex;
@@ -1444,21 +1308,13 @@ h2 {
   width: 18px;
   height: 18px;
   object-fit: contain;
-  filter: brightness(0); /* 검은색으로 변경 */
+  filter: brightness(0);
 }
 
 .check-mark-black {
-  color: #333;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: bold;
-}
-
-.checkmark-icon, .loading-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-  margin-right: 4px;
 }
 
 .btn-icon-small, .header-icon-small {
@@ -1468,21 +1324,7 @@ h2 {
   vertical-align: middle;
 }
 
-.checkmark-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-}
-
 /* 저장된 필터 관련 스타일 */
-.search-container {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
 .search-input-wrapper {
   flex: 1;
   position: relative;
@@ -1496,11 +1338,11 @@ h2 {
 
 .btn-saved-filters, .btn-save-filter {
   background: #eee;
-  color: #333;
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   white-space: nowrap;
 }
 
@@ -1509,7 +1351,7 @@ h2 {
 }
 
 .btn-save-filter {
-  background: #f8f9fa;
+  background: var(--bg-muted);
 }
 
 .btn-saved-filters .btn-icon-svg, .btn-save-filter .btn-icon-svg {
@@ -1523,8 +1365,8 @@ h2 {
   left: 0;
   z-index: 1000;
   background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   min-width: 400px;
   margin-top: 5px;
@@ -1539,7 +1381,7 @@ h2 {
   align-items: center;
   cursor: pointer;
   transition: background 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .dropdown-item:last-child {
@@ -1547,31 +1389,31 @@ h2 {
 }
 
 .dropdown-item:hover {
-  background: #f5f5f5;
+  background: var(--bg-muted);
 }
 
 .dropdown-item.empty {
-  color: #999;
+  color: var(--text-light);
   font-size: 13px;
   cursor: default;
 }
 
 .filter-name {
   font-size: 14px;
-  color: #333;
+  color: var(--text-main);
 }
 
 .btn-delete-filter {
   background: transparent;
   border: none;
-  color: #999;
+  color: var(--text-light);
   font-size: 16px;
   cursor: pointer;
   padding: 0 5px;
 }
 
 .btn-delete-filter:hover {
-  color: #ff4d4f;
+  color: var(--error-color);
 }
 
 .save-filter-modal {
@@ -1579,9 +1421,9 @@ h2 {
 }
 
 .filter-preview {
-  background: #f9f9f9;
+  background: var(--bg-muted);
   padding: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
 }
 
@@ -1595,9 +1437,6 @@ h2 {
   background: #f0f4f8;
   border: 1px solid #d1d9e6;
   color: #4a5568;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .btn-builder.active {
@@ -1605,8 +1444,8 @@ h2 {
   border-color: #cbd5e0;
 }
 
-.guide-wrapper {
-  position: relative;
+.btn-builder img {
+  filter: brightness(0);
 }
 
 .btn-guide-trigger {
@@ -1623,16 +1462,11 @@ h2 {
   background: #f0f0f0;
 }
 
-.guide-icon, .builder-icon {
+.guide-icon {
   width: 20px;
   height: 20px;
   display: block;
   object-fit: contain;
-}
-
-.builder-icon {
-  width: 16px;
-  height: 16px;
 }
 
 .search-guide-popup {
@@ -1641,9 +1475,9 @@ h2 {
   right: 0;
   width: 280px;
   background: white;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   padding: 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: 0 10px 25px rgba(0,0,0,0.1);
   z-index: 1001;
   margin-top: 5px;
@@ -1651,7 +1485,7 @@ h2 {
 
 .search-guide-popup h4 {
   margin: 0 0 10px 0;
-  color: #2d3748;
+  color: var(--text-main);
   font-size: 15px;
 }
 
@@ -1660,7 +1494,7 @@ h2 {
   margin: 0;
   font-size: 13px;
   line-height: 1.8;
-  color: #4a5568;
+  color: var(--text-muted);
 }
 
 .guide-close {
@@ -1668,17 +1502,17 @@ h2 {
   width: 100%;
   margin-top: 10px;
   padding: 5px;
-  background: #f7fafc;
-  border: 1px solid #edf2f7;
-  border-radius: 4px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
 .filter-builder-panel {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-light);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   margin-bottom: 15px;
   animation: slideDown 0.2s ease-out;
 }
@@ -1697,7 +1531,7 @@ h2 {
 .builder-input {
   padding: 8px;
   border: 1px solid #cbd5e0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: white;
   font-size: 14px;
 }
@@ -1709,9 +1543,14 @@ h2 {
   gap: 5px;
 }
 
-.btn-and { background: #4a5568; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
-.btn-or { background: #718096; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+.btn-and { background: #4a5568; color: white; padding: 8px 12px; border: none; border-radius: var(--radius-sm); cursor: pointer; }
+.btn-or { background: #718096; color: white; padding: 8px 12px; border: none; border-radius: var(--radius-sm); cursor: pointer; }
 
 .btn-and:hover { background: #2d3748; }
 .btn-or:hover { background: #4a5568; }
+
+.bold-text {
+  font-weight: 700;
+  color: #2c3e50;
+}
 </style>

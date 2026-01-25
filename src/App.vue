@@ -240,6 +240,7 @@ watch(() => router.currentRoute.value.path, () => {
   font-size: 24px;
   font-weight: bold;
   margin: 0;
+  border-bottom: none;
 }
 
 .brand-link {

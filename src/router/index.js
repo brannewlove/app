@@ -1,11 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import LoginPage from '../pages/LoginPage.vue'
-import DashboardPage from '../pages/DashboardPage.vue'
-import UsersPage from '../pages/UsersPage.vue'
-import AssetsPage from '../pages/AssetsPage.vue'
-import TradePage from '../pages/TradePage.vue'
-import ReturnProcessingPage from '../pages/ReturnProcessingPage.vue'
-import DataManagementPage from '../pages/DataManagementPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,43 +6,43 @@ const router = createRouter({
     {
       path: '/login',
       name: 'Login',
-      component: LoginPage,
+      component: () => import('../pages/LoginPage.vue'),
       meta: { requiresAuth: false }
     },
     {
       path: '/users',
       name: 'Users',
-      component: UsersPage,
+      component: () => import('../pages/UsersPage.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/assets',
       name: 'Assets',
-      component: AssetsPage,
+      component: () => import('../pages/AssetsPage.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/trades',
       name: 'Trades',
-      component: TradePage,
+      component: () => import('../pages/TradePage.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/return-processing',
       name: 'ReturnProcessing',
-      component: ReturnProcessingPage,
+      component: () => import('../pages/ReturnProcessingPage.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/data-management',
       name: 'DataManagement',
-      component: DataManagementPage,
+      component: () => import('../pages/DataManagementPage.vue'),
       meta: { requiresAuth: true }
     },
     {
       path: '/',
       name: 'Dashboard',
-      component: DashboardPage,
+      component: () => import('../pages/DashboardPage.vue'),
       meta: { requiresAuth: true }
     }
   ],

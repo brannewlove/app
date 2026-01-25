@@ -11,6 +11,7 @@ router.get('/', async (req, res, next) => {
         t.*,
         a.model,
         a.category,
+        a.memo AS asset_memo,
         u.name,
         u.part,
         u2.name AS ex_user_name,
@@ -84,7 +85,8 @@ router.post('/', async (req, res, next) => {
 
     const results = [];
     for (const trade of trades) {
-      const { trade_id, asset_state, asset_in_user, ...insertData } = trade;
+      // trade_id는 자동 생성되므로 제외, 나머지는 모두 저장 시도
+      const { trade_id, ...insertData } = trade;
       if (Object.keys(insertData).length === 0) continue;
 
       const { work_type, asset_number, cj_id } = insertData;
@@ -96,6 +98,25 @@ router.post('/', async (req, res, next) => {
               await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 [cj_id, 'useable', asset_number, 'wait']
+              );
+              break;
+            case '신규-재계약':
+              await connection.query(
+                `UPDATE assets SET 
+                  in_user = ?, 
+                  state = ?, 
+                  day_of_start = ?, 
+                  day_of_end = ?, 
+                  unit_price = ? 
+                WHERE asset_number = ?`,
+                [
+                  'cjenc_inno', // Always re-enters as stock
+                  'useable', // Sets to useable state for stock
+                  insertData.new_day_of_start,
+                  insertData.new_day_of_end,
+                  insertData.new_unit_price,
+                  asset_number
+                ]
               );
               break;
             case '출고-사용자변경':
@@ -163,6 +184,7 @@ router.post('/', async (req, res, next) => {
             case '반납-고장교체':
             case '반납-조기반납':
             case '반납-폐기':
+            case '반납-기타':
               await connection.query(
                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
                 ['aj_rent', 'termination', asset_number]
@@ -180,18 +202,81 @@ router.post('/', async (req, res, next) => {
         }
       }
 
-      const columns = Object.keys(insertData);
-      const values = Object.values(insertData);
+      // trade 테이블에 없는 필드(재계약용 임시 데이터) 제거 후 저장
+      const { new_day_of_start, new_day_of_end, new_unit_price, ...tradeInsertData } = insertData;
+
+      const columns = Object.keys(tradeInsertData);
+      const values = Object.values(tradeInsertData);
       const placeholders = columns.map(() => '?').join(', ');
       const query = `INSERT INTO trade (${columns.join(', ')}) VALUES (${placeholders})`;
 
       const [result] = await connection.query(query, values);
-      results.push({ trade_id: result.insertId, ...insertData });
+      results.push({ trade_id: result.insertId, ...tradeInsertData });
     }
 
     success(res, results);
   } catch (err) {
     error(res, err.message);
+  } finally {
+    connection.release();
+  }
+});
+
+/* DELETE trade by id - 거래 취소 및 자산 상태 복구 */
+router.delete('/:id', async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const { id } = req.params;
+    await connection.beginTransaction();
+
+    // 1. 삭제할 거래 정보 조회
+    const [tradeRows] = await connection.query('SELECT * FROM trade WHERE trade_id = ?', [id]);
+    if (tradeRows.length === 0) {
+      await connection.rollback();
+      return error(res, '거래를 찾을 수 없습니다.', 404);
+    }
+    const trade = tradeRows[0];
+    const { asset_number, work_type, ex_user, asset_state, asset_in_user, asset_memo } = trade;
+
+    // 2. 자산 상태 복구 로직
+    // - 거래 등록 시 저장된 필드들이 있으면 최우선 사용
+
+    let revertUser = asset_in_user || ex_user || null;
+    let revertState = asset_state || null;
+
+    if (!revertState) {
+      // 과거 데이터 대응: 작업 유형보고 추측
+      if (work_type.startsWith('출고-신규')) revertState = 'wait';
+      else if (work_type === '출고-대여' || work_type === '입고-대여반납') revertState = 'useable';
+      else if (work_type === '출고-수리') revertState = 'useable';
+      else if (work_type === '입고-수리반납') revertState = 'repair';
+      else revertState = 'useable';
+    }
+
+    // 자산 테이블 업데이트 (메모 포함)
+    let updateAssetQuery = 'UPDATE assets SET in_user = ?, state = ?';
+    let params = [revertUser, revertState];
+
+    // asset_memo가 명시적으로 기록된 경우에만 복구 (기존 데이터 호환성 보장)
+    if (asset_memo !== undefined && asset_memo !== null) {
+      updateAssetQuery += ', memo = ?';
+      params.push(asset_memo);
+    }
+
+    updateAssetQuery += ' WHERE asset_number = ?';
+    params.push(asset_number);
+
+    await connection.query(updateAssetQuery, params);
+
+    // 3. 거래 내역 삭제
+    await connection.query('DELETE FROM trade WHERE trade_id = ?', [id]);
+
+    await connection.commit();
+    success(res, { message: '거래가 취소되었으며 자산 상태가 복구되었습니다.' });
+  } catch (err) {
+    await connection.rollback();
+    console.error('거래 취소 오류:', err);
+    error(res, '거래 취소 중 오류 발생: ' + err.message);
   } finally {
     connection.release();
   }

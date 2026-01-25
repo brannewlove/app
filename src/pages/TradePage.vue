@@ -17,6 +17,7 @@ const isTrackingOpen = ref(false);
 const trackingAssetNumber = ref('');
 const trackingModel = ref('');
 const trackingCategory = ref('');
+const trackingMemo = ref('');
 const isExportModalOpen = ref(false);
 const isReplacementExportOpen = ref(false);
 const isRegisterModalOpen = ref(false);
@@ -24,6 +25,43 @@ const isRegisterModalOpen = ref(false);
 const isConfirmModalOpen = ref(false);
 const confirmMessage = ref('');
 const confirmCallback = ref(null);
+const confirmModalType = ref('confirm'); // 'confirm' or 'alert'
+const changeExportCount = ref(0);
+const replacementExportCount = ref(0);
+
+const fetchExportCounts = async () => {
+  try {
+    // 1. 변경 Export 카운트 (Asset Logs Current Users - Confirmed Assets)
+    const logsRes = await fetch('/api/assetLogs/currentUsers');
+    const logsData = await logsRes.json();
+    const confirmedRes = await fetch('/api/confirmedAssets');
+    const confirmedData = await confirmedRes.json();
+    
+    if (logsData.success && confirmedData.success) {
+      const confirmedMap = new Set(confirmedData.data.map(item => String(item.asset_number)));
+      // Filter logs by checking if asset_number is not in confirmedMap
+      // Note: ChangeExportModal filters items where confirmed cj_id matches current cj_id.
+      // For simplicity, we count items where (asset_number, cj_id) pair is not in confirmed table.
+      const confirmedPairs = new Set(confirmedData.data.map(item => `${item.asset_number}_${item.cj_id}`));
+      const unconfirmedLogs = logsData.data.filter(log => !confirmedPairs.has(`${log.asset_number}_${log.cj_id}`));
+      changeExportCount.value = unconfirmedLogs.length;
+    }
+
+    // 2. 교체 Export 카운트 (Replacement Assets - Confirmed Replacements)
+    const replaceRes = await fetch('/api/assets?onlyReplacements=true');
+    const replaceData = await replaceRes.json();
+    const confirmedReplaceRes = await fetch('/api/confirmedReplacements');
+    const confirmedReplaceData = await confirmedReplaceRes.json();
+
+    if (replaceData.success && confirmedReplaceData.success) {
+      const confirmedReplaceSet = new Set(confirmedReplaceData.data.map(item => String(item.asset_number)));
+      const unconfirmedReplacements = replaceData.data.filter(asset => !confirmedReplaceSet.has(String(asset.asset_number)));
+      replacementExportCount.value = unconfirmedReplacements.length;
+    }
+  } catch (err) {
+    console.error('Export 카운트 로드 실패:', err);
+  }
+};
 
 const fetchTrades = async () => {
   loading.value = true;
@@ -49,6 +87,7 @@ const handleTrackAsset = (trade) => {
   trackingAssetNumber.value = trade.asset_number;
   trackingModel.value = trade.model || '';
   trackingCategory.value = trade.category || '';
+  trackingMemo.value = trade.asset_memo || '';
   isTrackingOpen.value = true;
 };
 
@@ -57,6 +96,7 @@ const closeTrackingModal = () => {
   trackingAssetNumber.value = '';
   trackingModel.value = '';
   trackingCategory.value = '';
+  trackingMemo.value = '';
 };
 
 // formatDateTime is now imported
@@ -70,28 +110,35 @@ const downloadCSV = () => {
   
   const filename = getTimestampFilename('TradePage');
 
-  const headers = [
+  const headerKeys = [
     'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
     'ex_user', 'ex_user_name', 'ex_user_part',
     'cj_id', 'name', 'part', 'memo'
   ];
 
+  const headerLabels = [
+    '순번', '작업시간', '작업유형', '자산번호', '모델명',
+    '이전 사용자ID', '이전 이름', '이전 부서',
+    '사용자ID', '이름', '부서', '거래메모'
+  ];
+
   const dataRows = tradesData.map(trade => 
-    headers.map(header => {
-      let value = trade[header];
-      if (header === 'timestamp') {
+    headerKeys.map(key => {
+      let value = trade[key];
+      if (key === 'timestamp') {
         value = formatDateTime(value);
       }
       return value;
     })
   );
   
-  downloadCSVFile(filename, headers, dataRows);
+  downloadCSVFile(filename, headerLabels, dataRows);
 };
 
-const showConfirm = (message, callback) => {
+const showConfirm = (message, callback, type = 'confirm') => {
   confirmMessage.value = message;
   confirmCallback.value = callback;
+  confirmModalType.value = type;
   isConfirmModalOpen.value = true;
 };
 
@@ -100,6 +147,32 @@ const handleConfirmYes = () => {
     confirmCallback.value();
   }
   isConfirmModalOpen.value = false;
+};
+
+const handleCancelTrade = async (trade) => {
+  showConfirm(
+    `'${trade.asset_number}'의 [${trade.work_type}] 거래를 <span class="text-danger">취소</span>하시겠습니까?\n취소시 자산의 상태와 사용자 정보가 거래 전으로 <span class="font-bold text-danger">복구</span>됩니다.`,
+    async () => {
+      loading.value = true;
+      try {
+        const response = await fetch(`/api/trades/${trade.trade_id}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+        if (result.success) {
+          showConfirm('거래가 취소처리 성공.', () => {
+             fetchTrades();
+          }, 'alert');
+        } else {
+          error.value = result.message || '거래 취소처리 실패';
+        }
+      } catch (err) {
+        error.value = '거래 취소 중 오류 발생: ' + err.message;
+      } finally {
+        loading.value = false;
+      }
+    }
+  );
 };
 
 const handleKeyDown = (e) => {
@@ -120,6 +193,7 @@ const handleKeyDown = (e) => {
 
 onMounted(() => {
   fetchTrades();
+  fetchExportCounts();
   window.addEventListener('keydown', handleKeyDown);
 });
 
@@ -135,13 +209,20 @@ onUnmounted(() => {
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" @download="downloadCSV" @track-asset="handleTrackAsset">
+    <TradeList v-if="!loading" :trades="trades" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade">
       <template #actions>
-        <div style="display: flex; gap: 10px;">
-          <button @click="isRegisterModalOpen = true" class="btn btn-register">거래 등록</button>
-          <button @click="openExportModal" class="btn btn-export">변경 Export</button>
-          <button @click="isReplacementExportOpen = true" class="btn btn-export-replacement">교체 Export</button>
-          <button @click="downloadCSV" class="btn btn-csv">
+        <div class="header-actions">
+          <button @click="isRegisterModalOpen = true" class="btn btn-header btn-register">
+            <img src="/images/edit.png" alt="add" class="btn-icon" />
+            + 거래 등록
+          </button>
+          <button @click="isExportModalOpen = true" class="btn btn-header btn-export">
+            변경 Export ({{ changeExportCount }})
+          </button>
+          <button @click="isReplacementExportOpen = true" class="btn btn-header btn-export-replacement">
+            교체 Export ({{ replacementExportCount }})
+          </button>
+          <button @click="downloadCSV" class="btn btn-header btn-csv">
             <img src="/images/down.png" alt="download" class="btn-icon" />
             csv
           </button>
@@ -154,13 +235,15 @@ onUnmounted(() => {
       :initial-asset-number="trackingAssetNumber"
       :initial-model="trackingModel"
       :initial-category="trackingCategory"
+      :initial-memo="trackingMemo"
       @close="closeTrackingModal" 
     />
-    <ChangeExportModal :is-open="isExportModalOpen" @close="isExportModalOpen = false" />
-    <ReplacementExportModal :is-open="isReplacementExportOpen" @close="isReplacementExportOpen = false" />
+    <ChangeExportModal :is-open="isExportModalOpen" @close="() => { isExportModalOpen = false; fetchExportCounts(); }" />
+    <ReplacementExportModal :is-open="isReplacementExportOpen" @close="() => { isReplacementExportOpen = false; fetchExportCounts(); }" />
     <ConfirmationModal 
       :is-open="isConfirmModalOpen"
       :message="confirmMessage"
+      :type="confirmModalType"
       @confirm="handleConfirmYes"
       @cancel="isConfirmModalOpen = false"
     />
@@ -173,48 +256,5 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.page-content { padding: 20px; }
-h1 { color: #333; margin-bottom: 30px; font-size: 28px; border-bottom: 3px solid #999; padding-bottom: 10px; }
-.alert { padding: 15px 20px; border-radius: 5px; margin-bottom: 20px; font-size: 16px; }
-.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
-.alert-info { background: #f5f5f5; color: #666; border-left: 4px solid #999; }
-.btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.3s ease; }
-.btn-register { background: var(--brand-blue); color: white; }
-.btn-register:hover { background: #4a6f8f; }
-.btn-export-replacement { background: #794A8D; color: white; }
-.btn-export-replacement:hover { background: #603a70; }
-
-/* TSV 버튼 스타일 */
-.btn-csv {
-  background: var(--brand-blue);
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 10px 15px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.btn-csv:hover {
-  background: #4a6d8d;
-}
-
-.btn-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  filter: brightness(0) invert(1); /* 흰색으로 변경 */
-}
-
-.loading-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-  margin-right: 4px;
-}
+/* Redundant local styles removed to use global design system */
 </style>

@@ -2,6 +2,13 @@
 import { ref, onMounted, watch } from 'vue';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 import WorkTypeSearch from './WorkTypeSearch.vue';
+import { 
+  isCjIdDisabled, 
+  getFixedCjId, 
+  getFixedCjIdDisplay, 
+  validateTradeStrict, 
+  getWorkTypeConfig 
+} from '../constants/workTypes';
 
 const props = defineProps({
   isOpen: {
@@ -26,6 +33,7 @@ const handleAssetSelect = (item, trade, index) => {
     trade.asset_number = assetNumber;
     trade.asset_state = String(item.state || '');
     trade.asset_in_user = String(item.in_user || '');
+    trade.asset_memo = String(item.memo || '');
   }
 };
 
@@ -53,6 +61,10 @@ const removeRow = (index) => {
   }
 };
 
+// ... (existing helper functions if any not replaced, but here we replace most validation logic)
+
+// ... (existing helper functions if any not replaced, but here we replace most validation logic)
+
 // 작업유형별 자산 유효성 검사
 const validateAssetForWorkType = (item, workType) => {
   if (!workType || workType.trim() === '') {
@@ -63,206 +75,92 @@ const validateAssetForWorkType = (item, workType) => {
     return { valid: false, message: 'invalid item' };
   }
 
-  const { state, in_user } = item;
-
-  switch (workType) {
-    case '출고-신규지급':
-    case '출고-신규교체':
-      if (state !== 'wait') {
-        return { valid: false, message: `상태가 "${state}"입니다. "wait" 상태만 가능합니다.` };
-      }
-      break;
-    case '출고-사용자변경':
-    case '출고-수리':
-      if (state !== 'useable') {
-        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
-      }
-      break;
-    case '출고-재고교체':
-    case '출고-재고지급':
-    case '출고-대여':
-      if (in_user !== 'cjenc_inno') {
-        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"만 가능합니다.` };
-      }
-      if (state !== 'useable') {
-        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
-      }
-      break;
-    case '입고-노후교체':
-    case '입고-불량교체':
-    case '입고-퇴사반납':
-    case '입고-임의반납':
-    case '입고-휴직반납':
-    case '입고-재입사예정':
-      if (in_user === 'cjenc_inno') {
-        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"가 아닌 자산만 가능합니다.` };
-      }
-      if (state !== 'useable') {
-        return { valid: false, message: `상태가 "${state}"입니다. "useable" 상태만 가능합니다.` };
-      }
-      break;
-    case '입고-대여반납':
-      if (in_user === 'cjenc_inno') {
-        return { valid: false, message: `보유자가 "${in_user}"입니다. "cjenc_inno"가 아닌 자산만 가능합니다.` };
-      }
-      if (state !== 'rent') {
-        return { valid: false, message: `상태가 "${state}"입니다. "rent" 상태만 가능합니다.` };
-      }
-      break;
-    case '입고-수리반납':
-      if (state !== 'repair') {
-        return { valid: false, message: `상태가 "${state}"입니다. "repair" 상태만 가능합니다.` };
-      }
-      break;
+  const assetMock = {
+    state: item.state,
+    in_user: item.in_user
+  };
+  
+  // validateTradeStrict는 tradeData에 cj_id가 있어야 일부 검사를 수행하지만, 
+  // 여기서는 자산 자체의 적합성(상태, 보유자)만 검사하면 되므로 cj_id는 pass
+  // 단, validateTradeStrict 내부 구현이 cj_id를 요구하는 경우(출고 등)가 있음.
+  // 자산 적합성만 체크하기 위해 mock tradeData 사용.
+  const tradeMock = { work_type: workType, cj_id: 'dummy' }; 
+  // Note: strict check might fail on cj_id if we don't provide it, but we only case about allowedStates/sourceType here?
+  // validateTradeStrict logic checks cj_id existence. 
+  // We should split asset validation vs trade complete validation?
+  // validateTradeStrict implementation: returns error if asset_state mismatch OR cj_id missing.
+  // For autocomplete validation, we mostly care about asset state mismatch.
+  // Let's modify usage: ignore 'cj_id missing' error if our goal is just checking asset compatibility.
+  
+  const result = validateTradeStrict(tradeMock, assetMock);
+  if (!result.valid) {
+    // cj_id 관련 에러는 무시(아직 선택 안했을 수 있으므로)하고 자산 관련 에러만 표출하고 싶지만, 
+    // validateTradeStrict가 순차적으로 검사하므로...
+    // workTypes.js의 validate 순서를 보면 asset check가 먼저임.
+    // 따라서 에러 메시지가 '사용자(CJ ID)를' 이면 무시.
+    if (result.message.includes('CJ ID')) return { valid: true };
+    return result;
   }
   return { valid: true };
 };
 
-const getFixedCjId = (workType) => {
-  const fixedMap = {
-    '입고-노후교체': 'cjenc_inno',
-    '입고-불량교체': 'cjenc_inno',
-    '입고-퇴사반납': 'cjenc_inno',
-    '입고-휴직반납': 'no-change',
-    '입고-재입사예정': 'no-change',
-    '입고-임의반납': 'cjenc_inno',
-    '입고-대여반납': 'cjenc_inno',
-    '입고-수리반납': 'no-change',
-    '반납-노후반납': 'aj_rent',
-    '반납-고장교체': 'aj_rent',
-    '반납-조기반납': 'aj_rent',
-    '반납-폐기': 'aj_rent',
-    '반납': 'aj_rent',
-    '출고-수리': 'no-change'
-  };
-  return fixedMap[workType] || '';
-};
-
-const getFixedCjIdDisplay = (workType) => {
-  const displayMap = {
-    '입고-노후교체': '회사 입고 (자동)',
-    '입고-불량교체': '회사 입고 (자동)',
-    '입고-퇴사반납': '회사 입고 (자동)',
-    '입고-휴직반납': '현재 보유자 유지 (자동)',
-    '입고-재입사예정': '현재 보유자 유지 (자동)',
-    '입고-임의반납': '회사 입고 (자동)',
-    '입고-대여반납': '회사 입고 (자동)',
-    '입고-수리반납': '현재 보유자 유지 (자동)',
-    '반납-노후반납': '반납처 (자동)',
-    '반납-고장교체': '반납처 (자동)',
-    '반납-조기반납': '반납처 (자동)',
-    '반납-폐기': '반납처 (자동)',
-    '반납': '반납처 (자동)',
-    '출고-수리': '현재 보유자 유지 (자동)'
-  };
-  return displayMap[workType] || '';
-};
-
-const isCjIdDisabled = (workType) => {
-  const fixedFields = [
-    '입고-노후교체', '입고-불량교체', '입고-퇴사반납', '입고-휴직반납',
-    '입고-재입사예정', '입고-임의반납', '입고-대여반납', '입고-수리반납',
-    '반납','반납-노후반납', '반납-고장교체', '반납-조기반납', '반납-폐기',
-    '출고-수리'
-  ];
-  return fixedFields.includes(workType);
-};
-
 const getAssetApiParams = (workType) => {
-  if (!workType) return {};
-  switch (workType) {
-    case '출고-신규지급':
-    case '출고-신규교체':
-      return { state: 'wait' };
-    case '출고-사용자변경':
-    case '출고-수리':
-    case '입고-노후교체':
-    case '입고-불량교체':
-    case '입고-퇴사반납':
-    case '입고-임의반납':
-    case '입고-휴직반납':
-    case '입고-재입사예정':
-      return { state: 'useable' };
-    case '출고-재고교체':
-    case '출고-재고지급':
-    case '출고-대여':
-      return { state: 'useable', in_user: 'cjenc_inno' };
-    case '입고-대여반납':
-      return { state: 'rent' };
-    case '입고-수리반납':
-      return { state: 'repair' };
-    default:
-      return {};
+  const config = getWorkTypeConfig(workType);
+  if (!config) return { apiParams: { fields: 'memo' } };
+
+  const params = {};
+  
+  // 1. Allowed States -> API 'state' param
+  if (config.allowedStates && config.allowedStates.length > 0) {
+    if (config.allowedStates.length === 1) {
+      params.state = config.allowedStates[0];
+    } else {
+      // API가 multiple state 지원하는지 확인 필요. 보통 하나만 지원하면 첫번째꺼 혹은 필터링 안함.
+      // 현재 로직상 wait, useable, rent, repair 하나씩만 매핑됨.
+      params.state = config.allowedStates[0];
+    }
   }
+
+  // 2. Source Type -> API 'in_user' param
+  if (config.sourceType === 'stock') {
+    params.in_user = 'cjenc_inno';
+  } 
+  // 'user' type means NOT cjenc_inno, API might not support 'ne'. 
+  // If so, we strictly rely on client-side validation logic (validateAssetForWorkType).
+
+  // Default fallback for general query if no strict params
+  if (Object.keys(params).length === 0) {
+    return { apiParams: { fields: 'memo' } };
+  }
+
+  return params;
 };
 
 const validateTrade = (trade) => {
   const { work_type, asset_number, cj_id, asset_state, asset_in_user } = trade;
   if (!work_type) return { valid: false, message: '작업 유형을 선택해주세요.' };
 
+  const config = getWorkTypeConfig(work_type);
+  
+  // 재계약 날짜 검증
+  if (config?.requiresDates) {
+    if (!trade.new_day_of_start) return { valid: false, message: '새로운 시작일을 입력해주세요.' };
+    if (!trade.new_day_of_end) return { valid: false, message: '새로운 종료일을 입력해주세요.' };
+  }
+
   trade.ex_user = asset_in_user || '';
   if (!asset_number) return { valid: false, message: '자산 ID를 선택해주세요.' };
 
-  switch (work_type) {
-    case '출고-신규지급':
-      if (asset_state !== 'wait') return { valid: false, message: '신규지급은 상태가 "wait"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '신규지급은 CJ ID를 선택해주세요.' };
-      break;
-    case '출고-사용자변경':
-      if (asset_state !== 'useable') return { valid: false, message: '사용자변경은 상태가 "useable"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '사용자변경은 CJ ID를 선택해주세요.' };
-      if (asset_in_user && cj_id === asset_in_user) return { valid: false, message: '사용자변경은 현재 사용자와 다른 사용자를 선택해야 합니다.' };
-      break;
-    case '출고-재고교체':
-      if (asset_in_user !== 'cjenc_inno') return { valid: false, message: '재고교체는 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
-      if (asset_state !== 'useable') return { valid: false, message: '재고교체은 상태가 "useable"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '재고교체는 CJ ID를 선택해주세요.' };
-      break;
-    case '출고-신규교체':
-      if (asset_state !== 'wait') return { valid: false, message: '신규교체는 상태가 "wait"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '신규교체는 CJ ID를 선택해주세요.' };
-      break;
-    case '출고-재고지급':
-      if (asset_in_user !== 'cjenc_inno') return { valid: false, message: '재고지급은 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
-      if (asset_state !== 'useable') return { valid: false, message: '재고지급은 상태가 "useable"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '재고지급은 CJ ID를 선택해주세요.' };
-      break;
-    case '출고-대여':
-      if (asset_in_user !== 'cjenc_inno') return { valid: false, message: '대여는 in_user가 "cjenc_inno"인 자산만 가능합니다.' };
-      if (asset_state !== 'useable') return { valid: false, message: '대여는 상태가 "useable"인 자산만 가능합니다.' };
-      if (!cj_id) return { valid: false, message: '대여는 CJ ID를 선택해주세요.' };
-      break;
-    case '출고-수리':
-      if (asset_state !== 'useable') return { valid: false, message: '수리는 상태가 "useable"인 자산만 가능합니다.' };
-      break;
-    case '입고-노후교체':
-    case '입고-불량교체':
-    case '입고-퇴사반납':
-    case '입고-임의반납':
-    case '입고-휴직반납':
-    case '입고-재입사예정':
-      if (asset_in_user === 'cjenc_inno') return { valid: false, message: `${work_type}은 in_user가 "cjenc_inno"가 아닌 자산만 가능합니다.` };
-      if (asset_state !== 'useable') return { valid: false, message: `${work_type}은 상태가 "useable"인 자산만 가능합니다.` };
-      break;
-    case '입고-대여반납':
-      if (asset_in_user === 'cjenc_inno') return { valid: false, message: '대여반납은 in_user가 "cjenc_inno"가 아닌 자산만 가능합니다.' };
-      if (asset_state !== 'rent') return { valid: false, message: '대여반납은 상태가 "rent"인 자산만 가능합니다.' };
-      break;
-    case '입고-수리반납':
-      if (asset_state !== 'repair') return { valid: false, message: '수리반납은 상태가 "repair"인 자산만 가능합니다.' };
-      break;
-  }
+  const assetCtx = {
+    state: asset_state,
+    in_user: asset_in_user
+  };
+  const tradeCtx = {
+    work_type,
+    cj_id
+  };
 
-  if (isCjIdDisabled(work_type)) {
-    const fixedValue = getFixedCjId(work_type);
-    if (fixedValue === 'no-change') {
-      if (asset_in_user) trade.cj_id = asset_in_user;
-    } else if (fixedValue) {
-      trade.cj_id = fixedValue;
-    }
-  }
-
-  return { valid: true };
+  return validateTradeStrict(tradeCtx, assetCtx);
 };
 
 const submitTrades = async () => {
@@ -282,8 +180,7 @@ const submitTrades = async () => {
     }
 
     const tradeForSubmit = { ...trade };
-    delete tradeForSubmit.asset_state;
-    delete tradeForSubmit.asset_in_user;
+    // asset_state, asset_in_user, asset_memo 는 저장해야 함
     delete tradeForSubmit.cj_name;
     validTrades.push(tradeForSubmit);
   }
@@ -301,6 +198,7 @@ const submitTrades = async () => {
   try {
     loading.value = true;
     error.value = null;
+    successMessage.value = null;
 
     const response = await fetch('/api/trades', {
       method: 'POST',
@@ -310,17 +208,18 @@ const submitTrades = async () => {
 
     const result = await response.json();
     if (result.success) {
-      successMessage.value = result.message;
+      successMessage.value = `${validTrades.length}건의 거래가 성공적으로 등록되었습니다.`;
       registeredTrades.value = validTrades;
       emit('success');
+      
       setTimeout(() => {
         initializeForm();
       }, 2000);
     } else {
-      error.value = result.error || '등록 실패';
+      error.value = '등록 실패: ' + (result.error || '알 수 없는 오류');
     }
   } catch (err) {
-    error.value = err.message;
+    error.value = '등록 중 오류 발생: ' + err.message;
   } finally {
     loading.value = false;
   }
@@ -349,15 +248,16 @@ onMounted(() => {
         <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 등록 중...</div>
 
         <div class="register-section">
-          <div class="table-wrapper">
+          <div class="table-container">
+            <div class="table-wrapper">
             <table class="register-table">
               <thead>
                 <tr>
                   <th class="row-number">#</th>
-                  <th>작업 유형</th>
-                  <th>자산 ID</th>
-                  <th>CJ ID</th>
-                  <th>메모</th>
+                  <th style="width: 220px;">작업 유형</th>
+                  <th style="width: 180px;">자산 ID</th>
+                  <th style="width: 150px;">CJ ID</th>
+                  <th>거래메모 / 재계약 정보</th>
                   <th class="action">삭제</th>
                 </tr>
               </thead>
@@ -402,7 +302,23 @@ onMounted(() => {
                     />
                   </td>
                   <td>
-                    <input v-model="trade.memo" type="text" placeholder="메모" class="form-input" />
+                    <div class="memo-age-container">
+                      <input v-model="trade.memo" type="text" placeholder="거래메모" class="form-input" />
+                      <div v-if="getWorkTypeConfig(trade.work_type)?.requiresDates" class="recontract-fields">
+                        <div class="field-item">
+                          <span>시작:</span>
+                          <input v-model="trade.new_day_of_start" type="date" class="form-input mini" />
+                        </div>
+                        <div class="field-item">
+                          <span>종료:</span>
+                          <input v-model="trade.new_day_of_end" type="date" class="form-input mini" />
+                        </div>
+                        <div class="field-item">
+                          <span>단가:</span>
+                          <input v-model="trade.new_unit_price" type="number" placeholder="월단가" class="form-input mini" />
+                        </div>
+                      </div>
+                    </div>
                   </td>
                   <td class="action">
                     <button @click="removeRow(index)" class="btn-delete-row" title="삭제"><img src="/images/recyclebin.png" alt="delete" class="delete-icon" /></button>
@@ -410,44 +326,45 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
-          </div>
+          </div> <!-- table-wrapper close -->
+        </div> <!-- table-container close -->
 
-          <div class="button-group">
-            <button @click="addRow" class="btn btn-add">+ 행 추가</button>
-            <button @click="submitTrades" :disabled="loading" class="btn btn-submit">
-              {{ loading ? '등록 중...' : '거래 등록' }}
-            </button>
-          </div>
+        <div class="button-group">
+          <button @click="addRow" class="btn btn-modal btn-add">+ 행 추가</button>
+          <button @click="submitTrades" :disabled="loading" class="btn btn-modal btn-submit">
+            {{ loading ? '등록 중...' : '거래 등록' }}
+          </button>
         </div>
+      </div>
 
-        <div v-if="registeredTrades.length > 0" class="registered-list">
-          <h3>최근 등록 결과</h3>
-          <div class="scroll-table">
-            <table class="registered-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>유형</th>
-                  <th>자산번호</th>
-                  <th>CJ ID</th>
-                  <th>메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(trade, index) in registeredTrades" :key="index">
-                  <td>{{ index + 1 }}</td>
-                  <td>{{ trade.work_type }}</td>
-                  <td>{{ trade.asset_number }}</td>
-                  <td>{{ trade.cj_id }}</td>
-                  <td>{{ trade.memo || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div v-if="registeredTrades.length > 0" class="registered-list">
+        <h3>최근 등록 결과</h3>
+        <div class="scroll-table">
+          <table class="registered-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>유형</th>
+                <th>자산번호</th>
+                <th>CJ ID</th>
+                <th>거래메모</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(trade, index) in registeredTrades" :key="index">
+                <td>{{ index + 1 }}</td>
+                <td>{{ trade.work_type }}</td>
+                <td>{{ trade.asset_number }}</td>
+                <td>{{ trade.cj_id }}</td>
+                <td>{{ trade.memo || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
+</div>
 </template>
 
 <style scoped>
@@ -484,12 +401,18 @@ onMounted(() => {
   flex: 1; /* 남은 공간 차지 */
 }
 
-.table-wrapper {
-  overflow: auto;
+.table-container {
+  overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-bottom: 20px;
-  height: 500px; /* 높이 고정으로 아래 버튼 위치 고정 및 초기 범위 확보 */
+  border: 1px solid var(--border-color);
+}
+
+.table-wrapper {
+  overflow: auto;
+  max-height: calc(85vh - 300px); /* 모달 높이에 맞게 비례 조정 */
+  min-height: 300px;
 }
 
 .register-table {
@@ -544,6 +467,39 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.form-input.mini {
+  padding: 4px 6px;
+  font-size: 11px;
+}
+
+.memo-age-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recontract-fields {
+  display: flex;
+  gap: 8px;
+  background: #fdf2f2;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px dashed #e74c3c;
+}
+
+.field-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #c0392b;
+  flex: 1;
+}
+
+.field-item span {
+  white-space: nowrap;
+}
+
 .button-group {
   display: flex;
   gap: 10px;
@@ -551,29 +507,28 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
 .btn-add { background: #777; color: white; }
 .btn-submit { background: var(--brand-blue); color: white; }
 .btn-submit:disabled { background: var(--border-color); cursor: not-allowed; }
 
 .btn-delete-row {
-  background: none;
+  background: var(--error-color);
   border: none;
   cursor: pointer;
-  font-size: 16px;
-  padding: 5px;
+  padding: 6px;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
 }
-.btn-delete-row:hover { background: #f0f0f0; }
+.btn-delete-row:hover { 
+  background: #c0392b;
+}
+
+.btn-delete-row .delete-icon {
+  filter: brightness(0) invert(1);
+}
 
 .registered-list {
   margin-top: 30px;
@@ -618,5 +573,73 @@ onMounted(() => {
   height: 16px;
   object-fit: contain;
   vertical-align: middle;
+}
+
+/* 상태 오버레이 스타일 */
+.status-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001;
+  border-radius: 8px;
+  backdrop-filter: blur(2px);
+}
+
+.status-box {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  text-align: center;
+  min-width: 320px;
+  border: 1px solid #eee;
+}
+
+.status-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.status-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+}
+
+.status-message {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.loading-icon-large {
+  width: 40px;
+  height: 40px;
+  animation: spin 2s linear infinite;
+}
+
+.checkmark-icon-large {
+  width: 40px;
+  height: 40px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.status-footer {
+  display: flex;
+  justify-content: center;
 }
 </style>

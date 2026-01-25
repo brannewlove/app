@@ -108,7 +108,7 @@ const copyAssetInfo = () => {
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산번호</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">분류</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">모델</th>
-          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">메모</th>
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산메모</th>
         </tr>
       </thead>
       <tbody>
@@ -123,7 +123,7 @@ const copyAssetInfo = () => {
   `;
 
   // 텍스트 버전 (Fallback)
-  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n메모: ${selectedAsset.value.memo || '-'}`;
+  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n자산메모: ${selectedAsset.value.memo || '-'}`;
 
   const blobHtml = new Blob([htmlTable], { type: 'text/html' });
   const blobText = new Blob([plainText], { type: 'text/plain' });
@@ -176,7 +176,7 @@ const copyAssetInfo = () => {
           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
             <h3 style="margin: 0; font-size: 16px; color: #333;">자산 정보</h3>
             <button class="copy-btn-small" @click="copyAssetInfo" title="클립보드 복사">
-              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="btn-icon-black" />
+              <img v-if="!isCopied" src="/images/clipboard.png" alt="copy" class="copy-icon" />
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
@@ -184,7 +184,7 @@ const copyAssetInfo = () => {
             <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
             <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
             <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
-            <p><strong>메모:</strong> {{ selectedAsset.memo || '-' }}</p>
+            <p><strong>자산메모:</strong> {{ selectedAsset.memo || '-' }}</p>
           </div>
         </div>
 
@@ -289,10 +289,7 @@ const copyAssetInfo = () => {
   opacity: 0.7;
 }
 
-.btn-icon-black {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
+.copy-icon {
   filter: brightness(0);
 }
 
