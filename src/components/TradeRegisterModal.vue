@@ -255,8 +255,8 @@ onMounted(() => {
                 <tr>
                   <th class="row-number">#</th>
                   <th style="width: 220px;">작업 유형</th>
-                  <th style="width: 180px;">자산 ID</th>
-                  <th style="width: 150px;">CJ ID</th>
+                  <th style="width: 200px;">자산 ID</th>
+                  <th style="width: 200px;">CJ ID</th>
                   <th>거래메모 / 재계약 정보</th>
                   <th class="action">삭제</th>
                 </tr>

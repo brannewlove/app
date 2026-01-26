@@ -146,6 +146,7 @@ router.post('/', async (req, res, next) => {
               break;
             case '입고-노후교체':
             case '입고-불량교체':
+            case '입고-모델교체':
             case '입고-퇴사반납':
             case '입고-임의반납':
             case '입고-대여반납':

@@ -10,9 +10,10 @@ export const downloadCSVFile = (fileName, headerRow, dataRows) => {
     const csvContent = [
         headerRow.map(h => escapeCSV(h)).join(','),
         ...dataRows.map(row => row.map(val => escapeCSV(val)).join(','))
-    ].join('\n');
+    ].join('\r\n');
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;

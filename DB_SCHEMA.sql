@@ -148,6 +148,7 @@ CREATE TABLE `trade` (
     `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
     `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일',
     `ex_user` varchar(200) DEFAULT NULL,
+    `asset_memo` text COMMENT '자산 메모(백업용)',
     PRIMARY KEY (`trade_id`),
     KEY `idx_trade_id` (`trade_id`),
     KEY `idx_asset_number` (`asset_number`),
