@@ -6,12 +6,16 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  initialSearch: {
+    type: String,
+    default: '',
+  },
 });
 
 import { useTable } from '../composables/useTable';
 import { formatDateTime } from '../utils/dateUtils';
 
-const emit = defineEmits(['download', 'track-asset', 'cancel-trade']);
+const emit = defineEmits(['download', 'track-asset', 'cancel-trade', 'register-trade']);
 
 const tradesRef = toRef(props, 'trades');
 
@@ -35,6 +39,13 @@ const {
   initialSortColumn: 'trade_id',
   initialSortDirection: 'desc' 
 });
+
+// 프로퍼티로 받은 초기 검색어 적용 및 감시
+watch(() => props.initialSearch, (newVal) => {
+  if (newVal !== undefined) {
+    searchQuery.value = newVal;
+  }
+}, { immediate: true });
 
 // 테이블 컬럼 순서 및 라벨 정의
 const columnOrder = [
@@ -126,6 +137,7 @@ const download = () => {
             <td class="action-cell">
               <div style="display: flex; gap: 4px; justify-content: center;">
                 <button @click="emit('track-asset', trade)" class="btn-action btn-track">추적</button>
+                <button @click="emit('register-trade', trade)" class="btn-action btn-trade-action" title="신규 거래 등록">거래</button>
                 <button @click="emit('cancel-trade', trade)" class="btn-action btn-cancel">취소</button>
               </div>
             </td>
@@ -209,7 +221,16 @@ const download = () => {
 }
 
 .btn-track { background: var(--secondary-color); }
+.btn-trade-action { background: var(--brand-blue, #0052CC); }
 .btn-cancel { background: #556B2F; }
+
+.btn-icon-white-mini {
+  width: 12px;
+  height: 12px;
+  vertical-align: middle;
+  margin-right: 4px;
+  filter: brightness(0) invert(1);
+}
 
 .btn-action:hover {
   transform: translateY(-1px);

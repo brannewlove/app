@@ -177,16 +177,16 @@ export const WORK_TYPES = [
         }
     },
     {
-        id: '출고-수리',
-        work_type: '출고-수리',
-        description: '수리 보내기',
+        id: '출고-수리완료',
+        work_type: '출고-수리완료',
+        description: '수리완료 반납',
         category: '출고',
         fixedCjId: 'no-change',
         displayFixedUser: '현재 보유자 유지 (자동)',
-        allowedStates: ['useable'],
-        sourceType: 'any', // 전산실/사용자 모두 가능
+        allowedStates: ['repair'],
+        sourceType: 'any',
         validate: ({ asset_state }) => {
-            if (!isHold(asset_state) && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+            if (!isHold(asset_state) && asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "repair" 상태만 가능합니다.` };
             return { valid: true };
         }
     },
@@ -300,16 +300,16 @@ export const WORK_TYPES = [
         }
     },
     {
-        id: '입고-수리반납',
-        work_type: '입고-수리반납',
-        description: '수리완료 반납',
+        id: '입고-수리필요',
+        work_type: '입고-수리필요',
+        description: '수리 보내기',
         category: '입고',
         fixedCjId: 'no-change',
         displayFixedUser: '현재 보유자 유지 (자동)',
-        allowedStates: ['repair'],
-        sourceType: 'any',
+        allowedStates: ['useable'],
+        sourceType: 'any', // 전산실/사용자 모두 가능
         validate: ({ asset_state }) => {
-            if (!isHold(asset_state) && asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "repair" 상태만 가능합니다.` };
+            if (!isHold(asset_state) && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
             return { valid: true };
         }
     },
@@ -338,10 +338,10 @@ export const WORK_TYPES = [
         fixedCjId: 'aj_rent',
         displayFixedUser: '반납처 (자동)',
         requiresReplacement: true,
-        allowedStates: ['useable'],
+        allowedStates: ['useable', 'repair'],
         sourceType: 'stock',
         validate: ({ asset_state }) => {
-            if (!isHold(asset_state) && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+            if (!isHold(asset_state) && asset_state !== 'useable' && asset_state !== 'repair') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 또는 "repair" 상태만 가능합니다.` };
             return { valid: true };
         }
     },

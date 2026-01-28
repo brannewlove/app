@@ -138,7 +138,7 @@ router.post('/', async (req, res, next) => {
                 [cj_id, 'rent', asset_number, 'useable']
               );
               break;
-            case '출고-수리':
+            case '입고-수리필요':
               await connection.query(
                 'UPDATE assets SET state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 ['repair', asset_number, 'useable']
@@ -172,7 +172,7 @@ router.post('/', async (req, res, next) => {
                 ['wait', asset_number]
               );
               break;
-            case '입고-수리반납':
+            case '출고-수리완료':
               await connection.query(
                 'UPDATE assets SET state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                 ['useable', asset_number, 'repair']
@@ -248,8 +248,8 @@ router.delete('/:id', async (req, res, next) => {
       // 과거 데이터 대응: 작업 유형보고 추측
       if (work_type.startsWith('출고-신규')) revertState = 'wait';
       else if (work_type === '출고-대여' || work_type === '입고-대여반납') revertState = 'useable';
-      else if (work_type === '출고-수리') revertState = 'useable';
-      else if (work_type === '입고-수리반납') revertState = 'repair';
+      else if (work_type === '입고-수리필요') revertState = 'useable';
+      else if (work_type === '출고-수리완료') revertState = 'repair';
       else revertState = 'useable';
     }
 

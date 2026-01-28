@@ -216,7 +216,7 @@ async function runBackup() {
 }
 
 /**
- * 오래된 백업 파일 삭제 (50개 유지)
+ * 오래된 백업 파일 삭제 (200개 유지)
  */
 async function rotateBackups(drive, folderId) {
     try {
@@ -227,9 +227,9 @@ async function rotateBackups(drive, folderId) {
         });
 
         const files = response.data.files;
-        if (files.length > 50) {
-            console.log(`파일 개수 초과 (${files.length}/50). 오래된 파일을 삭제합니다...`);
-            for (let i = 50; i < files.length; i++) {
+        if (files.length > 200) {
+            console.log(`파일 개수 초과 (${files.length}/200). 오래된 파일을 삭제합니다...`);
+            for (let i = 200; i < files.length; i++) {
                 await drive.files.delete({ fileId: files[i].id });
                 console.log(`삭제된 파일: ${files[i].name} (${files[i].id})`);
             }

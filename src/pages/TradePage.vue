@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import TradeList from '../components/TradeList.vue';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import ChangeExportModal from '../components/ChangeExportModal.vue';
@@ -8,6 +9,9 @@ import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
+
+const route = useRoute();
+const initialSearch = computed(() => route.query.search || '');
 
 const trades = ref([]);
 const loading = ref(false);
@@ -21,6 +25,7 @@ const trackingMemo = ref('');
 const isExportModalOpen = ref(false);
 const isReplacementExportOpen = ref(false);
 const isRegisterModalOpen = ref(false);
+const registerAssetNumber = ref('');
 
 const isConfirmModalOpen = ref(false);
 const confirmMessage = ref('');
@@ -38,10 +43,6 @@ const fetchExportCounts = async () => {
     const confirmedData = await confirmedRes.json();
     
     if (logsData.success && confirmedData.success) {
-      const confirmedMap = new Set(confirmedData.data.map(item => String(item.asset_number)));
-      // Filter logs by checking if asset_number is not in confirmedMap
-      // Note: ChangeExportModal filters items where confirmed cj_id matches current cj_id.
-      // For simplicity, we count items where (asset_number, cj_id) pair is not in confirmed table.
       const confirmedPairs = new Set(confirmedData.data.map(item => `${item.asset_number}_${item.cj_id}`));
       const unconfirmedLogs = logsData.data.filter(log => !confirmedPairs.has(`${log.asset_number}_${log.cj_id}`));
       changeExportCount.value = unconfirmedLogs.length;
@@ -90,13 +91,22 @@ const handleTrackAsset = (trade) => {
   trackingMemo.value = trade.asset_memo || '';
   isTrackingOpen.value = true;
 };
-
 const closeTrackingModal = () => {
   isTrackingOpen.value = false;
   trackingAssetNumber.value = '';
   trackingModel.value = '';
   trackingCategory.value = '';
   trackingMemo.value = '';
+};
+
+const handleRegisterTrade = (trade) => {
+  registerAssetNumber.value = trade.asset_number;
+  isRegisterModalOpen.value = true;
+};
+
+const closeRegisterModal = () => {
+  isRegisterModalOpen.value = false;
+  registerAssetNumber.value = '';
 };
 
 // formatDateTime is now imported
@@ -209,7 +219,7 @@ onUnmounted(() => {
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade">
+    <TradeList v-if="!loading" :trades="trades" :initial-search="initialSearch" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade" @register-trade="handleRegisterTrade">
       <template #actions>
         <div class="header-actions">
           <button @click="isRegisterModalOpen = true" class="btn btn-header btn-register">
@@ -249,7 +259,8 @@ onUnmounted(() => {
     />
     <TradeRegisterModal 
       :is-open="isRegisterModalOpen" 
-      @close="isRegisterModalOpen = false" 
+      :initial-asset-number="registerAssetNumber"
+      @close="closeRegisterModal" 
       @success="fetchTrades"
     />
   </div>

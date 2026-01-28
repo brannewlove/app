@@ -117,6 +117,7 @@ router.get('/currentUsers', async (req, res) => {
         SELECT 
           asset_number,
           cj_id,
+          ex_user,
           timestamp,
           work_type,
           ROW_NUMBER() OVER (PARTITION BY asset_number ORDER BY timestamp DESC) as rn
@@ -124,7 +125,7 @@ router.get('/currentUsers', async (req, res) => {
         WHERE work_type LIKE '%입고%' OR work_type LIKE '%출고%'
       ) t
       LEFT JOIN users u ON t.cj_id = u.cj_id
-      WHERE t.rn = 1
+      WHERE t.rn = 1 AND t.cj_id != COALESCE(t.ex_user, '')
       ORDER BY t.timestamp ASC
     `;
 

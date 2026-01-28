@@ -30,9 +30,9 @@
   --text-muted: #666;
   --text-light: #94a3b8;
 
-  --age-safe: #10b981;
-  --age-warning: #f59e0b;
-  --age-danger: #ef4444;
+  --age-safe: #4AB34A;
+  --age-warning: #FFC800;
+  --age-danger: #FF92B1;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 5px 20px rgba(0, 0, 0, 0.05);

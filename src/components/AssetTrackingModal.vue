@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 
 const props = defineProps({
@@ -26,6 +27,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close']);
+
+const router = useRouter();
 
 const selectedAsset = ref(null);
 const trackingLogs = ref([]);
@@ -138,6 +141,15 @@ const copyAssetInfo = () => {
     console.error('클립보드 복사 실패:', err);
   });
 };
+
+const goToTradeSearch = () => {
+  if (!selectedAsset.value || !selectedAsset.value.asset_number) return;
+  router.push({
+    name: 'Trades',
+    query: { search: selectedAsset.value.asset_number }
+  });
+  closeModal();
+};
 </script>
 
 <template>
@@ -145,7 +157,13 @@ const copyAssetInfo = () => {
     <div class="modal-content" @mousedown="handleMouseDown" @mouseup="handleMouseUp">
       <div class="modal-header">
         <h2>자산 추적</h2>
-        <button class="modal-close-btn" @click="closeModal">✕</button>
+        <div class="header-buttons">
+          <button v-if="selectedAsset" class="btn-trade-search" @click="goToTradeSearch">
+            <img src="/images/go.png" alt="search" class="btn-icon-custom" />
+            거래검색
+          </button>
+          <button class="modal-close-btn" @click="closeModal">✕</button>
+        </div>
       </div>
 
       <div class="modal-body">
@@ -319,5 +337,38 @@ const copyAssetInfo = () => {
   height: 16px;
   object-fit: contain;
   vertical-align: middle;
+}
+
+.header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-trade-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--brand-blue, #0052CC);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-trade-search:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-icon-custom {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
 }
 </style>

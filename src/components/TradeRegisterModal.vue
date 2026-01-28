@@ -7,13 +7,19 @@ import {
   getFixedCjId, 
   getFixedCjIdDisplay, 
   validateTradeStrict, 
-  getWorkTypeConfig 
+  getWorkTypeConfig,
+  getAvailableWorkTypesForAsset
 } from '../constants/workTypes';
+import assetApi from '../api/assets';
 
 const props = defineProps({
   isOpen: {
     type: Boolean,
     required: true
+  },
+  initialAssetNumber: {
+    type: String,
+    default: ''
   }
 });
 
@@ -29,17 +35,34 @@ const registeredTrades = ref([]);
 const handleAssetSelect = (item, trade, index) => {
   if (item && typeof item === 'object') {
     const assetNumber = String(item.asset_number || '');
-    console.log('선택된 자산:', item);
     trade.asset_number = assetNumber;
     trade.asset_state = String(item.state || '');
     trade.asset_in_user = String(item.in_user || '');
     trade.asset_memo = String(item.memo || '');
+
+    // 보유자 유지 작업인 경우 cj_id 자동 채움
+    const config = getWorkTypeConfig(trade.work_type);
+    if (config && config.fixedCjId === 'no-change') {
+      trade.cj_id = trade.asset_in_user;
+    }
   }
 };
 
 // 초기 5개 행 생성
-const initializeForm = () => {
-  trades.value = Array.from({ length: 5 }, () => ({}));
+const initializeForm = async () => {
+  if (props.initialAssetNumber) {
+    trades.value = [{ asset_number: props.initialAssetNumber }];
+    try {
+      const asset = await assetApi.getAssetByNumber(props.initialAssetNumber);
+      if (asset) {
+        handleAssetSelect(asset, trades.value[0], 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch initial asset:', err);
+    }
+  } else {
+    trades.value = Array.from({ length: 5 }, () => ({}));
+  }
   error.value = null;
   successMessage.value = null;
   registeredTrades.value = [];
@@ -94,14 +117,17 @@ const validateAssetForWorkType = (item, workType) => {
   
   const result = validateTradeStrict(tradeMock, assetMock);
   if (!result.valid) {
-    // cj_id 관련 에러는 무시(아직 선택 안했을 수 있으므로)하고 자산 관련 에러만 표출하고 싶지만, 
-    // validateTradeStrict가 순차적으로 검사하므로...
-    // workTypes.js의 validate 순서를 보면 asset check가 먼저임.
-    // 따라서 에러 메시지가 '사용자(CJ ID)를' 이면 무시.
     if (result.message.includes('CJ ID')) return { valid: true };
     return result;
   }
   return { valid: true };
+};
+
+const getWorkTypeFilter = (trade) => {
+  if (!trade.asset_number || !trade.asset_state) return null;
+  const asset = { state: trade.asset_state, in_user: trade.asset_in_user };
+  const available = getAvailableWorkTypesForAsset(asset);
+  return (wt) => available.some(a => a.id === wt.id);
 };
 
 const getAssetApiParams = (workType) => {
@@ -269,7 +295,14 @@ onMounted(() => {
                       :initial-value="trade.work_type || ''"
                       placeholder="유형 선택"
                       :id="`work_type_${index}`"
-                      @select="(item) => trade.work_type = String(item.work_type || '')"
+                      :filter-fn="getWorkTypeFilter(trade)"
+                      @select="(item) => {
+                        trade.work_type = String(item.work_type || '');
+                        const config = getWorkTypeConfig(trade.work_type);
+                        if (config && config.fixedCjId === 'no-change' && trade.asset_in_user) {
+                          trade.cj_id = trade.asset_in_user;
+                        }
+                      }"
                     />
                   </td>
                   <td>

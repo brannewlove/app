@@ -4,8 +4,16 @@ import importApi from '../api/import';
 import filterApi from '../api/filters';
 
 const loading = ref(false);
-const result = ref(null);
-const error = ref(null);
+
+// 섹션별 상태 관리
+const assetResult = ref(null);
+const assetError = ref(null);
+const userResult = ref(null);
+const userError = ref(null);
+const backupResult = ref(null);
+const backupError = ref(null);
+const filterResult = ref(null);
+const filterError = ref(null);
 
 const assetFile = ref(null);
 const userFile = ref(null);
@@ -69,14 +77,14 @@ const handleImport = async (type) => {
     if (type === 'assets') {
         if (assetInputMode.value === 'file') {
             if (!assetFile.value) {
-                error.value = '파일을 선택해주세요.';
+                assetError.value = '파일을 선택해주세요.';
                 return;
             }
             const text = await readFile(assetFile.value);
             data = parseTSV(text);
         } else {
             if (!assetPasteData.value.trim()) {
-                error.value = 'TSV 데이터를 입력해주세요.';
+                assetError.value = 'TSV 데이터를 입력해주세요.';
                 return;
             }
             data = parseTSV(assetPasteData.value);
@@ -84,14 +92,14 @@ const handleImport = async (type) => {
     } else {
         if (userInputMode.value === 'file') {
             if (!userFile.value) {
-                error.value = '파일을 선택해주세요.';
+                userError.value = '파일을 선택해주세요.';
                 return;
             }
             const text = await readFile(userFile.value);
             data = parseTSV(text);
         } else {
             if (!userPasteData.value.trim()) {
-                error.value = 'TSV 데이터를 입력해주세요.';
+                userError.value = 'TSV 데이터를 입력해주세요.';
                 return;
             }
             data = parseTSV(userPasteData.value);
@@ -99,8 +107,13 @@ const handleImport = async (type) => {
     }
 
     loading.value = true;
-    error.value = null;
-    result.value = null;
+    if (type === 'assets') {
+        assetError.value = null;
+        assetResult.value = null;
+    } else {
+        userError.value = null;
+        userResult.value = null;
+    }
 
     try {
         
@@ -111,19 +124,27 @@ const handleImport = async (type) => {
         let response;
         if (type === 'assets') {
             response = await importApi.importAssets(data);
+            assetResult.value = {
+                total: response.total || data.length,
+                inserted: response.inserted || 0,
+                updated: response.updated || 0,
+                message: response.message || '업로드 성공'
+            };
         } else {
             response = await importApi.importUsers(data);
+            userResult.value = {
+                total: response.total || data.length,
+                inserted: response.inserted || 0,
+                updated: response.updated || 0,
+                message: response.message || '업로드 성공'
+            };
         }
-
-        result.value = {
-            type: type === 'assets' ? 'import-assets' : 'import-users',
-            total: response.total || data.length,
-            inserted: response.inserted || 0,
-            updated: response.updated || 0,
-            message: response.message || '업로드 성공'
-        };
     } catch (err) {
-        error.value = err.message || '업로드 중 오류가 발생했습니다.';
+        if (type === 'assets') {
+            assetError.value = err.message || '자산 업로드 중 오류가 발생했습니다.';
+        } else {
+            userError.value = err.message || '사용자 업로드 중 오류가 발생했습니다.';
+        }
         console.error('Import error:', err);
     } finally {
         loading.value = false;
@@ -157,7 +178,7 @@ const toggleAutoBackup = async () => {
             throw new Error(data.error);
         }
     } catch (err) {
-        error.value = '설정 저장 중 오류가 발생했습니다: ' + err.message;
+        filterError.value = '설정 저장 중 오류가 발생했습니다: ' + err.message;
     }
 };
 
@@ -206,9 +227,9 @@ const deleteFilter = async (id) => {
         loading.value = true;
         await filterApi.deleteFilter(id);
         await fetchFilters();
-        result.value = { message: '필터가 삭제되었습니다.', type: 'filter' };
+        filterResult.value = { message: '필터가 삭제되었습니다.' };
     } catch (err) {
-        error.value = '필터 삭제 실패: ' + err.message;
+        filterError.value = '필터 삭제 실패: ' + err.message;
     } finally {
         loading.value = false;
     }
@@ -242,9 +263,9 @@ const saveFilterChanges = async () => {
         }
         
         await fetchFilters();
-        result.value = { message: '필터 설정이 저장되었습니다.', type: 'filter' };
+        filterResult.value = { message: '필터 설정이 저장되었습니다.' };
     } catch (err) {
-        error.value = '설정 저장 중 오류 발생: ' + err.message;
+        filterError.value = '설정 저장 중 오류 발생: ' + err.message;
     } finally {
         loading.value = false;
     }
@@ -256,26 +277,24 @@ onMounted(() => {
 });
 
 const handleManualBackup = async () => {
-    loading.value = true;
-    error.value = null;
-    result.value = null;
-
     try {
+        loading.value = true;
+        backupError.value = null;
+        backupResult.value = null;
         const response = await fetch('/api/backup/manual', {
             method: 'POST'
         });
         const data = await response.json();
 
         if (data.success) {
-            result.value = {
-                message: `백업 성공! 파일명: ${data.data.fileName}`,
-                type: 'backup'
+            backupResult.value = {
+                message: `백업 성공! 파일명: ${data.data.fileName}`
             };
         } else {
             throw new Error(data.error || '백업 실패');
         }
     } catch (err) {
-        error.value = '구글 시트 백업 중 오류가 발생했습니다: ' + err.message;
+        backupError.value = '구글 시트 백업 중 오류가 발생했습니다: ' + err.message;
     } finally {
         loading.value = false;
     }
@@ -290,11 +309,11 @@ const handleManualBackup = async () => {
         <div class="management-grid">
             <!-- 자산 임포트 섹션 -->
             <div class="import-card">
-                <div v-if="result && result.type === 'import-assets'" class="alert alert-success mb-15">
-                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
+                <div v-if="assetResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ assetResult.message }}
                 </div>
-                <div v-if="error && error.includes('자산')" class="alert alert-error mb-15">
-                    ❌ {{ error }}
+                <div v-if="assetError" class="alert alert-error mb-15">
+                    ❌ {{ assetError }}
                 </div>
                 <div class="card-header">
                     <span class="icon">
@@ -357,11 +376,11 @@ const handleManualBackup = async () => {
 
             <!-- 사용자 임포트 섹션 -->
             <div class="import-card">
-                <div v-if="result && result.type === 'import-users'" class="alert alert-success mb-15">
-                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
+                <div v-if="userResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ userResult.message }}
                 </div>
-                <div v-if="error && error.includes('사용자')" class="alert alert-error mb-15">
-                    ❌ {{ error }}
+                <div v-if="userError" class="alert alert-error mb-15">
+                    ❌ {{ userError }}
                 </div>
                 <div class="card-header">
                     <span class="icon">
@@ -424,11 +443,11 @@ const handleManualBackup = async () => {
 
             <!-- 구글 시트 백업 섹션 -->
             <div class="import-card backup-card">
-                <div v-if="result && result.type === 'backup'" class="alert alert-success mb-15">
-                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
+                <div v-if="backupResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ backupResult.message }}
                 </div>
-                <div v-if="error && error.includes('백업')" class="alert alert-error mb-15">
-                    ❌ {{ error }}
+                <div v-if="backupError" class="alert alert-error mb-15">
+                    ❌ {{ backupError }}
                 </div>
                 <div class="card-header">
                     <span class="icon">
@@ -440,8 +459,8 @@ const handleManualBackup = async () => {
                     <div class="backup-info">
                         <p>현재 DB를 구글 시트로 백업합니다.</p>
                         <ul>
-                            <li>매일 <strong>13:00</strong> 자동 백업</li>
-                            <li>최근 <strong>50개</strong> 파일 유지</li>
+                            <li>매일 <strong>13:00, 18:00</strong> 자동 백업</li>
+                            <li>최근 <strong>200개</strong> 파일 유지</li>
                         </ul>
                     </div>
                     
@@ -468,11 +487,11 @@ const handleManualBackup = async () => {
 
             <!-- 저장된 필터 관리 섹션 -->
             <div class="import-card">
-                <div v-if="result && result.type === 'filter'" class="alert alert-success mb-15">
-                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ result.message }}
+                <div v-if="filterResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ filterResult.message }}
                 </div>
-                <div v-if="error && error.includes('필터')" class="alert alert-error mb-15">
-                    ❌ {{ error }}
+                <div v-if="filterError" class="alert alert-error mb-15">
+                    ❌ {{ filterError }}
                 </div>
                 <div class="card-header">
                     <span class="icon">

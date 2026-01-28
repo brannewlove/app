@@ -68,18 +68,21 @@ app.use('/db-test', dbTestRouter);
 
 const pool = require('./utils/db');
 
-// 매일 13:00 자동 백업 스케줄 등록
-cron.schedule('0 13 * * *', async () => {
+// 매일 13:00, 18:00 자동 백업 스케줄 등록
+cron.schedule('0 13,18 * * *', async () => {
   try {
+    const now = new Date();
+    const currentHour = now.getHours();
+
     // DB에서 자동 백업 활성화 여부 확인
     const [rows] = await pool.query("SELECT s_value FROM settings WHERE s_key = 'auto_backup_enabled'");
     const isEnabled = rows.length > 0 ? rows[0].s_value === 'true' : true;
 
     if (isEnabled) {
-      console.log('Scheduled Backup: 13:00 (Enabled)');
+      console.log(`Scheduled Backup: ${currentHour}:00 (Enabled)`);
       await runBackup();
     } else {
-      console.log('Scheduled Backup: 13:00 (Skipped - Disabled in settings)');
+      console.log(`Scheduled Backup: ${currentHour}:00 (Skipped - Disabled in settings)`);
     }
   } catch (err) {
     console.error('Scheduled backup failed:', err);

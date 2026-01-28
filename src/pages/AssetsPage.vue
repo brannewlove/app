@@ -21,6 +21,9 @@ import {
   getAvailableWorkTypesForAsset 
 } from '../constants/workTypes';
 
+const router = useRouter();
+const route = useRoute();
+
 const assets = ref([]);
 const loading = ref(false);
 const error = ref(null);
@@ -596,6 +599,16 @@ const saveAsset = async () => {
   }
 };
 
+
+const goToTradeSearch = () => {
+  if (!selectedAsset.value || !selectedAsset.value.asset_number) return;
+  router.push({
+    name: 'Trades',
+    query: { search: selectedAsset.value.asset_number }
+  });
+  closeModal();
+};
+
 const getTableHeaders = (data) => {
   if (data.length === 0) return [];
   
@@ -734,7 +747,6 @@ const getExpirationClass = (asset) => {
   return '';
 };
 
-const route = useRoute();
 
 onMounted(() => {
   fetchAssets();
@@ -808,7 +820,13 @@ onMounted(() => {
               <img v-else src="/images/checkmark.png" alt="copied" class="checkmark-icon" />
             </button>
           </div>
-          <button @click="closeModal" class="close-btn">✕</button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <button v-if="selectedAsset" class="btn-trade-search" @click="goToTradeSearch">
+              <img src="/images/go.png" alt="search" class="btn-icon-custom" />
+              거래검색
+            </button>
+            <button @click="closeModal" class="close-btn">✕</button>
+          </div>
         </div>
         
         <div class="modal-body">
@@ -1548,6 +1566,33 @@ onMounted(() => {
 
 .btn-and:hover { background: #2d3748; }
 .btn-or:hover { background: #4a5568; }
+
+.btn-trade-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--brand-blue, #0052CC);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-trade-search:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-icon-custom {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
 
 .bold-text {
   font-weight: 700;
