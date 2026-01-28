@@ -14,6 +14,7 @@ const props = defineProps({
 
 import { useTable } from '../composables/useTable';
 import { formatDateTime } from '../utils/dateUtils';
+import TablePagination from './TablePagination.vue';
 
 const emit = defineEmits(['download', 'track-asset', 'cancel-trade', 'register-trade']);
 
@@ -146,11 +147,14 @@ const download = () => {
         </table>
       </div>
 
-      <div style="margin-top: 20px; text-align: center;">
-        <button v-if="currentPage > 1" @click="prevPage" class="btn btn-pagination">이전</button>
-        <button v-for="page in pageNumbers" :key="page" @click="goToPage(page)" :class="{ active: currentPage === page }" class="btn btn-page">{{ page }}</button>
-        <button v-if="currentPage < totalPages" @click="nextPage" class="btn btn-pagination">다음</button>
-      </div>
+      <TablePagination 
+        :current-page="currentPage" 
+        :total-pages="totalPages" 
+        :page-numbers="pageNumbers"
+        @prev="prevPage"
+        @next="nextPage"
+        @go-to="goToPage"
+      />
     </div>
     <div v-else class="empty-state">
       거래가 없습니다.

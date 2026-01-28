@@ -223,6 +223,21 @@ export const WORK_TYPES = [
         }
     },
     {
+        id: '입고-모델교체',
+        work_type: '입고-모델교체',
+        description: '모델 변경으로 인한 기존 자산 입고',
+        category: '입고',
+        fixedCjId: 'cjenc_inno',
+        displayFixedUser: '회사 입고 (자동)',
+        allowedStates: ['useable'],
+        sourceType: 'user',
+        validate: ({ asset_state, asset_in_user }) => {
+            if (!isHold(asset_state) && asset_in_user === 'cjenc_inno') return { valid: false, message: `이미 회사 입고 상태(cjenc_inno)입니다.` };
+            if (!isHold(asset_state) && asset_state !== 'useable') return { valid: false, message: `상태가 "${asset_state}"입니다. "useable" 상태만 가능합니다.` };
+            return { valid: true };
+        }
+    },
+    {
         id: '입고-퇴사반납',
         work_type: '입고-퇴사반납',
         description: '퇴사자 자산 반납',
