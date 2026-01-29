@@ -7,6 +7,7 @@ import ChangeExportModal from '../components/ChangeExportModal.vue';
 import ReplacementExportModal from '../components/ReplacementExportModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
+import TradeActionModal from '../components/TradeActionModal.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 
@@ -21,10 +22,12 @@ const isTrackingOpen = ref(false);
 const trackingAssetNumber = ref('');
 const trackingModel = ref('');
 const trackingCategory = ref('');
+const trackingState = ref('');
 const trackingMemo = ref('');
 const isExportModalOpen = ref(false);
 const isReplacementExportOpen = ref(false);
-const isRegisterModalOpen = ref(false);
+const isRegisterModalOpen = ref(false); // 대량 등록용
+const isSingleRegisterOpen = ref(false); // 단일 등록용
 const registerAssetNumber = ref('');
 
 const isConfirmModalOpen = ref(false);
@@ -88,6 +91,7 @@ const handleTrackAsset = (trade) => {
   trackingAssetNumber.value = trade.asset_number;
   trackingModel.value = trade.model || '';
   trackingCategory.value = trade.category || '';
+  trackingState.value = trade.state || '';
   trackingMemo.value = trade.asset_memo || '';
   isTrackingOpen.value = true;
 };
@@ -96,12 +100,13 @@ const closeTrackingModal = () => {
   trackingAssetNumber.value = '';
   trackingModel.value = '';
   trackingCategory.value = '';
+  trackingState.value = '';
   trackingMemo.value = '';
 };
 
 const handleRegisterTrade = (trade) => {
   registerAssetNumber.value = trade.asset_number;
-  isRegisterModalOpen.value = true;
+  isSingleRegisterOpen.value = true;
 };
 
 const closeRegisterModal = () => {
@@ -191,6 +196,8 @@ const handleKeyDown = (e) => {
       isConfirmModalOpen.value = false;
     } else if (isRegisterModalOpen.value) {
       isRegisterModalOpen.value = false;
+    } else if (isSingleRegisterOpen.value) {
+      isSingleRegisterOpen.value = false;
     } else if (isTrackingOpen.value) {
       isTrackingOpen.value = false;
     } else if (isExportModalOpen.value) {
@@ -224,7 +231,7 @@ onUnmounted(() => {
         <div class="header-actions">
           <button @click="isRegisterModalOpen = true" class="btn btn-header btn-register">
             <img src="/images/edit.png" alt="add" class="btn-icon" />
-            + 거래 등록
+            + 거래
           </button>
           <button @click="isExportModalOpen = true" class="btn btn-header btn-export">
             변경 Export ({{ changeExportCount }})
@@ -245,6 +252,7 @@ onUnmounted(() => {
       :initial-asset-number="trackingAssetNumber"
       :initial-model="trackingModel"
       :initial-category="trackingCategory"
+      :initial-state="trackingState"
       :initial-memo="trackingMemo"
       @close="closeTrackingModal" 
     />
@@ -259,8 +267,13 @@ onUnmounted(() => {
     />
     <TradeRegisterModal 
       :is-open="isRegisterModalOpen" 
-      :initial-asset-number="registerAssetNumber"
-      @close="closeRegisterModal" 
+      @close="isRegisterModalOpen = false" 
+      @success="fetchTrades"
+    />
+    <TradeActionModal
+      :is-open="isSingleRegisterOpen"
+      :asset-number="registerAssetNumber"
+      @close="isSingleRegisterOpen = false"
       @success="fetchTrades"
     />
   </div>

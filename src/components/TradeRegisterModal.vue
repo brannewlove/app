@@ -30,6 +30,7 @@ const loading = ref(false);
 const error = ref(null);
 const successMessage = ref(null);
 const registeredTrades = ref([]);
+const currentAssetInfo = ref(null); // 현재 선택된 자산 정보 요약용
 
 // 자산 선택 시 처리
 const handleAssetSelect = (item, trade, index) => {
@@ -45,11 +46,25 @@ const handleAssetSelect = (item, trade, index) => {
     if (config && config.fixedCjId === 'no-change') {
       trade.cj_id = trade.asset_in_user;
     }
+
+    // 상단 요약 정보 업데이트 (첫 번째 행이거나 단일 자산 등록 시)
+    if (index === 0 || props.initialAssetNumber) {
+      currentAssetInfo.value = {
+        asset_number: item.asset_number,
+        category: item.category,
+        model: item.model,
+        state: item.state,
+        user_name: item.user_name || item.in_user,
+        user_part: item.user_part,
+        memo: item.memo
+      };
+    }
   }
 };
 
 // 초기 5개 행 생성
 const initializeForm = async () => {
+  currentAssetInfo.value = null;
   if (props.initialAssetNumber) {
     trades.value = [{ asset_number: props.initialAssetNumber }];
     try {
@@ -251,6 +266,19 @@ const submitTrades = async () => {
   }
 };
 
+const getAssetDisplayName = (state) => {
+  const stateMap = {
+    'useable': '가용',
+    'wait': '대기',
+    'hold': '홀드',
+    'rent': '대여중',
+    'repair': '수리중',
+    'termination': '반납완료',
+    'process-ter': '처리중'
+  };
+  return stateMap[state] || state;
+};
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) initializeForm();
 });
@@ -272,6 +300,30 @@ onMounted(() => {
         <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
         <div v-if="successMessage" class="alert alert-success"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ successMessage }}</div>
         <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 등록 중...</div>
+
+        <!-- 현재 자산 정보 요약 섹션 추가 -->
+        <div v-if="currentAssetInfo" class="asset-summary-banner">
+          <div class="summary-item">
+            <span class="summary-label">자산번호</span>
+            <span class="summary-value">{{ currentAssetInfo.asset_number }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">분류/모델</span>
+            <span class="summary-value">{{ currentAssetInfo.category }} / {{ currentAssetInfo.model }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">현재상태</span>
+            <span class="summary-value">{{ currentAssetInfo.state }}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">현재사용자</span>
+            <span class="summary-value">{{ currentAssetInfo.user_name || '-' }} <small v-if="currentAssetInfo.user_part">({{ currentAssetInfo.user_part }})</small></span>
+          </div>
+          <div v-if="currentAssetInfo.memo" class="summary-item full-width">
+            <span class="summary-label">자산메모</span>
+            <span class="summary-value memo-text">{{ currentAssetInfo.memo }}</span>
+          </div>
+        </div>
 
         <div class="register-section">
           <div class="table-container">
@@ -674,5 +726,48 @@ onMounted(() => {
 .status-footer {
   display: flex;
   justify-content: center;
+}
+
+/* 자산 요약 배너 스타일 */
+.asset-summary-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summary-item.full-width {
+  flex-basis: 100%;
+}
+
+.summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.memo-text {
+  font-weight: normal;
+  color: #666;
+  font-style: italic;
 }
 </style>

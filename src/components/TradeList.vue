@@ -68,7 +68,7 @@ const orderedColumns = computed(() => {
   const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
   const hiddenColumns = [
     'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
-    'cj_id', 'name', 'part', 'category', 
+    'cj_id', 'name', 'part', 'category', 'state',
     'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
     'created_at', 'updated_at'
   ];
@@ -81,6 +81,21 @@ const orderedColumns = computed(() => {
 const download = () => {
     emit('download', props.trades);
 }
+
+// 각 자산별 최신 거래 ID 맵핑
+const latestTradeIdsPerAsset = computed(() => {
+  const map = {};
+  props.trades.forEach(t => {
+    if (!map[t.asset_number] || t.trade_id > map[t.asset_number]) {
+      map[t.asset_number] = t.trade_id;
+    }
+  });
+  return map;
+});
+
+const isLatestTrade = (trade) => {
+  return latestTradeIdsPerAsset.value[trade.asset_number] === trade.trade_id;
+};
 </script>
 
 <template>
@@ -138,7 +153,12 @@ const download = () => {
             <td class="action-cell">
               <div style="display: flex; gap: 4px; justify-content: center;">
                 <button @click="emit('track-asset', trade)" class="btn-action btn-track">추적</button>
-                <button @click="emit('register-trade', trade)" class="btn-action btn-trade-action" title="신규 거래 등록">거래</button>
+                <button 
+                  @click="emit('register-trade', trade)" 
+                  class="btn-action btn-trade-action" 
+                  :disabled="!isLatestTrade(trade)"
+                  :title="isLatestTrade(trade) ? '신규 거래 등록' : '자산의 마지막 거래 내역만 새 거래 등록이 가능합니다'"
+                >+ 거래</button>
                 <button @click="emit('cancel-trade', trade)" class="btn-action btn-cancel">취소</button>
               </div>
             </td>
@@ -236,9 +256,15 @@ const download = () => {
   filter: brightness(0) invert(1);
 }
 
-.btn-action:hover {
+.btn-action:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.1);
+}
+
+.btn-action:disabled {
+  background: #ccc !important;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .bold-text {

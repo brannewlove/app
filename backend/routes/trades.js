@@ -11,6 +11,7 @@ router.get('/', async (req, res, next) => {
         t.*,
         a.model,
         a.category,
+        a.state,
         a.memo AS asset_memo,
         u.name,
         u.part,

@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
+import TradeActionModal from '../components/TradeActionModal.vue'; // 신규: 단일 거래용
+import TradeRegisterModal from '../components/TradeRegisterModal.vue'; // 대량 거래용
 import BulkAssetRegisterModal from '../components/BulkAssetRegisterModal.vue';
 import TablePagination from '../components/TablePagination.vue';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
@@ -165,16 +167,9 @@ const returnModalMessage = ref('');
 const returnModalType = ref('confirm'); // 'confirm', 'success', 'error'
 const pendingReturnAsset = ref(null);
 
-// 퀵 거래 등록 상태
+// 퀵 거래 등록 상태 -> 이제 전용 모달로 대체
 const isQuickTradeOpen = ref(false);
-const quickTradeForm = ref({
-  work_type: '',
-  cj_id: '',
-  cj_name: '',
-  memo: ''
-});
-const quickTradeSuccess = ref(null);
-const quickTradeError = ref(null);
+const isBulkTradeOpen = ref(false);
 
 // Saved Filters 상태
 const savedFilters = ref([]);
@@ -439,122 +434,14 @@ const handleRowClick = (asset) => {
   }
 };
 
+// closeModal은 단순히 자산 정보 모달만 닫음
 const closeModal = () => {
   isModalOpen.value = false;
   isEditMode.value = false;
   selectedAsset.value = null;
   editedAsset.value = null;
   isClickStartedOnOverlay.value = false;
-  closeQuickTrade();
 };
-
-const closeQuickTrade = () => {
-  isQuickTradeOpen.value = false;
-  quickTradeForm.value = {
-    work_type: '',
-    cj_id: '',
-    cj_name: '',
-    memo: ''
-  };
-  quickTradeSuccess.value = null;
-  quickTradeError.value = null;
-};
-
-// 퀵 거래 등록 관련 로직 (TradeRegisterPage에서 차용)
-
-const validateTradeForQuick = (trade, asset) => {
-  const { work_type } = trade;
-  if (!work_type) return { valid: false, message: '작업 유형을 선택해주세요.' };
-
-  // 1. 공통 유효성 검사 (Centralized)
-  const validation = validateTradeStrict(trade, asset);
-  if (!validation.valid) {
-    return validation;
-  }
-
-  // 2. 고정 사용자 자동 할당 체크 (유효성 검사 통과 후 할당)
-  if (isCjIdDisabled(work_type)) {
-    const fixedValue = getFixedCjId(work_type);
-    if (fixedValue === 'no-change') {
-      trade.cj_id = asset.in_user;
-    } else if (fixedValue) {
-      trade.cj_id = fixedValue;
-    }
-  }
-
-  return { valid: true };
-};
-
-const submitQuickTrade = async () => {
-  const asset = selectedAsset.value;
-  if (!asset) return;
-
-  const trade = { ...quickTradeForm.value };
-  trade.asset_number = asset.asset_number;
-  trade.ex_user = asset.in_user || '';
-
-  const validation = validateTradeForQuick(trade, asset);
-  if (!validation.valid) {
-    quickTradeError.value = validation.message;
-    return;
-  }
-
-  try {
-    loading.value = true;
-    quickTradeError.value = null;
-    quickTradeSuccess.value = null;
-
-    // 모달을 통해 등록 중임을 표시
-    returnModalMessage.value = '거래를 등록하고 있습니다. 잠시만 기다려 주세요...';
-    returnModalType.value = 'confirm'; // 'confirm' 상태에서 확인 버튼은 loading 중이면 비활성화됨
-    isReturnModalOpen.value = true;
-
-    const tradeForSubmit = {
-      work_type: trade.work_type,
-      asset_number: trade.asset_number,
-      cj_id: trade.cj_id,
-      ex_user: trade.ex_user,
-      memo: trade.memo,
-      asset_state: asset.state,
-      asset_in_user: asset.in_user,
-      asset_memo: asset.memo
-    };
-
-    const response = await axios.post('/api/trades', [tradeForSubmit]);
-
-    if (response.data.success) {
-      // 성공 상채로 업데이트
-      returnModalMessage.value = '거래가 성공적으로 등록 되었습니다.';
-      returnModalType.value = 'success';
-
-      // 자산 정보 다시 불러오기 (상태/보유자 변경 반영)
-      fetchAssetById(asset.asset_id);
-      fetchAssets(); 
-      
-      // 퀵 거래 입력창은 닫음
-      closeQuickTrade();
-    } else {
-      returnModalMessage.value = '등록 실패: ' + (response.data.error || '알 수 없는 오류');
-      returnModalType.value = 'error';
-    }
-  } catch (err) {
-    returnModalMessage.value = '등록 중 오류 발생: ' + (err.response?.data?.error || err.message);
-    returnModalType.value = 'error';
-  } finally {
-    loading.value = false;
-  }
-};
-
-// 작업 유형 필터링 로직 (자산 상태 및 보유자에 따라)
-const currentWorkTypeFilter = computed(() => {
-  const asset = selectedAsset.value;
-  if (!asset) return () => true;
-
-  const availableTypes = getAvailableWorkTypesForAsset(asset);
-  const availableTypeIds = new Set(availableTypes.map(wt => wt.id));
-
-  return (wt) => availableTypeIds.has(wt.work_type);
-});
 
 const handleOverlayMouseDown = (e) => {
   isClickStartedOnOverlay.value = e.target === e.currentTarget;
@@ -842,60 +729,12 @@ onMounted(() => {
               </div>
             </template>
           </div>
-
-          <!-- 퀵 거래 등록 섹션 -->
-          <div v-if="isQuickTradeOpen" class="quick-trade-section">
-            <h3><img src="/images/edit.png" alt="edit" class="header-icon-small" /> 거래 등록</h3>
-            <div v-if="quickTradeError" class="alert-small alert-error">{{ quickTradeError }}</div>
-            <div v-if="quickTradeSuccess" class="alert-small alert-success">{{ quickTradeSuccess }}</div>
-            
-            <div class="quick-trade-form">
-              <div class="form-row">
-                <div class="form-group flex-1">
-                  <label>작업 유형</label>
-                  <WorkTypeSearch
-                    id="quick-work-type"
-                    :initial-value="quickTradeForm.work_type"
-                    placeholder="작업 유형 선택"
-                    :filter-fn="currentWorkTypeFilter"
-                    @select="(item) => quickTradeForm.work_type = item.work_type"
-                  />
-                </div>
-                <div class="form-group flex-1">
-                  <label>CJ ID (사용자)</label>
-                  <div v-if="isCjIdDisabled(quickTradeForm.work_type)" class="fixed-user-display">
-                    {{ getFixedCjIdDisplay(quickTradeForm.work_type) }}
-                  </div>
-                  <AutocompleteSearch
-                    v-else
-                    id="quick-cj-id"
-                    :initial-value="quickTradeForm.cj_name || quickTradeForm.cj_id"
-                    placeholder="사용자 검색"
-                    api-table="users"
-                    api-column="cj_id"
-                    @select="(item) => {
-                      quickTradeForm.cj_id = item.cj_id;
-                      quickTradeForm.cj_name = item.name;
-                    }"
-                  />
-                </div>
-              </div>
-              <div class="form-group">
-                <label>거래메모</label>
-                <input v-model="quickTradeForm.memo" type="text" class="form-input" placeholder="거래 메모 입력" />
-              </div>
-              <div class="quick-trade-actions">
-                <button @click="submitQuickTrade" class="btn btn-modal btn-save" :disabled="loading">등록</button>
-                <button @click="isQuickTradeOpen = false" class="btn btn-modal btn-cancel">취소</button>
-              </div>
-            </div>
-          </div>
         </div>
         
         <div class="modal-footer">
-          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isQuickTradeOpen = true" class="btn btn-modal btn-trade">거래</button>
-          <button v-if="!isEditMode && !isQuickTradeOpen && selectedAsset" @click="isTrackingOpen = true" class="btn btn-modal btn-tracking">추적</button>
-          <button v-if="!isEditMode && !isQuickTradeOpen" @click="toggleEditMode" class="btn btn-modal btn-edit">수정</button>
+          <button v-if="!isEditMode && selectedAsset" @click="isQuickTradeOpen = true" class="btn btn-modal btn-trade">+ 거래</button>
+          <button v-if="!isEditMode && selectedAsset" @click="isTrackingOpen = true" class="btn btn-modal btn-tracking">추적</button>
+          <button v-if="!isEditMode" @click="toggleEditMode" class="btn btn-modal btn-edit">수정</button>
           <button v-if="isEditMode" @click="saveAsset" class="btn btn-modal btn-save">저장</button>
           <button v-if="isEditMode" @click="toggleEditMode" class="btn btn-modal btn-cancel">취소</button>
           <button @click="closeModal" class="btn btn-modal btn-close">닫기</button>
@@ -910,7 +749,7 @@ onMounted(() => {
           <h2>
             <span v-if="returnModalType === 'confirm'">
               <img v-if="loading" src="/images/hour-glass.png" alt="loading" class="loading-icon" />
-              {{ loading ? '처리 중...' : (quickTradeForm.work_type ? '거래 등록' : '반납 처리 확인') }}
+              {{ loading ? '처리 중...' : '반납 처리 확인' }}
             </span>
             <span v-else-if="returnModalType === 'success'"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> 완료</span>
             <span v-else>❌ 오류</span>
@@ -1107,8 +946,22 @@ onMounted(() => {
       :initial-asset-number="selectedAsset?.asset_number || ''"
       :initial-model="selectedAsset?.model || ''"
       :initial-category="selectedAsset?.category || ''"
+      :initial-state="selectedAsset?.state || ''"
       :initial-memo="selectedAsset?.memo || ''"
       @close="isTrackingOpen = false" 
+    />
+
+    <TradeActionModal 
+      :is-open="isQuickTradeOpen" 
+      :asset-number="selectedAsset?.asset_number || ''"
+      @close="isQuickTradeOpen = false" 
+      @success="() => { fetchAssetById(selectedAsset.asset_id); fetchAssets(); }"
+    />
+
+    <TradeRegisterModal 
+      :is-open="isBulkTradeOpen" 
+      @close="isBulkTradeOpen = false" 
+      @success="fetchAssets" 
     />
     
     <BulkAssetRegisterModal
@@ -1233,8 +1086,8 @@ onMounted(() => {
 .return-modal { max-width: 500px; }
 .return-message { font-size: 16px; line-height: 1.6; color: var(--text-main); text-align: center; padding: 20px 0; }
 
-.btn-confirm { background: #27ae60; color: white; }
-.btn-confirm:hover:not(:disabled) { background: #229954; }
+.btn-confirm { background: #458b45; color: white; }
+.btn-confirm:hover:not(:disabled) { background: #22663e; }
 
 /* 퀵 거래 등록 스타일 */
 .btn-trade { background: var(--brand-blue); color: white; }

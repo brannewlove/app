@@ -20,6 +20,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  initialState: {
+    type: String,
+    default: '',
+  },
   initialMemo: {
     type: String,
     default: '',
@@ -44,6 +48,7 @@ watch(() => props.isOpen, (newVal) => {
       asset_number: props.initialAssetNumber,
       model: props.initialModel,
       category: props.initialCategory,
+      state: props.initialState,
       memo: props.initialMemo
     };
     fetchTrackingLogs();
@@ -101,7 +106,7 @@ const fetchTrackingLogs = async () => {
 const copyAssetInfo = () => {
   if (!selectedAsset.value) return;
 
-  const { asset_number, category, model } = selectedAsset.value;
+  const { asset_number, category, model, state, memo } = selectedAsset.value;
   
   // HTML 버전 (요청하신 스타일 적용)
   const htmlTable = `
@@ -111,6 +116,7 @@ const copyAssetInfo = () => {
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산번호</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">분류</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">모델</th>
+          <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">상태</th>
           <th bgcolor="#bbbbbb" style="border: 1px solid #000000; padding: 10px; text-align: left; background-color: #bbbbbb; color: #000000;">자산메모</th>
         </tr>
       </thead>
@@ -119,14 +125,15 @@ const copyAssetInfo = () => {
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${asset_number || '-'}</td>
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${category || '-'}</td>
           <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${model || '-'}</td>
-          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${selectedAsset.value.memo || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${state || '-'}</td>
+          <td style="border: 1px solid #000000; padding: 10px; color: #000000;">${memo || '-'}</td>
         </tr>
       </tbody>
     </table>
   `;
 
   // 텍스트 버전 (Fallback)
-  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n자산메모: ${selectedAsset.value.memo || '-'}`;
+  const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n상태: ${state || '-'}\n자산메모: ${memo || '-'}`;
 
   const blobHtml = new Blob([htmlTable], { type: 'text/html' });
   const blobText = new Blob([plainText], { type: 'text/plain' });
@@ -202,6 +209,7 @@ const goToTradeSearch = () => {
             <p><strong>자산번호:</strong> {{ selectedAsset.asset_number }}</p>
             <p><strong>분류:</strong> {{ selectedAsset.category || '-' }}</p>
             <p><strong>모델:</strong> {{ selectedAsset.model || '-' }}</p>
+            <p><strong>상태:</strong> {{ selectedAsset.state || '-' }}</p>
             <p><strong>자산메모:</strong> {{ selectedAsset.memo || '-' }}</p>
           </div>
         </div>
@@ -328,6 +336,13 @@ const goToTradeSearch = () => {
 .arrow-icon {
   width: 20px;
   height: 20px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
   object-fit: contain;
   vertical-align: middle;
 }
