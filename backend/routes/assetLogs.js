@@ -4,15 +4,15 @@ const pool = require('../utils/db');
 const { success, error } = require('../utils/response');
 
 router.get('/', async (req, res) => {
-  const { asset_number } = req.query;
+    const { asset_number } = req.query;
 
-  if (!asset_number) {
-    return error(res, '자산번호가 필요합니다.', 400);
-  }
+    if (!asset_number) {
+        return error(res, '자산번호가 필요합니다.', 400);
+    }
 
-  try {
-    // 1. 먼저 해당 자산의 모든 거래 기록을 조회 (timestamp 기준)
-    const tradeQuery = `
+    try {
+        // 1. 먼저 해당 자산의 모든 거래 기록을 조회 (timestamp 기준)
+        const tradeQuery = `
       SELECT
         t.trade_id,
         t.asset_number,
@@ -25,56 +25,56 @@ router.get('/', async (req, res) => {
       FROM trade t
       LEFT JOIN users u1 ON t.cj_id = u1.cj_id
       LEFT JOIN users u2 ON t.ex_user = u2.cj_id
-      WHERE t.asset_number = ?
+      WHERE TRIM(t.asset_number) = TRIM(?) OR (LENGTH(?) >= 8 AND t.asset_number LIKE CONCAT('%', ?))
       ORDER BY t.timestamp ASC
     `;
 
-    const [trades] = await pool.query(tradeQuery, [asset_number]);
+        const [trades] = await pool.query(tradeQuery, [asset_number, asset_number, asset_number]);
 
-    let results = [];
+        let results = [];
 
-    if (trades.length > 0) {
-      // 거래 기록이 있는 경우
+        if (trades.length > 0) {
+            // 거래 기록이 있는 경우
 
-      // 첫 번째 거래의 이전 사용자(ex_user)를 최초 보유자로 추가 (있을 경우만)
-      const firstTrade = trades[0];
-      if (firstTrade.ex_user && firstTrade.ex_user !== 'cjenc_inno' && firstTrade.ex_user !== 'aj_rent') {
-        results.push({
-          trade_id: 0,
-          asset_number: firstTrade.asset_number,
-          work_type: '기존 보유자',
-          cj_id: firstTrade.ex_user,
-          user_name: firstTrade.ex_user_name || firstTrade.ex_user,
-          timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
-        });
-      } else if (firstTrade.work_type.includes('신규')) {
-        // 신규라면 '자산 등록' 등으로 표시? 일단 첫 거래부터 보여줌
-      } else if (firstTrade.ex_user === 'cjenc_inno') {
-        // 회사 입고 상태에서 시작된 경우
-        results.push({
-          trade_id: 0,
-          asset_number: firstTrade.asset_number,
-          work_type: '자산 등록',
-          cj_id: 'cjenc_inno',
-          user_name: '건설경영혁신',
-          timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
-        });
-      }
+            // 첫 번째 거래의 이전 사용자(ex_user)를 최초 보유자로 추가 (있을 경우만)
+            const firstTrade = trades[0];
+            if (firstTrade.ex_user && firstTrade.ex_user !== 'cjenc_inno' && firstTrade.ex_user !== 'aj_rent') {
+                results.push({
+                    trade_id: 0,
+                    asset_number: firstTrade.asset_number,
+                    work_type: '기존 보유자',
+                    cj_id: firstTrade.ex_user,
+                    user_name: firstTrade.ex_user_name || firstTrade.ex_user,
+                    timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
+                });
+            } else if (firstTrade.work_type.includes('신규')) {
+                // 신규라면 '자산 등록' 등으로 표시? 일단 첫 거래부터 보여줌
+            } else if (firstTrade.ex_user === 'cjenc_inno') {
+                // 회사 입고 상태에서 시작된 경우
+                results.push({
+                    trade_id: 0,
+                    asset_number: firstTrade.asset_number,
+                    work_type: '자산 등록',
+                    cj_id: 'cjenc_inno',
+                    user_name: '건설경영혁신',
+                    timestamp: new Date(new Date(firstTrade.timestamp).getTime() - 1000).toISOString()
+                });
+            }
 
-      // 모든 거래 내역 추가
-      trades.forEach(t => {
-        results.push({
-          trade_id: t.trade_id,
-          asset_number: t.asset_number,
-          work_type: t.work_type,
-          cj_id: t.cj_id,
-          user_name: t.user_name || (t.cj_id === 'cjenc_inno' ? '건설경영혁신' : (t.cj_id === 'aj_rent' ? 'AJ랜탈' : t.cj_id)),
-          timestamp: t.timestamp
-        });
-      });
-    } else {
-      // 거래 기록이 아예 없는 경우에만 assets 테이블 정보를 기초 데이터로 사용
-      const assetQuery = `
+            // 모든 거래 내역 추가
+            trades.forEach(t => {
+                results.push({
+                    trade_id: t.trade_id,
+                    asset_number: t.asset_number,
+                    work_type: t.work_type,
+                    cj_id: t.cj_id,
+                    user_name: t.user_name || (t.cj_id === 'cjenc_inno' ? '건설경영혁신' : (t.cj_id === 'aj_rent' ? 'AJ랜탈' : t.cj_id)),
+                    timestamp: t.timestamp
+                });
+            });
+        } else {
+            // 거래 기록이 아예 없는 경우에만 assets 테이블 정보를 기초 데이터로 사용
+            const assetQuery = `
         SELECT 
           0 as trade_id,
           a.asset_number,
@@ -84,23 +84,23 @@ router.get('/', async (req, res) => {
           COALESCE(a.day_of_start, '2000-01-01') as timestamp
         FROM assets a
         LEFT JOIN users u ON a.in_user = u.cj_id
-        WHERE a.asset_number = ?
+        WHERE TRIM(a.asset_number) = TRIM(?) OR (LENGTH(?) >= 8 AND a.asset_number LIKE CONCAT('%', ?))
       `;
-      const [assetRows] = await pool.query(assetQuery, [asset_number]);
-      results = assetRows;
-    }
+            const [assetRows] = await pool.query(assetQuery, [asset_number, asset_number, asset_number]);
+            results = assetRows;
+        }
 
-    success(res, results);
-  } catch (err) {
-    console.error('자산 로그 조회 오류:', err);
-    error(res, '자산 로그 조회 중 오류 발생: ' + err.message);
-  }
+        success(res, results);
+    } catch (err) {
+        console.error('자산 로그 조회 오류:', err);
+        error(res, '자산 로그 조회 중 오류 발생: ' + err.message);
+    }
 });
 
 // 모든 자산의 현재 사용자 조회 (가장 최근 거래 기준)
 router.get('/currentUsers', async (req, res) => {
-  try {
-    const query = `
+    try {
+        const query = `
       SELECT 
         t.asset_number,
         t.cj_id,
@@ -129,12 +129,12 @@ router.get('/currentUsers', async (req, res) => {
       ORDER BY t.timestamp ASC
     `;
 
-    const [rows] = await pool.query(query);
-    success(res, rows);
-  } catch (err) {
-    console.error('현재 사용자 조회 오류:', err);
-    error(res, '현재 사용자 조회 중 오류 발생: ' + err.message);
-  }
+        const [rows] = await pool.query(query);
+        success(res, rows);
+    } catch (err) {
+        console.error('현재 사용자 조회 오류:', err);
+        error(res, '현재 사용자 조회 중 오류 발생: ' + err.message);
+    }
 });
 
 module.exports = router;

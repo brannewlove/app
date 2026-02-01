@@ -56,6 +56,23 @@ class UserService extends BaseService {
         };
     }
 
+    async getUserByCjIdWithAssets(cjId) {
+        const user = await this.findById(cjId, 'cj_id');
+        if (!user) {
+            return null;
+        }
+
+        const [assetCounts] = await this.pool.query(
+            'SELECT category, COUNT(*) as count FROM assets WHERE in_user = ? GROUP BY category',
+            [user.cj_id]
+        );
+
+        return {
+            ...user,
+            asset_counts: assetCounts
+        };
+    }
+
     async registerTemporaryUser(name) {
         if (!name || !name.trim()) {
             throw new Error('이름을 입력해주세요.');

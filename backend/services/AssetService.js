@@ -64,8 +64,8 @@ class AssetService extends BaseService {
         u.part as user_part
       FROM assets a
       LEFT JOIN users u ON a.in_user = u.cj_id
-      WHERE a.asset_number = ?`,
-            [assetNumber]
+      WHERE TRIM(a.asset_number) = TRIM(?) OR (LENGTH(?) >= 8 AND a.asset_number LIKE CONCAT('%', ?))`,
+            [assetNumber, assetNumber, assetNumber]
         );
         return asset[0];
     }
@@ -141,7 +141,7 @@ class AssetService extends BaseService {
                 };
 
                 const assetData = {
-                    asset_number: item.asset_number,
+                    asset_number: item.asset_number ? String(item.asset_number).trim() : '',
                     category: item.category,
                     model: item.model,
                     serial_number: item.serial_number || '',

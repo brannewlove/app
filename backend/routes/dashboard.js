@@ -49,10 +49,15 @@ router.get('/', async (req, res) => {
                 t.*,
                 a.model,
                 a.category
-            FROM trade t
-            LEFT JOIN assets a ON t.asset_number = a.asset_number
-            ORDER BY t.trade_id DESC
-            LIMIT 5
+            FROM (
+                SELECT * FROM trade 
+                ORDER BY trade_id DESC 
+                LIMIT 5
+            ) t
+            LEFT JOIN assets a ON (
+                TRIM(t.asset_number) = TRIM(a.asset_number) 
+                OR (LENGTH(t.asset_number) >= 8 AND a.asset_number LIKE CONCAT('%', t.asset_number))
+            )
         `);
         results.recent_trades = recentTrades;
 
@@ -74,10 +79,10 @@ router.get('/', async (req, res) => {
 
         const getCategoryKey = (wt) => {
             if (!wt) return 'other';
-            if (wt.includes('신규')) return 'new';
             if (wt.startsWith('입고')) return 'in';
             if (wt.startsWith('출고')) return 'out';
             if (wt.startsWith('반납')) return 'ret';
+            if (wt.includes('신규')) return 'new';
             return 'other';
         };
 

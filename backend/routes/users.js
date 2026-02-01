@@ -27,6 +27,22 @@ router.get('/', async (req, res) => {
   }
 });
 
+/* GET user by cj_id - CJ ID로 특정 사용자 조회 */
+router.get('/cj/:cjId', async (req, res) => {
+  try {
+    console.log('Fetching user by CJ ID:', req.params.cjId);
+    const userData = await userService.getUserByCjIdWithAssets(req.params.cjId);
+    if (!userData) {
+      console.log('User not found for CJ ID:', req.params.cjId);
+      return error(res, '사용자를 찾을 수 없습니다.', 404);
+    }
+    success(res, userData);
+  } catch (err) {
+    console.error('Error fetching user by CJ ID:', err);
+    error(res, err.message);
+  }
+});
+
 /* GET user by id - ID로 특정 사용자 조회 */
 router.get('/:id', async (req, res) => {
   try {
