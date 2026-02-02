@@ -7,7 +7,7 @@ const { success, error } = require('../utils/response');
 router.get('/', async (req, res, next) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 100;
+        const limit = parseInt(req.query.limit) || 10000;
         const offset = (page - 1) * limit;
         const search = req.query.search || '';
         const sort = req.query.sort || 'trade_id';
@@ -222,7 +222,6 @@ router.post('/', async (req, res, next) => {
                         case '입고-퇴사반납':
                         case '입고-임의반납':
                         case '입고-대여반납':
-                        case '입고-재사용':
                             // Many of these are same: set to cjenc_inno/useable
                             let targetInUser = 'cjenc_inno';
                             let targetState = 'useable';
@@ -237,6 +236,9 @@ router.post('/', async (req, res, next) => {
                                     [targetInUser, targetState, asset_number]
                                 );
                             }
+                            // 거래 기록에도 고정 사용자 반영
+                            insertData.cj_id = targetInUser;
+                            cj_id = targetInUser;
                             break;
                         case '입고-휴직반납':
                         case '입고-재입사예정':
@@ -262,6 +264,9 @@ router.post('/', async (req, res, next) => {
                                 'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
                                 ['aj_rent', 'termination', asset_number]
                             );
+                            // 거래 기록에도 고정 사용자 반영
+                            insertData.cj_id = 'aj_rent';
+                            cj_id = 'aj_rent';
                             break;
                         case '이동':
                             await connection.query(

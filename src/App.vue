@@ -131,7 +131,7 @@ watch(() => router.currentRoute.value.path, () => {
       <div class="navbar-container">
         <div class="navbar-brand">
           <router-link to="/" class="brand-link">
-            <h1>관리 시스템_dev</h1>
+            <h1>관리 시스템</h1>
           </router-link>
         </div>
         <ul class="navbar-menu">

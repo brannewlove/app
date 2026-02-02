@@ -57,6 +57,7 @@ const fetchAssetDetail = async () => {
         category: asset.category,
         model: asset.model,
         state: asset.state,
+        in_user: asset.in_user,
         user_name: asset.user_name || asset.in_user,
         user_part: asset.user_part,
         memo: asset.memo
@@ -81,10 +82,14 @@ const fetchAssetDetail = async () => {
 const handleWorkTypeSelect = (item) => {
   trade.value.work_type = String(item.work_type || '');
   const config = getWorkTypeConfig(trade.value.work_type);
-  if (config && config.fixedCjId === 'no-change') {
-    trade.value.cj_id = trade.value.asset_in_user;
-  } else if (config && config.fixedCjId && config.fixedCjId !== 'no-change') {
-    trade.value.cj_id = config.fixedCjId;
+  if (config && config.fixedCjId) {
+    if (config.fixedCjId === 'no-change') {
+      trade.value.cj_id = trade.value.asset_in_user;
+      trade.value.cj_name = ''; // 고정 사용자일 경우 이름 초기화 또는 필요시 처리
+    } else {
+      trade.value.cj_id = config.fixedCjId;
+      trade.value.cj_name = config.displayFixedUser || '';
+    }
   }
 };
 
@@ -176,7 +181,10 @@ const getWorkTypeFilter = () => {
   if (!currentAssetInfo.value) return null;
   const asset = { state: currentAssetInfo.value.state, in_user: currentAssetInfo.value.user_id || currentAssetInfo.value.user_name }; // Simplified
   // getAvailableWorkTypesForAsset uses state and in_user correctly
-  return (wt) => getAvailableWorkTypesForAsset(currentAssetInfo.value).some(a => a.id === wt.id);
+  return (wt) => getAvailableWorkTypesForAsset({
+    state: currentAssetInfo.value.state,
+    in_user: currentAssetInfo.value.in_user
+  }).some(a => a.id === wt.id);
 };
 </script>
 

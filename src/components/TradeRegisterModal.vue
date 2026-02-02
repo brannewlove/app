@@ -41,10 +41,14 @@ const handleAssetSelect = (item, trade, index) => {
     trade.asset_in_user = String(item.in_user || '');
     trade.asset_memo = String(item.memo || '');
 
-    // 보유자 유지 작업인 경우 cj_id 자동 채움
+    // 고정 사용자 설정 처리
     const config = getWorkTypeConfig(trade.work_type);
-    if (config && config.fixedCjId === 'no-change') {
-      trade.cj_id = trade.asset_in_user;
+    if (config && config.fixedCjId) {
+      if (config.fixedCjId === 'no-change') {
+        trade.cj_id = trade.asset_in_user;
+      } else {
+        trade.cj_id = config.fixedCjId;
+      }
     }
 
     // 상단 요약 정보 업데이트 (첫 번째 행이거나 단일 자산 등록 시)
@@ -54,6 +58,7 @@ const handleAssetSelect = (item, trade, index) => {
         category: item.category,
         model: item.model,
         state: item.state,
+        in_user: item.in_user,
         user_name: item.user_name || item.in_user,
         user_part: item.user_part,
         memo: item.memo
@@ -130,9 +135,8 @@ const validateAssetForWorkType = (item, workType) => {
   // For autocomplete validation, we mostly care about asset state mismatch.
   // Let's modify usage: ignore 'cj_id missing' error if our goal is just checking asset compatibility.
   
-  const result = validateTradeStrict(tradeMock, assetMock);
+  const result = validateTradeStrict(tradeMock, assetMock, { skipCjIdCheck: true });
   if (!result.valid) {
-    if (result.message.includes('CJ ID')) return { valid: true };
     return result;
   }
   return { valid: true };
@@ -351,8 +355,12 @@ onMounted(() => {
                       @select="(item) => {
                         trade.work_type = String(item.work_type || '');
                         const config = getWorkTypeConfig(trade.work_type);
-                        if (config && config.fixedCjId === 'no-change' && trade.asset_in_user) {
-                          trade.cj_id = trade.asset_in_user;
+                        if (config && config.fixedCjId) {
+                          if (config.fixedCjId === 'no-change') {
+                            if (trade.asset_in_user) trade.cj_id = trade.asset_in_user;
+                          } else {
+                            trade.cj_id = config.fixedCjId;
+                          }
                         }
                       }"
                     />

@@ -74,7 +74,7 @@ const fetchTrades = async () => {
     const response = await fetch('/api/trades');
     const result = await response.json();
     if (result.success) {
-      trades.value = result.data;
+      trades.value = result.data.data;
     } else {
       error.value = result.message || '거래 로드 실패';
     }
