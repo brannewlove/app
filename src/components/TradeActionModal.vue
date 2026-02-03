@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 import WorkTypeSearch from './WorkTypeSearch.vue';
+import UserDetailModal from './UserDetailModal.vue';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
@@ -42,6 +43,22 @@ const trade = ref({
 });
 
 const currentAssetInfo = ref(null);
+const isUserDetailOpen = ref(false);
+const userDetailCjId = ref('');
+
+const openUserDetail = (cjId) => {
+  if (!cjId || cjId === 'cjenc_inno') return;
+  emit('close'); // 현재 모달 닫기
+  userDetailCjId.value = cjId;
+  isUserDetailOpen.value = true;
+};
+
+const copyCurrentUserToInput = () => {
+  if (currentAssetInfo.value && currentAssetInfo.value.in_user) {
+    trade.value.cj_id = currentAssetInfo.value.in_user;
+    trade.value.cj_name = currentAssetInfo.value.user_name || currentAssetInfo.value.in_user;
+  }
+};
 
 const fetchAssetDetail = async () => {
   if (!props.assetNumber) return;
@@ -214,7 +231,17 @@ const getWorkTypeFilter = () => {
             <span class="summary-value">{{ currentAssetInfo.state }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">현재사용자</span>
+            <span class="summary-label">
+              현재사용자
+              <button 
+                v-if="currentAssetInfo?.in_user && currentAssetInfo.in_user !== 'cjenc_inno'" 
+                class="btn-user-copy-tiny" 
+                @click="copyCurrentUserToInput"
+                title="현재사용자를 입력란으로 복사"
+              >
+                <img src="/images/down_arrow.png" alt="copy user" class="copy-icon-tiny" />
+              </button>
+            </span>
             <span class="summary-value">{{ currentAssetInfo.user_name || '-' }} <small v-if="currentAssetInfo.user_part">({{ currentAssetInfo.user_part }})</small></span>
           </div>
           <div v-if="currentAssetInfo.memo" class="summary-item full-width">
@@ -286,6 +313,12 @@ const getWorkTypeFilter = () => {
         </button>
       </div>
     </div>
+
+    <UserDetailModal
+      :is-open="isUserDetailOpen"
+      :cj-id="userDetailCjId"
+      @close="isUserDetailOpen = false"
+    />
   </div>
 </template>
 
@@ -438,5 +471,52 @@ const getWorkTypeFilter = () => {
   height: 20px;
   vertical-align: middle;
   margin-right: 8px;
+}
+.btn-user-link-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: opacity 0.2s;
+}
+
+.btn-user-link-tiny:hover {
+  opacity: 0.7;
+}
+
+.link-icon-tiny {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0.6);
+}
+
+.btn-user-copy-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 6px;
+  vertical-align: middle;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.btn-user-copy-tiny:hover {
+  opacity: 0.7;
+  transform: translateY(1px);
+}
+
+.copy-icon-tiny {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 </style>

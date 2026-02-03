@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import AutocompleteSearch from './AutocompleteSearch.vue';
 import WorkTypeSearch from './WorkTypeSearch.vue';
+import UserDetailModal from './UserDetailModal.vue';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
@@ -31,6 +32,34 @@ const error = ref(null);
 const successMessage = ref(null);
 const registeredTrades = ref([]);
 const currentAssetInfo = ref(null); // 현재 선택된 자산 정보 요약용
+const isUserDetailOpen = ref(false);
+const userDetailCjId = ref('');
+
+const openUserDetail = (cjId) => {
+  if (!cjId || cjId === 'cjenc_inno') return;
+  emit('close'); // 현재 모달 닫기
+  userDetailCjId.value = cjId;
+  isUserDetailOpen.value = true;
+};
+
+const copyCurrentUserToInput = () => {
+  if (currentAssetInfo.value && currentAssetInfo.value.in_user) {
+    // 요약 섹션의 자산 번호와 일치하는 행을 찾아 사용자 정보 복사
+    const targetAssetNumber = currentAssetInfo.value.asset_number;
+    trades.value.forEach(trade => {
+      if (trade.asset_number === targetAssetNumber) {
+        trade.cj_id = currentAssetInfo.value.in_user;
+        trade.cj_name = currentAssetInfo.value.user_name || currentAssetInfo.value.in_user;
+      }
+    });
+
+    // 만약 단일 자산 등록 모드에서 자산번호가 아직 매칭 전이라면 첫 번째 행에 적용
+    if (props.initialAssetNumber && trades.value.length === 1) {
+      trades.value[0].cj_id = currentAssetInfo.value.in_user;
+      trades.value[0].cj_name = currentAssetInfo.value.user_name || currentAssetInfo.value.in_user;
+    }
+  }
+};
 
 // 자산 선택 시 처리
 const handleAssetSelect = (item, trade, index) => {
@@ -320,7 +349,17 @@ onMounted(() => {
             <span class="summary-value">{{ currentAssetInfo.state }}</span>
           </div>
           <div class="summary-item">
-            <span class="summary-label">현재사용자</span>
+            <span class="summary-label">
+              현재사용자
+              <button 
+                v-if="currentAssetInfo?.in_user && currentAssetInfo.in_user !== 'cjenc_inno'" 
+                class="btn-user-copy-tiny" 
+                @click="copyCurrentUserToInput"
+                title="현재사용자를 입력란으로 복사"
+              >
+                <img src="/images/down_arrow.png" alt="copy user" class="copy-icon-tiny" />
+              </button>
+            </span>
             <span class="summary-value">{{ currentAssetInfo.user_name || '-' }} <small v-if="currentAssetInfo.user_part">({{ currentAssetInfo.user_part }})</small></span>
           </div>
           <div v-if="currentAssetInfo.memo" class="summary-item full-width">
@@ -419,8 +458,9 @@ onMounted(() => {
                 </tr>
               </tbody>
             </table>
-          </div> <!-- table-wrapper close -->
-        </div> <!-- table-container close -->
+            </div> <!-- table-wrapper close -->
+          </div> <!-- table-container close -->
+        </div> <!-- register-section close -->
 
         <div class="button-group">
           <button @click="addRow" class="btn btn-modal btn-add">+ 행 추가</button>
@@ -456,8 +496,12 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    <UserDetailModal
+      :is-open="isUserDetailOpen"
+      :cj-id="userDetailCjId"
+      @close="isUserDetailOpen = false"
+    />
   </div>
-</div>
 </template>
 
 <style scoped>
@@ -777,5 +821,52 @@ onMounted(() => {
   font-weight: normal;
   color: #666;
   font-style: italic;
+}
+.btn-user-link-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: opacity 0.2s;
+}
+
+.btn-user-link-tiny:hover {
+  opacity: 0.7;
+}
+
+.link-icon-tiny {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0.6);
+}
+
+.btn-user-copy-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 6px;
+  vertical-align: middle;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.btn-user-copy-tiny:hover {
+  opacity: 0.7;
+  transform: translateY(1px);
+}
+
+.copy-icon-tiny {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 </style>

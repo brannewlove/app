@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
+import UserDetailModal from '../components/UserDetailModal.vue'; // 신규: 사용자 상세 모달
 import TradeActionModal from '../components/TradeActionModal.vue'; // 신규: 단일 거래용
 import TradeRegisterModal from '../components/TradeRegisterModal.vue'; // 대량 거래용
 import BulkAssetRegisterModal from '../components/BulkAssetRegisterModal.vue';
@@ -73,6 +74,10 @@ const searchPlaceholder = computed(() => {
 const clearSearch = () => {
   searchQuery.value = '';
   activeSavedFilter.value = null;
+  // URL에서 q 파라미터 제거
+  if (route.query.q) {
+    router.replace({ query: { ...route.query, q: undefined } });
+  }
 };
 
 const assetsFilterFn = (asset) => {
@@ -152,6 +157,8 @@ const isEditMode = ref(false);
 const editedAsset = ref(null);
 const isClickStartedOnOverlay = ref(false);
 const isTrackingOpen = ref(false); // 추적 모달 상태 추가
+const isUserDetailOpen = ref(false); // 사용자 상세 모달 상태
+const userDetailCjId = ref(''); // 상세 조회할 사용자 ID
 const isBulkRegisterOpen = ref(false); // 대량 등록 모달 상태
 const isAssetCopied = ref(false);
 const assetModalFields = [
@@ -496,6 +503,16 @@ const goToTradeSearch = () => {
   closeModal();
 };
 
+const openUserDetail = (cjId) => {
+  if (!cjId || cjId === 'cjenc_inno') return;
+  // 기존 모달들이 겹치지 않게 닫기
+  closeModal();
+  isQuickTradeOpen.value = false;
+  
+  userDetailCjId.value = cjId;
+  isUserDetailOpen.value = true;
+};
+
 const getTableHeaders = (data) => {
   if (data.length === 0) return [];
   
@@ -639,9 +656,17 @@ onMounted(() => {
   fetchAssets();
   fetchSavedFilters();
 
-  if (route.query.q) {
-    searchQuery.value = route.query.q;
-  }
+  // 1. URL 쿼리(q) -> 검색어 동기화 (단일 소모성)
+  // '자산 보기' 클릭 등으로 전달된 q를 검색창에 넣고 URL에서는 즉시 지웁니다.
+  // 이렇게 하면 새로고침 시 기본 테이블로 돌아갑니다.
+  watch(() => route.query.q, (newQ) => {
+    if (newQ) {
+      searchQuery.value = newQ;
+      currentPage.value = 1;
+      // URL에서 q 파라미터 즉시 제거 (새로고침 시 초기화 위함)
+      router.replace({ query: { ...route.query, q: undefined } });
+    }
+  }, { immediate: true });
 
   // 가용재고 필터 시 복합 정렬 적용
   watch([activeFilter, activeSavedFilterQuery], ([newFilter, newSavedQuery]) => {
@@ -720,7 +745,17 @@ onMounted(() => {
           <div v-if="selectedAsset" class="form-grid">
             <template v-for="key in assetModalFields" :key="key">
               <div v-if="selectedAsset[key] !== undefined" class="form-group">
-                <label>{{ getHeaderDisplayName(key) }}</label>
+                <label>
+                  {{ getHeaderDisplayName(key) }}
+                  <button 
+                    v-if="key === 'user_name' && selectedAsset.in_user && selectedAsset.in_user !== 'cjenc_inno'" 
+                    class="btn-user-link-tiny" 
+                    @click="openUserDetail(selectedAsset.in_user)"
+                    title="사용자 정보 보기"
+                  >
+                    <img src="/images/link.png" alt="user info" class="link-icon-tiny" />
+                  </button>
+                </label>
                 <select v-if="isEditMode && key === 'state'" v-model="editedAsset[key]" class="form-input">
                   <option v-for="opt in stateOptions" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
@@ -949,6 +984,12 @@ onMounted(() => {
       :initial-state="selectedAsset?.state || ''"
       :initial-memo="selectedAsset?.memo || ''"
       @close="isTrackingOpen = false" 
+    />
+
+    <UserDetailModal
+      :is-open="isUserDetailOpen"
+      :cj-id="userDetailCjId"
+      @close="isUserDetailOpen = false"
     />
 
     <TradeActionModal 
@@ -1450,5 +1491,28 @@ onMounted(() => {
 .bold-text {
   font-weight: 700;
   color: #2c3e50;
+}
+.btn-user-link-tiny {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: opacity 0.2s;
+}
+
+.btn-user-link-tiny:hover {
+  opacity: 0.7;
+}
+
+.link-icon-tiny {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  filter: brightness(0.6);
 }
 </style>

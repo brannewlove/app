@@ -26,16 +26,21 @@ const columnLabels = {
 };
 
 const fetchUser = async (cjId) => {
-  if (!cjId) return;
+  if (!cjId) {
+    console.warn('fetchUser called without cjId');
+    return;
+  }
+  console.log('Fetching user detail for CJ ID:', cjId);
   loading.value = true;
   error.value = null;
   user.value = null;
   try {
     const data = await userApi.getUserByCjId(cjId);
+    console.log('User detail fetch success:', data);
     user.value = data;
   } catch (err) {
-    error.value = '사용자 정보를 불러오는데 실패했습니다.';
-    console.error(err);
+    console.error('User detail fetch error:', err);
+    error.value = `사용자 정보를 불러오는데 실패했습니다. (${err.message})`;
   } finally {
     loading.value = false;
   }
