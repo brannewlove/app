@@ -16,7 +16,7 @@ import { useTable } from '../composables/useTable';
 import { formatDateTime } from '../utils/dateUtils';
 import TablePagination from './TablePagination.vue';
 
-const emit = defineEmits(['download', 'track-asset', 'cancel-trade', 'register-trade']);
+const emit = defineEmits(['download', 'track-asset', 'cancel-trade', 'register-trade', 'user-detail']);
 
 const tradesRef = toRef(props, 'trades');
 
@@ -134,13 +134,17 @@ const isLatestTrade = (trade) => {
             <td v-for="header in orderedColumns" :key="header">
               <template v-if="header === 'timestamp'">{{ formatDateTime(trade[header]) }}</template>
               <template v-else-if="header === 'ex_user_info'">
-                <div style="line-height: 1.4;">
+                <div @click.stop="trade.ex_user ? emit('user-detail', trade.ex_user) : null" 
+                     :class="{ 'clickable-user': !!trade.ex_user && !['cjenc_inno', 'aj_rent', '-'].includes(trade.ex_user) }" 
+                     style="line-height: 1.4;">
                   <strong>{{ trade.ex_user_name || '-' }}</strong> ({{ trade.ex_user || '-' }})
                   <div style="font-size: 0.85em; color: #666;">{{ trade.ex_user_part || '-' }}</div>
                 </div>
               </template>
               <template v-else-if="header === 'new_user_info'">
-                <div style="line-height: 1.4;">
+                <div @click.stop="trade.cj_id ? emit('user-detail', trade.cj_id) : null" 
+                     :class="{ 'clickable-user': !!trade.cj_id && !['cjenc_inno', 'aj_rent', '-'].includes(trade.cj_id) }" 
+                     style="line-height: 1.4;">
                   <strong>{{ trade.name || '-' }}</strong> ({{ trade.cj_id || '-' }})
                   <div style="font-size: 0.85em; color: #666;">{{ trade.part || '-' }}</div>
                 </div>
@@ -156,9 +160,9 @@ const isLatestTrade = (trade) => {
                 <button 
                   @click="emit('register-trade', trade)" 
                   class="btn-action btn-trade-action" 
-                  :disabled="!isLatestTrade(trade)"
-                  :title="isLatestTrade(trade) ? '신규 거래 등록' : '자산의 마지막 거래 내역만 새 거래 등록이 가능합니다'"
-                >+ 거래</button>
+                  :disabled="!isLatestTrade(trade) || trade.state === 'termination' || trade.state === 'process-ter'"
+                  :title="!isLatestTrade(trade) ? '자산의 마지막 거래 내역만 새 거래 등록이 가능합니다' : (trade.state === 'termination' || trade.state === 'process-ter' ? '반납 처리된 자산은 거래를 등록할 수 없습니다' : '신규 거래 등록')"
+                >거래</button>
                 <button @click="emit('cancel-trade', trade)" class="btn-action btn-cancel">취소</button>
               </div>
             </td>
@@ -270,5 +274,14 @@ const isLatestTrade = (trade) => {
 .bold-text {
   font-weight: 700;
   color: var(--text-main);
+}
+
+.clickable-user {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.clickable-user:hover {
+  opacity: 0.7;
+  text-decoration: underline;
 }
 </style>

@@ -8,6 +8,7 @@ import ReplacementExportModal from '../components/ReplacementExportModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 import TradeActionModal from '../components/TradeActionModal.vue';
+import UserDetailModal from '../components/UserDetailModal.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 
@@ -29,6 +30,16 @@ const isReplacementExportOpen = ref(false);
 const isRegisterModalOpen = ref(false); // 대량 등록용
 const isSingleRegisterOpen = ref(false); // 단일 등록용
 const registerAssetNumber = ref('');
+
+// 사용자 상세 모달 관련
+const isUserDetailOpen = ref(false);
+const userDetailCjId = ref('');
+
+const openUserDetail = (cjId) => {
+  if (!cjId || cjId === '-' || cjId === 'cjenc_inno' || cjId === 'aj_rent') return;
+  userDetailCjId.value = cjId;
+  isUserDetailOpen.value = true;
+};
 
 const isConfirmModalOpen = ref(false);
 const confirmMessage = ref('');
@@ -204,6 +215,8 @@ const handleKeyDown = (e) => {
       isExportModalOpen.value = false;
     } else if (isReplacementExportOpen.value) {
       isReplacementExportOpen.value = false;
+    } else if (isUserDetailOpen.value) {
+      isUserDetailOpen.value = false;
     }
   }
 };
@@ -226,7 +239,7 @@ onUnmounted(() => {
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" :initial-search="initialSearch" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade" @register-trade="handleRegisterTrade">
+    <TradeList v-if="!loading" :trades="trades" :initial-search="initialSearch" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade" @register-trade="handleRegisterTrade" @user-detail="openUserDetail">
       <template #actions>
         <div class="header-actions">
           <button @click="isRegisterModalOpen = true" class="btn btn-header btn-register">
@@ -275,6 +288,11 @@ onUnmounted(() => {
       :asset-number="registerAssetNumber"
       @close="isSingleRegisterOpen = false"
       @success="fetchTrades"
+    />
+    <UserDetailModal 
+      :is-open="isUserDetailOpen" 
+      :cj-id="userDetailCjId" 
+      @close="isUserDetailOpen = false" 
     />
   </div>
 </template>

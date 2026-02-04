@@ -828,8 +828,8 @@ onMounted(() => {
               <img src="/images/setting.png" alt="settings" class="builder-icon" />
               필터 빌더
             </button>
-            <div ref="guideContainerRef" class="guide-wrapper">
-              <button @click="filterGuideOpen = !filterGuideOpen" class="btn-guide-trigger" title="검색 가이드">
+            <div ref="guideContainerRef" class="guide-wrapper" @mouseenter="filterGuideOpen = true" @mouseleave="filterGuideOpen = false">
+              <button class="btn-guide-trigger" title="검색 가이드">
                 <img src="/images/infor.png" alt="guide" class="guide-icon" />
               </button>
               <div v-if="filterGuideOpen" class="search-guide-popup">
@@ -841,7 +841,6 @@ onMounted(() => {
                   <li><strong>우선 순위</strong>: <code>(A OR B) AND C</code></li>
                   <li><strong>일반 검색</strong>: 단어만 입력 시 전체 필드 검색</li>
                 </ul>
-                <button @click="filterGuideOpen = false" class="guide-close">닫기</button>
               </div>
             </div>
           </div>
@@ -1379,6 +1378,11 @@ onMounted(() => {
   height: 20px;
   display: block;
   object-fit: contain;
+}
+
+.guide-wrapper {
+  position: relative;
+  display: inline-block;
 }
 
 .search-guide-popup {

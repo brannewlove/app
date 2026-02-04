@@ -77,7 +77,7 @@
                 <span :class="{ 'expired-date': isEndDateExpired(asset.end_date) }">{{ asset.end_date }}</span>
               </td>
               <td :title="asset.model" class="truncate">{{ asset.model }}</td>
-              <td>{{ asset.asset_number }}</td>
+              <td><strong>{{ asset.asset_number }}</strong></td>
               <td>
                 <input type="text" v-model="asset.return_reason" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="사유" />
               </td>
@@ -339,6 +339,7 @@ const isClickStartedOnOverlay = ref(false);
 const isActionChoiceModalOpen = ref(false);
 const isReplacementModalOpen = ref(false); // 기존 고장교체 전용 모달 (유지하되 거의 안 쓰게 될 수 있음)
 const selectedAssetForAction = ref(null);
+const replacementAssetNumber = ref('');
 
 // 새로운 거래 폼 데이터
 const tradeForm = ref({
@@ -524,7 +525,10 @@ const submitTradeAction = async () => {
     // requiresReplacementAsset(tradeForm.value.work_type) 사용
     if (requiresReplacementAsset(tradeForm.value.work_type) && tradeForm.value.replacement_asset) {
       if (asset.asset_id) {
-        await axios.put(`/api/assets/${asset.asset_id}`, { replacement: tradeForm.value.replacement_asset });
+        await axios.put(`/api/assets/${asset.asset_id}`, { 
+          asset_number: asset.asset_number,
+          replacement: tradeForm.value.replacement_asset 
+        });
       }
     }
 
@@ -601,7 +605,10 @@ const confirmAction = async () => {
       // asset.asset_id 를 찾아서 업데이트해야 하므로 returnedAsset 정보에 asset_id가 있는지 확인 필요
       // fetch 시점에 asset_id가 포함되어 있음
       if (asset.asset_id) {
-          await axios.put(`/api/assets/${asset.asset_id}`, { replacement: replacementAssetNumber.value });
+          await axios.put(`/api/assets/${asset.asset_id}`, { 
+            asset_number: asset.asset_number,
+            replacement: replacementAssetNumber.value 
+          });
       }
       
       // 3. 반납 대기 목록에서 삭제
