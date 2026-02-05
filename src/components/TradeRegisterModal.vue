@@ -30,6 +30,7 @@ const trades = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const successMessage = ref(null);
+const validTradesCount = ref(0);
 const registeredTrades = ref([]);
 const currentAssetInfo = ref(null); // 현재 선택된 자산 정보 요약용
 const isUserDetailOpen = ref(false);
@@ -269,6 +270,8 @@ const submitTrades = async () => {
     return;
   }
 
+  validTradesCount.value = validTrades.length;
+
   try {
     loading.value = true;
     error.value = null;
@@ -331,8 +334,13 @@ onMounted(() => {
       
       <div class="modal-body">
         <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
-        <div v-if="successMessage" class="alert alert-success"><img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ successMessage }}</div>
-        <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 등록 중...</div>
+        <div v-if="successMessage" class="alert alert-success">
+          <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ successMessage }}
+        </div>
+        <div v-if="loading" class="alert alert-info">
+          <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 
+          {{ validTradesCount }}건의 거래를 등록 중입니다...
+        </div>
 
         <!-- 현재 자산 정보 요약 섹션 추가 -->
         <div v-if="currentAssetInfo" class="asset-summary-banner">
@@ -712,73 +720,18 @@ onMounted(() => {
   vertical-align: middle;
 }
 
-/* 상태 오버레이 스타일 */
-.status-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1001;
-  border-radius: 8px;
-  backdrop-filter: blur(2px);
+.checkmark-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: middle;
 }
 
-.status-box {
-  background: white;
-  padding: 30px 40px;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  text-align: center;
-  min-width: 320px;
-  border: 1px solid #eee;
-}
-
-.status-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.status-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #333;
-}
-
-.status-message {
-  font-size: 16px;
-  color: #555;
-  margin-bottom: 25px;
-  line-height: 1.5;
-}
-
-.loading-icon-large {
-  width: 40px;
-  height: 40px;
-  animation: spin 2s linear infinite;
-}
-
-.checkmark-icon-large {
-  width: 40px;
-  height: 40px;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.status-footer {
-  display: flex;
-  justify-content: center;
-}
+/* 알림 스타일 */
+.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
+.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
+.alert-success { background: #f1f8e9; color: #2e7d32; border-left: 4px solid #4CAF50; }
+.alert-info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #2196f3; }
 
 /* 자산 요약 배너 스타일 */
 .asset-summary-banner {

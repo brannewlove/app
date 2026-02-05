@@ -42,6 +42,8 @@ const trade = ref({
   new_unit_price: null
 });
 
+const successMessage = ref(null);
+
 const currentAssetInfo = ref(null);
 const isUserDetailOpen = ref(false);
 const userDetailCjId = ref('');
@@ -159,8 +161,13 @@ const submitTrade = async () => {
 
     const result = await response.json();
     if (result.success) {
+      successMessage.value = '거래가 성공적으로 등록되었습니다.';
       emit('success');
-      emit('close');
+      
+      setTimeout(() => {
+        successMessage.value = null;
+        emit('close');
+      }, 2000);
     } else {
       error.value = '등록 실패: ' + (result.error || '알 수 없는 오류');
     }
@@ -215,6 +222,8 @@ const getWorkTypeFilter = () => {
       
       <div class="modal-body">
         <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
+        <div v-if="successMessage" class="alert alert-success">✅ {{ successMessage }}</div>
+        <div v-if="loading && !successMessage" class="alert alert-info">⌛ 거래 정보를 등록하고 있습니다...</div>
         
         <!-- 자산 요약 배너 -->
         <div v-if="currentAssetInfo" class="asset-summary-banner">
@@ -519,4 +528,10 @@ const getWorkTypeFilter = () => {
   height: 14px;
   object-fit: contain;
 }
+/* 알림 스타일 */
+.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
+.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
+.alert-success { background: #f1f8e9; color: #2e7d32; border-left: 4px solid #4CAF50; }
+.alert-info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #2196f3; }
+
 </style>

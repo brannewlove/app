@@ -34,17 +34,39 @@ const selectedAsset = ref(null);
 
 const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
 
+const isMultiPcQuery = (q) => {
+  const normalized = String(q || '').replace(/\s/g, '');
+  const filterName = String(activeSavedFilter.value?.name || '').replace(/\s/g, '');
+  return normalized === '1인다PC보유자' || normalized === '1인다PC사용자' || 
+         filterName === '1인다PC보유자' || filterName === '1인다PC사용자';
+};
+
+const isAvailableStockQuery = (q) => {
+  const normalized = String(q || '').replace(/\s/g, '');
+  const filterName = String(activeSavedFilter.value?.name || '').replace(/\s/g, '');
+  return normalized === '가용재고' || filterName === '가용재고';
+};
+
 // 1인 다기기 보유자 계산 (노트북 or 데스크탑이 2개 이상이면서 useable 상태)
 const multiPcUserIds = computed(() => {
-  const pcAssets = assets.value.filter(a => 
-    (a.category === '노트북' || a.category === '데스크탑') && a.state === 'useable'
-  );
+  if (!assets.value || assets.value.length === 0) return new Set();
+  
+  const pcAssets = assets.value.filter(a => {
+    const category = String(a.category || '').toLowerCase();
+    const state = String(a.state || '').toLowerCase().trim();
+    return (category.includes('노트북') || category.includes('데스크탑') || 
+            category.includes('laptop') || category.includes('desktop')) && 
+            state === 'useable';
+  });
+  
   const userCounts = {};
   pcAssets.forEach(a => {
-    if (a.in_user && a.in_user !== 'cjenc_inno') {
-      userCounts[a.in_user] = (userCounts[a.in_user] || 0) + 1;
+    const userId = String(a.in_user || '').trim().toLowerCase();
+    if (userId && userId !== 'cjenc_inno') {
+      userCounts[userId] = (userCounts[userId] || 0) + 1;
     }
   });
+  
   return new Set(Object.keys(userCounts).filter(id => userCounts[id] >= 2));
 });
 
@@ -84,35 +106,46 @@ const assetsFilterFn = (asset) => {
   // 1. 저장된 필터 적용
   const savedQuery = activeSavedFilterQuery.value;
   if (savedQuery) {
-    if (savedQuery === '가용재고') {
-      if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-    } else if (savedQuery === '1인 다PC 보유자') {
-      if (!(multiPcUserIds.value.has(asset.in_user) && 
-            (asset.category === '노트북' || asset.category === '데스크탑') && 
-            asset.state === 'useable')) return false;
+    if (isAvailableStockQuery(savedQuery)) {
+      if (!(String(asset.state).toLowerCase().trim() === 'useable' && String(asset.in_user).toLowerCase().trim() === 'cjenc_inno')) return false;
+    } else if (isMultiPcQuery(savedQuery)) {
+      const userId = String(asset.in_user || '').trim().toLowerCase();
+      const category = String(asset.category || '').toLowerCase();
+      const state = String(asset.state || '').toLowerCase().trim();
+      if (!(multiPcUserIds.value.has(userId) && 
+            (category.includes('노트북') || category.includes('데스크탑') || 
+             category.includes('laptop') || category.includes('desktop')) && 
+            state === 'useable')) return false;
     } else {
       if (!parseAndFilter(asset, savedQuery, filterColumns.map(c => c.val))) return false;
     }
   }
 
   // 2. 추가 검색어 적용 (특수 예약어 처리)
-  if (searchQuery.value === '가용재고') {
-    if (!(asset.state === 'useable' && asset.in_user === 'cjenc_inno')) return false;
-  } else if (searchQuery.value === '1인 다PC 보유자') {
-    if (!(multiPcUserIds.value.has(asset.in_user) && 
-          (asset.category === '노트북' || asset.category === '데스크탑') && 
-          asset.state === 'useable')) return false;
+  if (isAvailableStockQuery(searchQuery.value)) {
+    if (!(String(asset.state).toLowerCase().trim() === 'useable' && String(asset.in_user).toLowerCase().trim() === 'cjenc_inno')) return false;
+  } else if (isMultiPcQuery(searchQuery.value)) {
+    const userId = String(asset.in_user || '').trim().toLowerCase();
+    const category = String(asset.category || '').toLowerCase();
+    const state = String(asset.state || '').toLowerCase().trim();
+    if (!(multiPcUserIds.value.has(userId) && 
+          (category.includes('노트북') || category.includes('데스크탑') || 
+           category.includes('laptop') || category.includes('desktop')) && 
+          state === 'useable')) return false;
   }
-
   // 3. 기본 제외 로직 (검색어가 없을 때만 termination 제외)
-  const isExcluded = !searchQuery.value && !savedQuery && asset.state === 'termination';
+  const isExcluded = !searchQuery.value && !savedQuery && String(asset.state || '').trim() === 'termination';
   if (isExcluded) return false;
 
   return true;
 };
 
 const itemsPerPage = computed(() => {
-  return (activeSavedFilterQuery.value === '가용재고' || searchQuery.value === '가용재고') ? 50 : 20;
+  const isSpecial = isAvailableStockQuery(searchQuery.value) || 
+                   isAvailableStockQuery(activeSavedFilterQuery.value) || 
+                   isMultiPcQuery(searchQuery.value) || 
+                   isMultiPcQuery(activeSavedFilterQuery.value);
+  return isSpecial ? 50 : 20;
 });
 
 const {
@@ -243,7 +276,7 @@ const addCondition = (type) => {
 };
 
 const isAssetProcessedForReturn = (asset) => {
-  return asset.state === 'process-ter' || asset.state === 'termination';
+  return String(asset.state || '').trim() === 'process-ter' || String(asset.state || '').trim() === 'termination';
 };
 
 // 반납 처리 모달 열기
@@ -635,7 +668,7 @@ const copyAssetInfoDetailed = () => {
 };
 
 const getExpirationClass = (asset) => {
-  const isAvailableStockFilter = getRawQuery(searchQuery.value) === '가용재고' || activeSavedFilterQuery.value === '가용재고';
+  const isAvailableStockFilter = isAvailableStockQuery(getRawQuery(searchQuery.value)) || isAvailableStockQuery(activeSavedFilterQuery.value);
   if (!isAvailableStockFilter || !asset.day_of_end) return '';
 
   const today = new Date();
@@ -670,10 +703,10 @@ onMounted(() => {
 
   // 가용재고 필터 시 복합 정렬 적용
   watch([activeFilter, activeSavedFilterQuery], ([newFilter, newSavedQuery]) => {
-    if (newFilter === 'available' || newSavedQuery === '가용재고') {
+    if (newFilter === 'available' || isAvailableStockQuery(newSavedQuery)) {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
-    } else if (!newFilter && !newSavedQuery && searchQuery.value !== '1인 다PC 보유자') {
+    } else if (!newFilter && !newSavedQuery && !isMultiPcQuery(searchQuery.value)) {
       // 필터 해제 시 기본 정렬로 복구
       sortColumn.value = 'asset_id';
       sortDirection.value = 'asc';
@@ -682,10 +715,10 @@ onMounted(() => {
 
   // 특수 필터 검색 시 정렬 적용
   watch([searchQuery, activeSavedFilterQuery], ([newQuery, newSavedQuery]) => {
-    if (newQuery === '1인 다PC 보유자' || newSavedQuery === '1인 다PC 보유자') {
+    if (isMultiPcQuery(newQuery) || isMultiPcQuery(newSavedQuery)) {
       sortColumn.value = 'in_user';
       sortDirection.value = 'asc';
-    } else if (newQuery === '가용재고' || newSavedQuery === '가용재고') {
+    } else if (isAvailableStockQuery(newQuery) || isAvailableStockQuery(newSavedQuery)) {
       sortColumn.value = ['category', 'model'];
       sortDirection.value = 'asc';
     } else if (!newQuery && !newSavedQuery) {

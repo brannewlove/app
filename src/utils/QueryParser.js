@@ -13,7 +13,8 @@ export const parseAndFilter = (item, query, searchFields = []) => {
     }
 
     // 특수 예약어 처리 (컴포넌트 단에서 filtering 로직을 직접 수행하는 경우)
-    if (actualQuery === '1인 다PC 보유자' || actualQuery === '가용재고') return true;
+    const normalizedActual = actualQuery.replace(/\s/g, '');
+    if (normalizedActual === '1인다PC보유자' || normalizedActual === '1인다PC사용자' || normalizedActual === '가용재고') return true;
 
     // 이후 로직에서 query 대신 actualQuery 사용
     if (!actualQuery.includes(':') && !actualQuery.includes('>') && !actualQuery.includes('<') && !actualQuery.includes('OR') && !actualQuery.includes('AND')) {
