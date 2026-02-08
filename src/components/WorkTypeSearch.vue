@@ -1,23 +1,30 @@
 <template>
   <div class="autocomplete-container">
-    <input
-      ref="inputRef"
-      type="text"
-      :value="inputValue"
-      :data-id="id"
-      :name="id"
-      autocomplete="off"
-      tabindex="0"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      class="search-input"
-      :class="{ 'is-open': isOpen }"
-      @input="handleInputChange"
-      @keydown="handleKeyDown"
-      @focus="handleFocus"
-      @click="handleClick"
-      @blur="handleBlur"
-    />
+    <div class="input-wrapper">
+      <input
+        ref="inputRef"
+        type="text"
+        :value="inputValue"
+        :data-id="id"
+        :name="id"
+        autocomplete="off"
+        tabindex="0"
+        :placeholder="placeholder"
+        :disabled="disabled"
+        readonly
+        class="search-input"
+        style="cursor: pointer;"
+        :class="{ 'is-open': isOpen }"
+        @input="handleInputChange"
+        @keydown="handleKeyDown"
+        @focus="handleFocus"
+        @click="handleClick"
+        @blur="handleBlur"
+      />
+      <div class="arrow-container">
+        <span class="chevron" :class="{ 'up': isOpen }"></span>
+      </div>
+    </div>
 
     <Teleport to="body">
       <div
@@ -173,8 +180,8 @@ const handleInputChange = (e) => {
   isOpen.value = true;
 };
 
-const handleFocus = () => { filterData(inputValue.value); isOpen.value = true; nextTick(updateDropdownPosition); };
-const handleClick = () => { filterData(inputValue.value); isOpen.value = true; nextTick(updateDropdownPosition); };
+const handleFocus = () => { filterData(''); isOpen.value = true; nextTick(updateDropdownPosition); };
+const handleClick = () => { filterData(''); isOpen.value = true; nextTick(updateDropdownPosition); };
 
 const handleBlur = () => {
   blurTimeout.value = setTimeout(() => {
@@ -239,6 +246,36 @@ onUnmounted(() => {
 .search-input:focus, .search-input.is-open {
   border-color: var(--brand-blue);
   box-shadow: 0 0 0 3px rgba(78, 126, 255, 0.1);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.arrow-container {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.chevron {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #999;
+  border-bottom: 2px solid #999;
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+  margin-top: -4px;
+}
+
+.chevron.up {
+  transform: rotate(-135deg);
+  margin-top: 4px;
 }
 
 .dropdown-overlay {

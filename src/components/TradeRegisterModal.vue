@@ -180,18 +180,16 @@ const getWorkTypeFilter = (trade) => {
 };
 
 const getAssetApiParams = (workType) => {
+  const params = { exclude_state: 'termination' };
   const config = getWorkTypeConfig(workType);
-  if (!config) return { apiParams: { fields: 'memo' } };
-
-  const params = {};
   
+  if (!config) return params;
+
   // 1. Allowed States -> API 'state' param
   if (config.allowedStates && config.allowedStates.length > 0) {
     if (config.allowedStates.length === 1) {
       params.state = config.allowedStates[0];
     } else {
-      // API가 multiple state 지원하는지 확인 필요. 보통 하나만 지원하면 첫번째꺼 혹은 필터링 안함.
-      // 현재 로직상 wait, useable, rent, repair 하나씩만 매핑됨.
       params.state = config.allowedStates[0];
     }
   }
@@ -199,13 +197,6 @@ const getAssetApiParams = (workType) => {
   // 2. Source Type -> API 'in_user' param
   if (config.sourceType === 'stock') {
     params.in_user = 'cjenc_inno';
-  } 
-  // 'user' type means NOT cjenc_inno, API might not support 'ne'. 
-  // If so, we strictly rely on client-side validation logic (validateAssetForWorkType).
-
-  // Default fallback for general query if no strict params
-  if (Object.keys(params).length === 0) {
-    return { apiParams: { fields: 'memo' } };
   }
 
   return params;

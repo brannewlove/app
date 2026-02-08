@@ -122,6 +122,14 @@ const closeNotifications = () => {
 watch(() => router.currentRoute.value.path, () => {
   updateAuthState();
 });
+
+const navigateTo = (path) => {
+  if (router.currentRoute.value.path === path) {
+    window.location.href = path; // 혹은 window.location.reload()
+  } else {
+    router.push(path);
+  }
+};
 </script>
 
 <template>
@@ -130,35 +138,35 @@ watch(() => router.currentRoute.value.path, () => {
     <nav v-if="isLoggedIn" class="navbar">
       <div class="navbar-container">
         <div class="navbar-brand">
-          <router-link to="/" class="brand-link">
+          <a href="/" class="brand-link" @click.prevent="navigateTo('/')">
             <h1>관리 시스템</h1>
-          </router-link>
+          </a>
         </div>
         <ul class="navbar-menu">
           <li>
-            <router-link to="/users" class="nav-link" :class="{ active: $route.path === '/users' }">
+            <a href="/users" class="nav-link" :class="{ active: $route.path === '/users' }" @click.prevent="navigateTo('/users')">
                사용자 관리
-            </router-link>
+            </a>
           </li>
           <li>
-            <router-link to="/assets" class="nav-link" :class="{ active: $route.path === '/assets' }">
+            <a href="/assets" class="nav-link" :class="{ active: $route.path === '/assets' }" @click.prevent="navigateTo('/assets')">
                자산 관리
-            </router-link>
+            </a>
           </li>
           <li>
-            <router-link to="/trades" class="nav-link" :class="{ active: $route.path === '/trades' }">
+            <a href="/trades" class="nav-link" :class="{ active: $route.path === '/trades' }" @click.prevent="navigateTo('/trades')">
                거래 관리
-            </router-link>
+            </a>
           </li>
           <li>
-            <router-link to="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }">
+            <a href="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }" @click.prevent="navigateTo('/return-processing')">
                반납처리
-            </router-link>
+            </a>
           </li>
           <li v-if="currentUser && Number(currentUser.sec_level) === 100">
-            <router-link to="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }">
+            <a href="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }" @click.prevent="navigateTo('/data-management')">
                데이터관리
-            </router-link>
+            </a>
           </li>
         </ul>
         <div class="navbar-right">

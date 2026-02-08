@@ -1,4 +1,5 @@
 const BaseService = require('./BaseService');
+const tradeService = require('./TradeService');
 
 class AssetService extends BaseService {
     constructor() {
@@ -119,6 +120,12 @@ class AssetService extends BaseService {
             const results = [];
             const errors = [];
 
+            const formatDate = (dateValue) => {
+                if (!dateValue) return null;
+                const date = new Date(dateValue);
+                return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
+            };
+
             for (const item of items) {
                 if (!item.asset_number || !item.category || !item.model) {
                     errors.push(`필수 필드 누락: ${item.asset_number || 'UNKNOWN'}`);
@@ -133,12 +140,6 @@ class AssetService extends BaseService {
                     errors.push(`이미 존재하는 자산번호: ${item.asset_number}`);
                     continue;
                 }
-
-                const formatDate = (dateValue) => {
-                    if (!dateValue) return null;
-                    const date = new Date(dateValue);
-                    return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
-                };
 
                 const assetData = {
                     asset_number: item.asset_number ? String(item.asset_number).trim() : '',
@@ -194,19 +195,23 @@ class AssetService extends BaseService {
                 const stateChanged = !assetExists || (assetData.state !== snapshotState);
 
                 if (userChanged || stateChanged) {
+                    const tradeInsertData = {
+                        work_type: workType,
+                        asset_number: assetData.asset_number,
+                        cj_id: assetData.in_user,
+                        memo: assetData.memo,
+                        asset_state: snapshotState,
+                        asset_in_user: snapshotUser,
+                        ex_user: snapshotUser === 'cjenc_inno' ? 'aj_rent' : (snapshotUser || 'aj_rent')
+                    };
+
+                    const columns = Object.keys(tradeInsertData);
+                    const values = Object.values(tradeInsertData);
+                    const placeholders = columns.map(() => '?').join(', ');
+
                     await connection.query(
-                        `INSERT INTO trade (
-                work_type, asset_number, cj_id, memo, asset_state, asset_in_user, ex_user
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            workType,
-                            assetData.asset_number,
-                            assetData.in_user,
-                            assetData.memo,
-                            snapshotState,
-                            snapshotUser,
-                            snapshotUser === 'cjenc_inno' ? 'aj_rent' : (snapshotUser || 'aj_rent')
-                        ]
+                        `INSERT INTO trade (${columns.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`,
+                        values
                     );
                 }
 
@@ -231,3 +236,4 @@ class AssetService extends BaseService {
 }
 
 module.exports = new AssetService();
+

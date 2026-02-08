@@ -1,8 +1,8 @@
 -- Database Schema Export
--- Generated on: 2026. 1. 29. 오전 10:51:38
+-- Generated on: 2026. 2. 8. 오후 8:21:09
 
-CREATE DATABASE IF NOT EXISTS `assetdb_dev`;
-USE `assetdb_dev`;
+CREATE DATABASE IF NOT EXISTS `assetdb`;
+USE `assetdb`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -17,7 +17,6 @@ CREATE TABLE `assetlogs` (
   `timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '작업 시간',
   `memo` text COMMENT '메모',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
-  `asset_number` varchar(200) DEFAULT NULL COMMENT '자산번호',
   PRIMARY KEY (`log_id`),
   KEY `idx_asset_id` (`asset_id`),
   KEY `idx_timestamp` (`timestamp`)
@@ -38,12 +37,13 @@ CREATE TABLE `assets` (
   `in_user` varchar(200) DEFAULT NULL,
   `state` varchar(200) DEFAULT 'wait',
   `replacement` varchar(200) DEFAULT NULL,
-  `memo` text COMMENT '메모',
+  `memo` text,
   PRIMARY KEY (`asset_id`),
   UNIQUE KEY `asset_number` (`asset_number`) USING BTREE,
   KEY `FK_users` (`in_user`) USING BTREE,
+  KEY `idx_assets_asset_number` (`asset_number`),
   CONSTRAINT `users_in` FOREIGN KEY (`in_user`) REFERENCES `users` (`cj_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE=InnoDB AUTO_INCREMENT=5379 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11205 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Table structure for table `confirmed_assets`
 DROP TABLE IF EXISTS `confirmed_assets`;
@@ -56,7 +56,7 @@ CREATE TABLE `confirmed_assets` (
   UNIQUE KEY `unique_asset_user` (`asset_number`,`cj_id`),
   KEY `idx_asset_id` (`asset_number`),
   KEY `idx_cj_id` (`cj_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=247 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자 변경 확인 테이블';
+) ENGINE=InnoDB AUTO_INCREMENT=1927 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자 변경 확인 테이블';
 
 -- Table structure for table `confirmed_replacements`
 DROP TABLE IF EXISTS `confirmed_replacements`;
@@ -66,7 +66,7 @@ CREATE TABLE `confirmed_replacements` (
   `confirmed_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_replacement_confirm` (`asset_number`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Table structure for table `returned_assets`
 DROP TABLE IF EXISTS `returned_assets`;
@@ -95,7 +95,7 @@ CREATE TABLE `returned_assets` (
   UNIQUE KEY `UQ_returned_assets_asset_number` (`asset_number`),
   KEY `idx_returned_asset_number` (`asset_number`),
   KEY `idx_returned_user_id` (`user_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=94 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='반납 자산 테이블';
+) ENGINE=InnoDB AUTO_INCREMENT=97 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='반납 자산 테이블';
 
 -- Table structure for table `saved_filters`
 DROP TABLE IF EXISTS `saved_filters`;
@@ -107,7 +107,7 @@ CREATE TABLE `saved_filters` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `sort_order` int DEFAULT '0',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=22 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Table structure for table `settings`
 DROP TABLE IF EXISTS `settings`;
@@ -127,18 +127,19 @@ CREATE TABLE `trade` (
   `cj_id` varchar(200) DEFAULT NULL COMMENT '사원ID',
   `asset_state` varchar(200) DEFAULT NULL COMMENT '자산 상태',
   `asset_in_user` varchar(200) DEFAULT NULL COMMENT '자산 소유자',
+  `asset_memo` text,
   `memo` text COMMENT '메모',
   `timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '거래 시간',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일',
   `ex_user` varchar(200) DEFAULT NULL,
-  `asset_memo` text COMMENT '자산 메모(백업용)',
   PRIMARY KEY (`trade_id`),
   KEY `idx_trade_id` (`trade_id`),
   KEY `idx_asset_number` (`asset_number`),
   KEY `idx_cj_id` (`cj_id`),
-  KEY `idx_timestamp` (`timestamp`)
-) ENGINE=InnoDB AUTO_INCREMENT=1115 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='거래/작업 기록 테이블';
+  KEY `idx_timestamp` (`timestamp`),
+  KEY `idx_trade_asset_number` (`asset_number`)
+) ENGINE=InnoDB AUTO_INCREMENT=22678 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='거래/작업 기록 테이블';
 
 -- Table structure for table `users`
 DROP TABLE IF EXISTS `users`;
@@ -155,6 +156,6 @@ CREATE TABLE `users` (
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `FK_cj_id` (`cj_id`) USING BTREE,
   UNIQUE KEY `login` (`google_id`) USING BTREE
-) ENGINE=InnoDB AUTO_INCREMENT=6042 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6158 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

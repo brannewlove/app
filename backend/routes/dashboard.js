@@ -61,8 +61,8 @@ router.get('/', async (req, res) => {
         `);
         results.recent_trades = recentTrades;
 
-        // 5. 전체 사용자 수
-        const [totalUsers] = await pool.query('SELECT COUNT(*) as count FROM users');
+        // 5. 전체 사용자 수 (퇴사자 제외)
+        const [totalUsers] = await pool.query("SELECT COUNT(*) as count FROM users WHERE state != 'out'");
         results.total_users = totalUsers[0].count;
 
         // 6. 활동 현황 (상세 내역 포함 - 년도별/월별)

@@ -13,7 +13,7 @@ const { success, error } = require('../utils/response');
  */
 router.get('/', async (req, res) => {
   try {
-    const { query = '', table = 'users', column = 'user_id', state, in_user, not_in_user } = req.query;
+    const { query = '', table = 'users', column = 'user_id', state, exclude_state, in_user, not_in_user } = req.query;
 
     // 테이블 검증
     const allowedTables = ['users', 'assets', 'trade'];
@@ -28,6 +28,10 @@ router.get('/', async (req, res) => {
     if (state) {
       sqlQuery += ` AND \`state\` = ?`;
       params.push(state);
+    }
+    if (exclude_state) {
+      sqlQuery += ` AND \`state\` != ?`;
+      params.push(exclude_state);
     }
     if (in_user) {
       sqlQuery += ` AND \`in_user\` = ?`;

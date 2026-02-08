@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import TradeList from '../components/TradeList.vue';
 import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import ChangeExportModal from '../components/ChangeExportModal.vue';
@@ -9,10 +9,12 @@ import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 import TradeActionModal from '../components/TradeActionModal.vue';
 import UserDetailModal from '../components/UserDetailModal.vue';
+import AssetInfoModal from '../components/AssetInfoModal.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 
 const route = useRoute();
+const router = useRouter();
 const initialSearch = computed(() => route.query.search || '');
 
 const trades = ref([]);
@@ -35,10 +37,31 @@ const registerAssetNumber = ref('');
 const isUserDetailOpen = ref(false);
 const userDetailCjId = ref('');
 
-const openUserDetail = (cjId) => {
-  if (!cjId || cjId === '-' || cjId === 'cjenc_inno' || cjId === 'aj_rent') return;
-  userDetailCjId.value = cjId;
+const openUserDetail = (cj_id) => {
+  if (!cj_id || cj_id === '-' || cj_id === 'cjenc_inno' || cj_id === 'aj_rent') return;
+  userDetailCjId.value = cj_id;
   isUserDetailOpen.value = true;
+};
+
+// 자산 정보 모달 관련
+const isAssetInfoOpen = ref(false);
+const infoAssetNumber = ref('');
+
+const openAssetInfo = (assetNumber) => {
+  infoAssetNumber.value = assetNumber;
+  isAssetInfoOpen.value = true;
+};
+
+const handleTradeSearchFromInfo = (assetNumber) => {
+  isAssetInfoOpen.value = false;
+  searchQuery.value = assetNumber;
+  currentPage.value = 1;
+  fetchTrades();
+  router.push({ query: { ...route.query, search: assetNumber } });
+};
+
+const handleUserAssetsSearch = (cjId) => {
+  router.push({ name: 'Assets', query: { q: cjId } });
 };
 
 const isConfirmModalOpen = ref(false);
@@ -78,14 +101,31 @@ const fetchExportCounts = async () => {
   }
 };
 
+const currentPage = ref(1);
+const pageSize = ref(50);
+const totalItems = ref(0);
+const searchQuery = ref(initialSearch.value);
+const sortColumn = ref('trade_id');
+const sortDirection = ref('desc');
+const isManualSort = ref(false);
+
 const fetchTrades = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await fetch('/api/trades');
+    const params = new URLSearchParams({
+      page: currentPage.value,
+      limit: pageSize.value,
+      search: searchQuery.value,
+      sort: sortColumn.value,
+      direction: sortDirection.value
+    });
+    
+    const response = await fetch(`/api/trades?${params.toString()}`);
     const result = await response.json();
     if (result.success) {
       trades.value = result.data.data;
+      totalItems.value = result.data.total;
     } else {
       error.value = result.message || '거래 로드 실패';
     }
@@ -94,6 +134,25 @@ const fetchTrades = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const handlePageChange = (page) => {
+  currentPage.value = page;
+  fetchTrades();
+};
+
+const handleSearchChange = (query) => {
+  searchQuery.value = query;
+  currentPage.value = 1;
+  fetchTrades();
+};
+
+const handleSortChange = ({ column, direction }) => {
+  sortColumn.value = column;
+  sortDirection.value = direction;
+  isManualSort.value = true;
+  currentPage.value = 1; // 정렬 변경 시 첫 페이지로 이동
+  fetchTrades();
 };
 
 const openExportModal = () => isExportModalOpen.value = true;
@@ -116,6 +175,7 @@ const closeTrackingModal = () => {
 };
 
 const handleRegisterTrade = (trade) => {
+  isAssetInfoOpen.value = false;
   registerAssetNumber.value = trade.asset_number;
   isSingleRegisterOpen.value = true;
 };
@@ -217,6 +277,8 @@ const handleKeyDown = (e) => {
       isReplacementExportOpen.value = false;
     } else if (isUserDetailOpen.value) {
       isUserDetailOpen.value = false;
+    } else if (isAssetInfoOpen.value) {
+      isAssetInfoOpen.value = false;
     }
   }
 };
@@ -239,7 +301,27 @@ onUnmounted(() => {
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
     <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
 
-    <TradeList v-if="!loading" :trades="trades" :initial-search="initialSearch" @download="downloadCSV" @track-asset="handleTrackAsset" @cancel-trade="handleCancelTrade" @register-trade="handleRegisterTrade" @user-detail="openUserDetail">
+    <TradeList 
+      v-if="!loading" 
+      :trades="trades" 
+      :initial-search="initialSearch" 
+      :current-page="currentPage"
+      :page-size="pageSize"
+      :total-items="totalItems"
+      :sort-column="sortColumn"
+      :sort-direction="sortDirection"
+      :is-manual-sort="isManualSort"
+      @download="downloadCSV" 
+      @track-asset="handleTrackAsset" 
+      @cancel-trade="handleCancelTrade" 
+      @register-trade="handleRegisterTrade" 
+      @user-detail="openUserDetail" 
+      @asset-info="openAssetInfo" 
+      @user-assets-search="handleUserAssetsSearch"
+      @page-change="handlePageChange"
+      @search-change="handleSearchChange"
+      @sort-change="handleSortChange"
+    >
       <template #actions>
         <div class="header-actions">
           <button @click="isRegisterModalOpen = true" class="btn btn-header btn-register">
@@ -293,6 +375,14 @@ onUnmounted(() => {
       :is-open="isUserDetailOpen" 
       :cj-id="userDetailCjId" 
       @close="isUserDetailOpen = false" 
+    />
+    <AssetInfoModal
+      :is-open="isAssetInfoOpen"
+      :asset-number="infoAssetNumber"
+      @close="isAssetInfoOpen = false"
+      @user-detail="openUserDetail"
+      @trade-search="handleTradeSearchFromInfo"
+      @quick-trade="handleRegisterTrade"
     />
   </div>
 </template>
