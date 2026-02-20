@@ -132,7 +132,7 @@ class AssetService extends BaseService {
                     continue;
                 }
 
-                const workType = item.work_type || defaultWorkType || '신규-계약';
+                const workType = (item.work_type || defaultWorkType || '신규-계약').trim();
                 const [existing] = await connection.query('SELECT * FROM assets WHERE asset_number = ?', [item.asset_number]);
                 const assetExists = existing.length > 0;
 
@@ -141,13 +141,16 @@ class AssetService extends BaseService {
                     continue;
                 }
 
+                const normalizedInUser = (item.in_user || 'cjenc_inno').trim();
                 const assetData = {
                     asset_number: item.asset_number ? String(item.asset_number).trim() : '',
                     category: item.category,
                     model: item.model,
                     serial_number: item.serial_number || '',
-                    state: (item.in_user === 'cjenc_inno' || !item.in_user) ? 'useable' : (item.state || 'wait'),
-                    in_user: item.in_user || 'cjenc_inno',
+                    state: (workType === '신규-계약' && (normalizedInUser === 'cjenc_inno' || !normalizedInUser))
+                        ? 'wait'
+                        : ((normalizedInUser === 'cjenc_inno' || !normalizedInUser) ? 'useable' : (item.state || 'wait')),
+                    in_user: normalizedInUser,
                     day_of_start: formatDate(item.day_of_start),
                     day_of_end: formatDate(item.day_of_end),
                     unit_price: item.unit_price || 0,

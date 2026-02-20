@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import importApi from '../api/import';
 import filterApi from '../api/filters';
+import { copyToClipboard } from '../utils/clipboardUtils';
 
 const loading = ref(false);
 
@@ -30,7 +31,7 @@ const USER_HEADERS = 'cj_id\tname\tpart\tstate';
 const copyHeaders = async (type) => {
     const headers = type === 'assets' ? ASSET_HEADERS : USER_HEADERS;
     try {
-        await navigator.clipboard.writeText(headers);
+        await copyToClipboard(headers);
     } catch (err) {
         console.error('클립보드 복사 실패:', err);
     }

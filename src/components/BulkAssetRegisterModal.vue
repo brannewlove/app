@@ -132,6 +132,13 @@ const previewData = computed(() => {
     if (manualMemo) mappedMemoParts.push(manualMemo);
     
     rowObj.memo = mappedMemoParts.length > 0 ? mappedMemoParts.join(' / ') : null;
+
+    // For '신규-계약' with warehouse/empty user, set state to 'wait'
+    // For other warehouse assignments (like '신규-고장교체'), set to 'useable' (original behavior)
+    const normalizedInUser = String(rowObj.in_user || '').trim();
+    if (!normalizedInUser || normalizedInUser === 'cjenc_inno') {
+      rowObj.state = rowObj.work_type === '신규-계약' ? 'wait' : 'useable';
+    }
     
     return rowObj;
   }).filter(obj => {
@@ -195,6 +202,19 @@ watch(() => props.isOpen, (newVal) => {
   }
 });
 
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    emit('close');
+  }
+  isClickStartedOnOverlay.value = false;
+};
+
 watch(workType, (newVal) => {
   if (rowWorkTypes.value.length > 0) {
     rowWorkTypes.value = rowWorkTypes.value.map(() => newVal);
@@ -204,7 +224,7 @@ watch(workType, (newVal) => {
 
 <template>
   <Teleport to="body">
-    <div v-if="isOpen" class="modal-overlay" @mousedown.self="emit('close')">
+    <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
       <div class="modal-content bulk-modal">
         <div class="modal-header">
           <h2>신규 자산등록 (TSV)</h2>

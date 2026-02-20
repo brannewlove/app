@@ -7,6 +7,7 @@ import TablePagination from '../components/TablePagination.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import { getTimestampFilename } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
+import { copyToClipboard } from '../utils/clipboardUtils';
 
 const users = ref([]);
 const loading = ref(false);
@@ -59,12 +60,13 @@ const goToUserAssets = () => {
   }
 };
 
-const copyCjId = (cjId) => {
+const copyCjId = async (cjId) => {
   if (!cjId) return;
-  navigator.clipboard.writeText(cjId).then(() => {
+  const success = await copyToClipboard(cjId);
+  if (success) {
     isCjIdCopied.value = true;
     setTimeout(() => isCjIdCopied.value = false, 2000);
-  });
+  }
 };
 
 const isModalOpen = ref(false);

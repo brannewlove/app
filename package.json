@@ -19,8 +19,13 @@
     "install:all": "npm install && cd backend && npm install",
     "postinstall": "cd backend && npm install",
     "build:all": "npm run build && cd backend && npm install --omit=dev",
-    "start": "cd backend && set NODE_ENV=production& node server.js",
-    "db:sync": "node backend/scripts/sync-db-schema.js"
+    "start": "cd backend && NODE_ENV=production node server.js",
+    "db:sync": "node backend/scripts/sync-db-schema.js",
+    "deploy": "npm run build && sudo cp -r dist/* /var/www/asdb/ && sudo systemctl reload nginx",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:stop": "pm2 stop all",
+    "pm2:status": "pm2 list",
+    "pm2:logs": "pm2 logs"
   },
   "dependencies": {
     "axios": "^1.13.2",
@@ -35,6 +40,7 @@
     "cross-env": "^10.1.0",
     "happy-dom": "^20.3.7",
     "nodemon": "^3.1.11",
+    "pm2": "^6.0.14",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.5",
     "vitest": "^4.0.18",

@@ -17,7 +17,6 @@ defineProps({
 });
 
 const emit = defineEmits(['confirm', 'cancel']);
-const isDragging = ref(false); // 드래그 상태 추적
 
 const handleConfirm = () => {
   emit('confirm');
@@ -27,20 +26,23 @@ const handleCancel = () => {
   emit('cancel');
 };
 
-// 드래그 시작 시 호출
-const handleMouseDown = () => {
-  isDragging.value = true;
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
 };
 
-// 드래그 종료 시 호출
-const handleMouseUp = () => {
-  isDragging.value = false;
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    handleCancel();
+  }
+  isClickStartedOnOverlay.value = false;
 };
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="!isDragging && handleCancel()">
-    <div class="confirm-modal-content" @mousedown="handleMouseDown" @mouseup="handleMouseUp">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
+    <div class="confirm-modal-content">
       <div class="confirm-modal-body">
         <p v-html="message"></p>
       </div>

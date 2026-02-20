@@ -88,8 +88,9 @@
                 </div>
               </td>
               <td :class="{ 'status-checked': asset.release_status }">
-                <input type="date" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
-                       :class="['inline-input', { 'warning-highlight': shouldHighlight(asset.handover_date) }]" />
+                <input type="text" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
+                       class="inline-input" :class="{ 'warning-highlight': shouldHighlight(asset.handover_date) }"
+                       placeholder="YYYY-MM-DD" />
               </td>
               <td class="center" :class="{ 'status-checked': asset.release_status }">
                 <input type="checkbox" v-model="asset.release_status" @change="handleReleaseStatusChange(asset)" />
@@ -313,8 +314,9 @@ import axios from 'axios';
 import { useTable } from '../composables/useTable';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 import WorkTypeSearch from '../components/WorkTypeSearch.vue';
-import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
+import { getTimestampFilename, formatDateTime, formatDate } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
+import { copyRichToClipboard } from '../utils/clipboardUtils';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
@@ -390,8 +392,8 @@ const fetchReturnedAssets = async () => {
       mail_return: !!asset.mail_return,
       actual_return: !!asset.actual_return,
       processing: false,
-      handover_date: asset.handover_date ? asset.handover_date.split('T')[0] : null,
-      end_date: asset.end_date ? asset.end_date.split('T')[0] : null,
+      handover_date: formatDate(asset.handover_date),
+      end_date: formatDate(asset.end_date),
     }));
   } catch (err) {
     error.value = '반납 자산 정보를 가져오는 데 실패했습니다: ' + err.message;
@@ -420,8 +422,8 @@ const updateReturnedAsset = async (asset) => {
         mail_return: !!updatedItem.mail_return,
         actual_return: !!updatedItem.actual_return,
         processing: false,
-        handover_date: updatedItem.handover_date ? updatedItem.handover_date.substring(0, 10) : null,
-        end_date: updatedItem.end_date ? updatedItem.end_date.substring(0, 10) : null,
+        handover_date: formatDate(updatedItem.handover_date),
+        end_date: formatDate(updatedItem.end_date),
       });
     }
   } catch (err) {
@@ -704,15 +706,13 @@ const copyToClipboard = () => {
     ].join('\t'))
   ].join('\n');
 
-  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
-  const blobText = new Blob([plainText], { type: 'text/plain' });
-  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
-
-  navigator.clipboard.write(data).then(() => {
-    isCopied.value = true;
-    setTimeout(() => {
-      isCopied.value = false;
-    }, 2000);
+  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+    if (success) {
+      isCopied.value = true;
+      setTimeout(() => {
+        isCopied.value = false;
+      }, 2000);
+    }
   }).catch(err => {
     console.error('클립보드 복사 실패:', err);
   });
@@ -720,11 +720,7 @@ const copyToClipboard = () => {
 
 const handleReleaseStatusChange = (asset) => {
   if (asset.release_status) {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    asset.handover_date = `${year}-${month}-${day}`;
+    asset.handover_date = formatDate(new Date());
   } else {
     asset.handover_date = null;
   }
@@ -773,7 +769,7 @@ const downloadCSV = () => {
         asset.user_id || '',
         asset.user_name || '',
         asset.department || '',
-        asset.handover_date || '',
+        formatDate(asset.handover_date) || '',
         asset.release_status ? 'O' : 'X',
         asset.it_room_stock ? 'O' : 'X',
         asset.low_format ? 'O' : 'X',

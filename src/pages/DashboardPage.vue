@@ -15,6 +15,19 @@ const expandedCard = ref(null); // 'category', 'state', 'age', 'recent', 'activi
 const expandedYears = ref([]);
 const expandedMonths = ref([]);
 
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('expand-modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('expand-modal-overlay')) {
+    closeExpand();
+  }
+  isClickStartedOnOverlay.value = false;
+};
+
 const toggleYear = (year) => {
     const yStr = String(year);
     const index = expandedYears.value.indexOf(yStr);
@@ -367,7 +380,7 @@ onMounted(() => {
         </div>
 
         <!-- Expanded Modal -->
-        <div v-if="expandedCard" class="expand-modal-overlay" @click.self="closeExpand">
+        <div v-if="expandedCard" class="expand-modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
             <div class="expand-modal-content">
                 <div class="expand-modal-header">
                     <div style="display: flex; align-items: center; gap: 20px;">

@@ -98,7 +98,7 @@ const handleLogin = async () => {
       localStorage.setItem('user', JSON.stringify(loginData.user));
       window.dispatchEvent(new Event('auth-change'));
       window.dispatchEvent(new Event('storage'));
-      router.push('/dashboard'); // 대시보드로 이동
+      router.push('/'); // 대시보드로 이동
     } else {
       error.value = result.message || result.error || '로그인 실패';
     }

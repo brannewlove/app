@@ -313,10 +313,23 @@ watch(() => props.isOpen, (newVal) => {
 onMounted(() => {
   if (props.isOpen) initializeForm();
 });
+
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    emit('close');
+  }
+  isClickStartedOnOverlay.value = false;
+};
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @mousedown.self="emit('close')">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
     <div class="modal-content register-modal">
       <div class="modal-header">
         <h2>거래 대량 등록</h2>

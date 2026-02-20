@@ -210,10 +210,22 @@ const getWorkTypeFilter = () => {
     in_user: currentAssetInfo.value.in_user
   }).some(a => a.id === wt.id);
 };
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    emit('close');
+  }
+  isClickStartedOnOverlay.value = false;
+};
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @mousedown.self="emit('close')">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
     <div class="modal-content trade-action-modal">
       <div class="modal-header">
         <h2>거래등록</h2>

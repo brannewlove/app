@@ -299,11 +299,11 @@ onUnmounted(() => {
     <h1>거래 관리</h1>
     
     <div v-if="error" class="alert alert-error">❌ {{ error }}</div>
-    <div v-if="loading" class="alert alert-info"><img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 로딩 중...</div>
+
 
     <TradeList 
-      v-if="!loading" 
       :trades="trades" 
+      :loading="loading" 
       :initial-search="initialSearch" 
       :current-page="currentPage"
       :page-size="pageSize"
@@ -379,9 +379,20 @@ onUnmounted(() => {
     <AssetInfoModal
       :is-open="isAssetInfoOpen"
       :asset-number="infoAssetNumber"
+      :show-edit="true"
       @close="isAssetInfoOpen = false"
       @user-detail="openUserDetail"
       @trade-search="handleTradeSearchFromInfo"
+      @updated="fetchTrades"
+      @track="(asset) => { 
+        trackingAssetNumber = asset.asset_number; 
+        trackingModel = asset.model || '';
+        trackingCategory = asset.category || '';
+        trackingState = asset.state || '';
+        trackingMemo = asset.memo || '';
+        isTrackingOpen = true; 
+        isAssetInfoOpen = false; 
+      }"
       @quick-trade="handleRegisterTrade"
     />
   </div>

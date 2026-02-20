@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import userApi from '../api/users';
+import { copyToClipboard } from '../utils/clipboardUtils';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -46,12 +47,13 @@ const fetchUser = async (cjId) => {
   }
 };
 
-const copyCjId = (cjId) => {
+const copyCjId = async (cjId) => {
   if (!cjId) return;
-  navigator.clipboard.writeText(cjId).then(() => {
+  const success = await copyToClipboard(cjId);
+  if (success) {
     isCjIdCopied.value = true;
     setTimeout(() => isCjIdCopied.value = false, 2000);
-  });
+  }
 };
 
 watch(() => props.isOpen, (newVal) => {
@@ -63,6 +65,19 @@ watch(() => props.isOpen, (newVal) => {
 const close = () => {
     emit('close');
 }
+
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    close();
+  }
+  isClickStartedOnOverlay.value = false;
+};
 
 const goToUserAssets = () => {
   const targetCjId = user.value?.cj_id || props.cjId;
@@ -78,7 +93,7 @@ const goToUserAssets = () => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="close">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
     <div class="modal-content">
       <div class="modal-header">
         <div style="display: flex; align-items: baseline; gap: 10px;">

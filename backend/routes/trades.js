@@ -42,9 +42,15 @@ router.get('/', async (req, res, next) => {
                 OR u.part LIKE ?
                 OR t.work_type LIKE ?
                 OR t.memo LIKE ?
+                OR u2.name LIKE ?
+                OR t.ex_user LIKE ?
+                OR u2.part LIKE ?
             `;
             const searchPattern = `%${search}%`;
-            params = [searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern];
+            params = [
+                searchPattern, searchPattern, searchPattern, searchPattern, searchPattern,
+                searchPattern, searchPattern, searchPattern, searchPattern, searchPattern
+            ];
             countParams = [...params];
         }
 
@@ -56,6 +62,7 @@ router.get('/', async (req, res, next) => {
                 FROM trade t
                 LEFT JOIN assets a ON t.asset_number = a.asset_number
                 LEFT JOIN users u ON t.cj_id = u.cj_id
+                LEFT JOIN users u2 ON t.ex_user = u2.cj_id
                 ${whereClause}
             `;
         } else {

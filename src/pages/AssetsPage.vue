@@ -17,6 +17,7 @@ import axios from 'axios';
 import { getTimestampFilename } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 import { parseAndFilter } from '../utils/QueryParser';
+import { copyToClipboard, copyRichToClipboard } from '../utils/clipboardUtils';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
@@ -234,9 +235,7 @@ const handleMenuAction = (action) => {
     selectedAsset.value = asset;
     isTrackingOpen.value = true;
   } else if (action === 'copy') {
-    navigator.clipboard.writeText(asset.asset_number).then(() => {
-      // 복사 성공
-    });
+    copyToClipboard(asset.asset_number);
   } else if (action === 'search') {
     searchQuery.value = asset.asset_number;
   }
@@ -304,6 +303,17 @@ const categoryBreakdown = computed(() => {
 const isEditMode = ref(false);
 const editedAsset = ref(null);
 const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e, closeFn) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    closeFn();
+  }
+  isClickStartedOnOverlay.value = false;
+};
 const isTrackingOpen = ref(false); // 추적 모달 상태 추가
 const isUserDetailOpen = ref(false); // 사용자 상세 모달 상태
 const userDetailCjId = ref(''); // 상세 조회할 사용자 ID
@@ -709,15 +719,13 @@ const copyAssetInfoDetailed = () => {
   // 텍스트 버전 (Fallback)
   const plainText = fields.map(field => `${getHeaderDisplayName(field)}: ${formatCellValue(selectedAsset.value[field], field, selectedAsset.value) || '-'}`).join('\n');
 
-  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
-  const blobText = new Blob([plainText], { type: 'text/plain' });
-  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
-
-  navigator.clipboard.write(data).then(() => {
-    isAssetCopied.value = true;
-    setTimeout(() => {
-      isAssetCopied.value = false;
-    }, 2000);
+  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+    if (success) {
+      isAssetCopied.value = true;
+      setTimeout(() => {
+        isAssetCopied.value = false;
+      }, 2000);
+    }
   }).catch(err => {
     console.error('클립보드 복사 실패:', err);
   });
@@ -812,7 +820,7 @@ onMounted(() => {
     </div>
     
     <!-- 반납 처리 확인 모달 -->
-    <div v-if="isReturnModalOpen" class="modal-overlay" @click.self="closeReturnModal">
+    <div v-if="isReturnModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp($event, closeReturnModal)">
       <div class="modal-content return-modal">
         <div class="modal-header">
           <h2>
@@ -912,10 +920,10 @@ onMounted(() => {
             </div>
           </div>
         </div>
-        <div class="search-input-wrapper">
+        <form class="search-input-wrapper" @submit.prevent>
           <input v-model="searchQuery" type="text" :placeholder="searchPlaceholder" class="search-input" />
-          <button v-if="searchQuery || activeSavedFilter" @click="clearSearch" class="clear-btn">✕</button>
-        </div>
+          <button v-if="searchQuery || activeSavedFilter" type="button" @click="clearSearch" class="clear-btn">✕</button>
+        </form>
         <button @click="openSaveFilterModal" class="btn btn-save-filter" title="현재 필터 저장">
           <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -926,7 +934,7 @@ onMounted(() => {
       </div>
       
       <!-- 필터 저장 모달 -->
-      <div v-if="isSaveModalOpen" class="modal-overlay" @click.self="isSaveModalOpen = false">
+      <div v-if="isSaveModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp($event, () => isSaveModalOpen = false)">
         <div class="modal-content save-filter-modal">
           <div class="modal-header">
             <h2>현재 필터 저장</h2>

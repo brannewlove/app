@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, toRef } from 'vue';
+import { copyToClipboard } from '../utils/clipboardUtils';
 
 const props = defineProps({
   trades: {
@@ -31,6 +32,10 @@ const props = defineProps({
     default: 'desc'
   },
   isManualSort: {
+    type: Boolean,
+    default: false
+  },
+  loading: {
     type: Boolean,
     default: false
   }
@@ -65,9 +70,13 @@ watch(() => props.initialSearch, (newVal) => {
   }
 }, { immediate: true });
 
-// 검색어 변경시 상위로 알림 (서버 사이드 필터링용)
+// 검색어 변경시 상위로 알림 (서버 사이드 필터링용) - 디바운스 적용
+let searchTimeout = null;
 watch(searchQuery, (newVal) => {
-  emit('search-change', newVal);
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    emit('search-change', newVal);
+  }, 300);
 });
 
 const paginatedTrades = computed(() => props.trades);
@@ -112,18 +121,22 @@ const columnLabels = {
 
 const orderedColumns = computed(() => {
   if (!props.trades || props.trades.length === 0) {
-    return columnOrder; // 기본 순서 반환
+    return columnOrder;
   }
+  
+  // 기본 컬럼들 유지 (순서 보장)
   const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
+  
   const hiddenColumns = [
     'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
     'cj_id', 'name', 'part', 'category', 'state',
     'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
     'created_at', 'updated_at'
   ];
+  
   const allHeaders = Object.keys(props.trades[0]);
-  // props.trades[0] might change if list updates, but computed tracks dependencies
   const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
+  
   return [...ordered, ...remaining];
 });
 
@@ -201,9 +214,7 @@ const handleMenuAction = (action) => {
   } else if (action === 'track') {
     emit('track-asset', trade);
   } else if (action === 'copy') {
-    navigator.clipboard.writeText(trade.asset_number).then(() => {
-      // Optional: Show toast or alert
-    });
+    copyToClipboard(trade.asset_number);
   } else if (action === 'filter') {
     searchQuery.value = trade.asset_number;
   }
@@ -264,10 +275,21 @@ const handleUserMenuAction = (action) => {
     </div>
 
 
-    <!-- 검색창 추가 (자산관리페이지와 동일 방식) -->
     <div class="search-container">
-      <input v-model="searchQuery" type="text" placeholder="거래 내역 검색..." class="search-input" />
-      <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
+      <div class="search-input-wrapper">
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="거래 내역 검색..." 
+          class="search-input" 
+          autocomplete="off"
+          @keydown.enter.prevent
+        />
+        <div class="input-actions-wrapper">
+          <div v-if="loading" class="input-spinner"></div>
+          <button v-if="searchQuery" type="button" @click="searchQuery = ''" class="input-clear-btn">✕</button>
+        </div>
+      </div>
     </div>
     <div v-if="searchQuery" class="search-result">
       검색 결과: {{ totalItems }}개
@@ -278,7 +300,9 @@ const handleUserMenuAction = (action) => {
         <table class="trades-table">
         <thead>
           <tr>
-            <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" class="sortable-header" :class="{ active: isManualSort && sortColumn === header }">
+            <th v-for="header in orderedColumns" :key="header" @click="handleSort(header)" 
+                class="sortable-header" 
+                :class="[{ active: isManualSort && sortColumn === header }, `col-${header}`]">
               <div class="header-content">
                 <span>{{ columnLabels[header] || header }}</span>
                 <span class="sort-icon">{{ getSortIcon(header) }}</span>
@@ -309,7 +333,9 @@ const handleUserMenuAction = (action) => {
                 <span class="bold-text clickable-asset" @click="openAssetMenu($event, trade)">{{ trade[header] || '-' }}</span>
               </template>
               <template v-else-if="header === 'work_type' || header === 'model'">
-                <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
+                <div class="ellipsis-cell" :title="trade[header]">
+                  <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
+                </div>
               </template>
               <template v-else>{{ trade[header] || '-' }}</template>
             </td>
@@ -416,7 +442,56 @@ const handleUserMenuAction = (action) => {
   box-shadow: var(--shadow-sm);
 }
 
-.search-container { margin-bottom: 20px; }
+.search-container { 
+  margin-bottom: 20px; 
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.input-actions-wrapper {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.input-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ddd;
+  border-top-color: var(--brand-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.input-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #999;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  transition: color 0.2s;
+}
+
+.input-clear-btn:hover {
+  color: var(--text-main);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 .trades-table { 
   width: 100%; 
@@ -429,6 +504,24 @@ const handleUserMenuAction = (action) => {
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.col-work_type {
+  width: 120px;
+  min-width: 120px;
+}
+
+.col-model {
+  width: 100px;
+  max-width: 150px;
+}
+
+.ellipsis-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  width: 100%;
 }
 
 .actions-header { 

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import assetApi from '../api/assets';
+import { copyRichToClipboard } from '../utils/clipboardUtils';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -111,6 +112,19 @@ const saveAsset = async () => {
   }
 };
 
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
+};
+
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    emit('close');
+  }
+  isClickStartedOnOverlay.value = false;
+};
+
 const copyAssetInfoDetailed = () => {
   if (!asset.value) return;
 
@@ -133,15 +147,13 @@ const copyAssetInfoDetailed = () => {
 
   const plainText = fields.map(field => `${getHeaderDisplayName(field)}: ${formatCellValue(asset.value[field], field, asset.value) || '-'}`).join('\n');
 
-  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
-  const blobText = new Blob([plainText], { type: 'text/plain' });
-  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
-
-  navigator.clipboard.write(data).then(() => {
-    isAssetCopied.value = true;
-    setTimeout(() => {
-      isAssetCopied.value = false;
-    }, 2000);
+  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+    if (success) {
+      isAssetCopied.value = true;
+      setTimeout(() => {
+        isAssetCopied.value = false;
+      }, 2000);
+    }
   }).catch(err => {
     console.error('클립보드 복사 실패:', err);
   });
@@ -149,7 +161,7 @@ const copyAssetInfoDetailed = () => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="emit('close')">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
     <div class="modal-content">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px;">

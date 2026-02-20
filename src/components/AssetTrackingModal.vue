@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AutocompleteSearch from './AutocompleteSearch.vue';
+import { copyRichToClipboard } from '../utils/clipboardUtils';
 
 const props = defineProps({
   isOpen: {
@@ -67,14 +68,17 @@ const handleTrackingWheel = (event) => {
   container.scrollLeft += event.deltaY > 0 ? 400 : -400;
 };
 
-// 드래그 시작 시 호출
-const handleMouseDown = () => {
-  isDragging.value = true;
+const isClickStartedOnOverlay = ref(false);
+
+const handleOverlayMouseDown = (e) => {
+  isClickStartedOnOverlay.value = e.target.classList.contains('modal-overlay');
 };
 
-// 드래그 종료 시 호출
-const handleMouseUp = () => {
-  isDragging.value = false;
+const handleOverlayMouseUp = (e) => {
+  if (isClickStartedOnOverlay.value && e.target.classList.contains('modal-overlay')) {
+    closeModal();
+  }
+  isClickStartedOnOverlay.value = false;
 };
 
 const fetchTrackingLogs = async () => {
@@ -135,15 +139,13 @@ const copyAssetInfo = () => {
   // 텍스트 버전 (Fallback)
   const plainText = `자산번호: ${asset_number}\n분류: ${category || '-'}\n모델: ${model || '-'}\n상태: ${state || '-'}\n자산메모: ${memo || '-'}`;
 
-  const blobHtml = new Blob([htmlTable], { type: 'text/html' });
-  const blobText = new Blob([plainText], { type: 'text/plain' });
-  const data = [new ClipboardItem({ 'text/html': blobHtml, 'text/plain': blobText })];
-
-  navigator.clipboard.write(data).then(() => {
-    isCopied.value = true;
-    setTimeout(() => {
-      isCopied.value = false;
-    }, 2000);
+  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+    if (success) {
+      isCopied.value = true;
+      setTimeout(() => {
+        isCopied.value = false;
+      }, 2000);
+    }
   }).catch(err => {
     console.error('클립보드 복사 실패:', err);
   });
@@ -160,8 +162,8 @@ const goToTradeSearch = () => {
 </script>
 
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="!isDragging && closeModal()">
-    <div class="modal-content" @mousedown="handleMouseDown" @mouseup="handleMouseUp">
+  <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
+    <div class="modal-content">
       <div class="modal-header">
         <h2>자산 추적</h2>
         <div class="header-buttons">
