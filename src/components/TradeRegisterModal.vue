@@ -1,17 +1,15 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import AutocompleteSearch from './AutocompleteSearch.vue';
-import WorkTypeSearch from './WorkTypeSearch.vue';
 import UserDetailModal from './UserDetailModal.vue';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
   getFixedCjIdDisplay, 
   validateTradeStrict, 
-  getWorkTypeConfig,
-  getAvailableWorkTypesForAsset
+  getWorkTypeConfig
 } from '../constants/workTypes';
 import assetApi from '../api/assets';
+import { getUserByCjId } from '../api/users'; 
 
 const props = defineProps({
   isOpen: {
@@ -26,273 +24,95 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'success']);
 
-const trades = ref([]);
+const rawTsvData = ref('');
+const parsedTrades = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const successMessage = ref(null);
-const validTradesCount = ref(0);
 const registeredTrades = ref([]);
-const currentAssetInfo = ref(null); // 현재 선택된 자산 정보 요약용
+
 const isUserDetailOpen = ref(false);
 const userDetailCjId = ref('');
 
 const openUserDetail = (cjId) => {
   if (!cjId || cjId === 'cjenc_inno') return;
-  emit('close'); // 현재 모달 닫기
   userDetailCjId.value = cjId;
   isUserDetailOpen.value = true;
 };
 
-const copyCurrentUserToInput = () => {
-  if (currentAssetInfo.value && currentAssetInfo.value.in_user) {
-    // 요약 섹션의 자산 번호와 일치하는 행을 찾아 사용자 정보 복사
-    const targetAssetNumber = currentAssetInfo.value.asset_number;
-    trades.value.forEach(trade => {
-      if (trade.asset_number === targetAssetNumber) {
-        trade.cj_id = currentAssetInfo.value.in_user;
-        trade.cj_name = currentAssetInfo.value.user_name || currentAssetInfo.value.in_user;
-      }
-    });
-
-    // 만약 단일 자산 등록 모드에서 자산번호가 아직 매칭 전이라면 첫 번째 행에 적용
-    if (props.initialAssetNumber && trades.value.length === 1) {
-      trades.value[0].cj_id = currentAssetInfo.value.in_user;
-      trades.value[0].cj_name = currentAssetInfo.value.user_name || currentAssetInfo.value.in_user;
-    }
-  }
-};
-
-// 자산 선택 시 처리
-const handleAssetSelect = (item, trade, index) => {
-  if (item && typeof item === 'object') {
-    const assetNumber = String(item.asset_number || '');
-    trade.asset_number = assetNumber;
-    trade.asset_state = String(item.state || '');
-    trade.asset_in_user = String(item.in_user || '');
-    trade.asset_memo = String(item.memo || '');
-
-    // 고정 사용자 설정 처리
-    const config = getWorkTypeConfig(trade.work_type);
-    if (config && config.fixedCjId) {
-      if (config.fixedCjId === 'no-change') {
-        trade.cj_id = trade.asset_in_user;
-      } else {
-        trade.cj_id = config.fixedCjId;
-      }
-    }
-
-    // 상단 요약 정보 업데이트 (첫 번째 행이거나 단일 자산 등록 시)
-    if (index === 0 || props.initialAssetNumber) {
-      currentAssetInfo.value = {
-        asset_number: item.asset_number,
-        category: item.category,
-        model: item.model,
-        state: item.state,
-        in_user: item.in_user,
-        user_name: item.user_name || item.in_user,
-        user_part: item.user_part,
-        memo: item.memo
-      };
-    }
-  }
-};
-
-// 초기 5개 행 생성
-const initializeForm = async () => {
-  currentAssetInfo.value = null;
-  if (props.initialAssetNumber) {
-    trades.value = [{ asset_number: props.initialAssetNumber }];
-    try {
-      const asset = await assetApi.getAssetByNumber(props.initialAssetNumber);
-      if (asset) {
-        handleAssetSelect(asset, trades.value[0], 0);
-      }
-    } catch (err) {
-      console.error('Failed to fetch initial asset:', err);
-    }
-  } else {
-    trades.value = Array.from({ length: 5 }, () => ({}));
-  }
+const initializeForm = () => {
+  rawTsvData.value = '';
+  parsedTrades.value = [];
   error.value = null;
   successMessage.value = null;
   registeredTrades.value = [];
-};
-
-// 입력 필드 추가 (5개씩)
-const addRow = () => {
-  for (let i = 0; i < 5; i++) {
-    trades.value.push({});
-  }
-};
-
-// 행 제거
-const removeRow = (index) => {
-  if (trades.value.length > 1) {
-    trades.value.splice(index, 1);
-  } else {
-    trades.value[0] = {}; // 마지막 행은 초기화
-  }
-};
-
-// ... (existing helper functions if any not replaced, but here we replace most validation logic)
-
-// ... (existing helper functions if any not replaced, but here we replace most validation logic)
-
-// 작업유형별 자산 유효성 검사
-const validateAssetForWorkType = (item, workType) => {
-  if (!workType || workType.trim() === '') {
-    return { valid: true };
-  }
-
-  if (!item || typeof item !== 'object') {
-    return { valid: false, message: 'invalid item' };
-  }
-
-  const assetMock = {
-    state: item.state,
-    in_user: item.in_user
-  };
   
-  // validateTradeStrict는 tradeData에 cj_id가 있어야 일부 검사를 수행하지만, 
-  // 여기서는 자산 자체의 적합성(상태, 보유자)만 검사하면 되므로 cj_id는 pass
-  // 단, validateTradeStrict 내부 구현이 cj_id를 요구하는 경우(출고 등)가 있음.
-  // 자산 적합성만 체크하기 위해 mock tradeData 사용.
-  const tradeMock = { work_type: workType, cj_id: 'dummy' }; 
-  // Note: strict check might fail on cj_id if we don't provide it, but we only case about allowedStates/sourceType here?
-  // validateTradeStrict logic checks cj_id existence. 
-  // We should split asset validation vs trade complete validation?
-  // validateTradeStrict implementation: returns error if asset_state mismatch OR cj_id missing.
-  // For autocomplete validation, we mostly care about asset state mismatch.
-  // Let's modify usage: ignore 'cj_id missing' error if our goal is just checking asset compatibility.
-  
-  const result = validateTradeStrict(tradeMock, assetMock, { skipCjIdCheck: true });
-  if (!result.valid) {
-    return result;
+  // 단일 자산 번호가 있을때 기본 템플릿 제공
+  if (props.initialAssetNumber) {
+    rawTsvData.value = `작업유형\t자산번호\tCJ ID\t메모\t시작일\t종료일\t단가\n\t${props.initialAssetNumber}\t\t\t\t\t`;
+    parseTsvData();
   }
-  return { valid: true };
 };
 
-const getWorkTypeFilter = (trade) => {
-  if (!trade.asset_number || !trade.asset_state) return null;
-  const asset = { state: trade.asset_state, in_user: trade.asset_in_user };
-  const available = getAvailableWorkTypesForAsset(asset);
-  return (wt) => available.some(a => a.id === wt.id);
-};
-
-const getAssetApiParams = (workType) => {
-  const params = { exclude_state: 'termination' };
-  const config = getWorkTypeConfig(workType);
-  
-  if (!config) return params;
-
-  // 1. Allowed States -> API 'state' param
-  if (config.allowedStates && config.allowedStates.length > 0) {
-    if (config.allowedStates.length === 1) {
-      params.state = config.allowedStates[0];
-    } else {
-      params.state = config.allowedStates[0];
-    }
-  }
-
-  // 2. Source Type -> API 'in_user' param
-  if (config.sourceType === 'stock') {
-    params.in_user = 'cjenc_inno';
-  }
-
-  return params;
-};
-
-const validateTrade = (trade) => {
-  const { work_type, asset_number, cj_id, asset_state, asset_in_user } = trade;
-  if (!work_type) return { valid: false, message: '작업 유형을 선택해주세요.' };
-
-  const config = getWorkTypeConfig(work_type);
-  
-  // 재계약 날짜 검증
-  if (config?.requiresDates) {
-    if (!trade.new_day_of_start) return { valid: false, message: '새로운 시작일을 입력해주세요.' };
-    if (!trade.new_day_of_end) return { valid: false, message: '새로운 종료일을 입력해주세요.' };
-  }
-
-  trade.ex_user = asset_in_user || '';
-  if (!asset_number) return { valid: false, message: '자산 ID를 선택해주세요.' };
-
-  const assetCtx = {
-    state: asset_state,
-    in_user: asset_in_user
-  };
-  const tradeCtx = {
-    work_type,
-    cj_id
-  };
-
-  return validateTradeStrict(tradeCtx, assetCtx);
-};
-
-const submitTrades = async () => {
-  const validTrades = [];
-  let hasError = false;
-  let errorMsg = '';
-
-  for (let i = 0; i < trades.value.length; i++) {
-    const trade = trades.value[i];
-    if (!Object.values(trade).some(value => value && String(value).trim() !== '')) continue;
-
-    const validation = validateTrade(trade);
-    if (!validation.valid) {
-      hasError = true;
-      errorMsg = `${i + 1}번 행: ${validation.message}`;
-      break;
-    }
-
-    const tradeForSubmit = { ...trade };
-    // asset_state, asset_in_user, asset_memo 는 저장해야 함
-    delete tradeForSubmit.cj_name;
-    validTrades.push(tradeForSubmit);
-  }
-
-  if (hasError) {
-    error.value = errorMsg;
+const parseTsvData = () => {
+  error.value = null;
+  successMessage.value = null;
+  if (!rawTsvData.value.trim()) {
+    parsedTrades.value = [];
     return;
   }
-
-  if (validTrades.length === 0) {
-    error.value = '등록할 거래 데이터가 없습니다.';
+  
+  const lines = rawTsvData.value.split('\n').map(line => line.trim()).filter(line => line);
+  if (lines.length === 0) {
+    parsedTrades.value = [];
     return;
   }
+  
+  const trades = [];
+  
+  // 첫 줄 헤더 체크 ('작업' 혹은 '유형' 포함)
+  const startIndex = (lines[0].includes('작업') || lines[0].includes('유형') || lines[0].includes('자산')) ? 1 : 0;
+  
+  for (let i = startIndex; i < lines.length; i++) {
+    const cols = lines[i].split('\t').map(c => c.trim());
+    
+    // 열 구조: [0]작업유형, [1]자산번호, [2]CJ ID, [3]메모, [4]시작일, [5]종료일, [6]단가
+    let work_type = cols[0] || '';
+    let asset_number = cols[1] || '';
+    let cj_id = cols[2] || '';
+    let memo = cols[3] || '';
+    let new_day_of_start = cols[4] || '';
+    let new_day_of_end = cols[5] || '';
+    let new_unit_price = cols[6] || '';
 
-  validTradesCount.value = validTrades.length;
+    // 고정 CJ ID 강제 적용 확인
+    const config = getWorkTypeConfig(work_type);
+    if (config?.fixedCjId && config?.fixedCjId !== 'no-change') {
+      cj_id = config.fixedCjId;
+    }
 
-  try {
-    loading.value = true;
-    error.value = null;
-    successMessage.value = null;
-
-    const response = await fetch('/api/trades', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validTrades)
+    trades.push({
+      work_type,
+      asset_number,
+      cj_id,
+      memo,
+      new_day_of_start,
+      new_day_of_end,
+      new_unit_price,
+      isValid: false,
+      isValidationDone: false,
+      validationMessage: '검사 대기중',
+      asset_state: '',
+      asset_in_user: '',
+      ex_user: '',
+      cj_name: ''
     });
-
-    const result = await response.json();
-    if (result.success) {
-      successMessage.value = `${validTrades.length}건의 거래가 성공적으로 등록되었습니다.`;
-      registeredTrades.value = validTrades;
-      emit('success');
-      
-      setTimeout(() => {
-        initializeForm();
-      }, 2000);
-    } else {
-      error.value = '등록 실패: ' + (result.error || '알 수 없는 오류');
-    }
-  } catch (err) {
-    error.value = '등록 중 오류 발생: ' + err.message;
-  } finally {
-    loading.value = false;
   }
+  
+  parsedTrades.value = trades;
 };
 
+// 상태 가져오기 요약 등
 const getAssetDisplayName = (state) => {
   const stateMap = {
     'useable': '가용',
@@ -306,14 +126,171 @@ const getAssetDisplayName = (state) => {
   return stateMap[state] || state;
 };
 
-watch(() => props.isOpen, (newVal) => {
-  if (newVal) initializeForm();
-});
+const validateAllTrades = async () => {
+  error.value = null;
+  loading.value = true;
+  successMessage.value = null;
 
-onMounted(() => {
-  if (props.isOpen) initializeForm();
-});
+  try {
+    for (let i = 0; i < parsedTrades.value.length; i++) {
+      const trade = parsedTrades.value[i];
+      let rowValid = true;
+      let rowMsg = '유효';
 
+      // 1. 필수값 체크
+      if (!trade.work_type) {
+        rowValid = false;
+        rowMsg = '작업유형 누락';
+      } else if (!trade.asset_number) {
+        rowValid = false;
+        rowMsg = '자산번호 누락';
+      }
+
+      // 작업유형 설정 가져오기
+      const config = getWorkTypeConfig(trade.work_type);
+      if (rowValid && !config) {
+        rowValid = false;
+        rowMsg = '존재하지 않는 작업유형';
+      }
+
+      // 2. 외부 데이터 조회 (자산 조회)
+      let assetData = null;
+      if (rowValid && trade.asset_number) {
+        try {
+          assetData = await assetApi.getAssetByNumber(trade.asset_number);
+          if (!assetData) {
+            rowValid = false;
+            rowMsg = '존재하지 않는 자산번호';
+          } else {
+            trade.asset_state = assetData.state;
+            trade.asset_in_user = assetData.in_user;
+            trade.ex_user = assetData.in_user;
+            
+            if (config?.fixedCjId === 'no-change') {
+               // 보유자가 그대로 유지되는 경우 기본 할당
+               trade.cj_id = trade.asset_in_user;
+            }
+          }
+        } catch(e) {
+             rowValid = false;
+             rowMsg = '자산 정보 조회 실패';
+        }
+      }
+
+      // 3. CJ ID 검증 (필요한 경우)
+      if (rowValid && trade.cj_id && config?.fixedCjId !== 'no-change' && trade.cj_id !== 'cjenc_inno') {
+         try {
+             // 임직원 정보 조회
+             const userResponse = await getUserByCjId(trade.cj_id);
+             trade.cj_name = userResponse.name || trade.cj_id;
+         } catch(e) {
+             // 404 등 사용자가 없으면 실패
+             rowValid = false;
+             rowMsg = '사용자 정보 없음(CJ ID 확인)';
+         }
+      }
+
+      // cjenc_inno 등 고정일때는 이름 처리
+      if(trade.cj_id === 'cjenc_inno') trade.cj_name = '재고';
+
+      // 4. 모의 검사 (validateTradeStrict)
+      if (rowValid) {
+        const assetCtx = {
+          state: trade.asset_state,
+          in_user: trade.asset_in_user
+        };
+        const tradeCtx = {
+          work_type: trade.work_type,
+          cj_id: trade.cj_id
+        };
+
+        const result = validateTradeStrict(tradeCtx, assetCtx);
+        if (!result.valid) {
+          rowValid = false;
+          rowMsg = result.message || '상태 및 보유자 충돌';
+        }
+      }
+
+      // 재계약 등 날짜 검토
+      if (rowValid && config?.requiresDates) {
+        if (!trade.new_day_of_start || !trade.new_day_of_end) {
+           rowValid = false;
+           rowMsg = '시작/종료일 누락';
+        }
+      }
+
+      trade.validationMessage = rowMsg;
+      trade.isValid = rowValid;
+      trade.isValidationDone = true;
+    }
+  } catch (err) {
+    error.value = '유효성 검사 중 시스템 오류: ' + err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const submitValidTrades = async () => {
+  const validTradesToSubmit = parsedTrades.value.filter(t => t.isValid && t.isValidationDone);
+  
+  if (validTradesToSubmit.length === 0) {
+    error.value = '등록할 유효한 거래가 없거나 유효성 검사가 완료되지 않았습니다.';
+    return;
+  }
+
+  // 중복 거래 검사 (같은 자산번호에 여러 개의 통과된 거래가 있는지)
+  const dedupMap = {};
+  for(const t of validTradesToSubmit){
+    if(dedupMap[t.asset_number]){
+      error.value = `동일 자산(${t.asset_number})에 대한 처리 요청이 중복되었습니다. 하나만 남겨주세요.`;
+      return;
+    }
+    dedupMap[t.asset_number] = true;
+  }
+
+  const payload = validTradesToSubmit.map(t => {
+      const data = { ...t };
+      delete data.isValid;
+      delete data.validationMessage;
+      delete data.isValidationDone;
+      delete data.cj_name;
+      return data;
+  });
+
+  try {
+    loading.value = true;
+    error.value = null;
+
+    const response = await fetch('/api/trades', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      successMessage.value = `${payload.length}건의 거래가 성공적으로 등록되었습니다.`;
+      registeredTrades.value = payload;
+      emit('success');
+      
+      // 등록 성공한 행 삭제 
+      parsedTrades.value = parsedTrades.value.filter(t => !t.isValid || !t.isValidationDone);
+      
+    } else {
+      error.value = '등록 실패: ' + (result.error || '알 수 없는 오류');
+    }
+  } catch (err) {
+    error.value = '등록 중 통신 오류: ' + err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const removeRow = (idx) => {
+  parsedTrades.value.splice(idx, 1);
+};
+
+// ... 모달 오버레이 처리
 const isClickStartedOnOverlay = ref(false);
 
 const handleOverlayMouseDown = (e) => {
@@ -326,13 +303,21 @@ const handleOverlayMouseUp = (e) => {
   }
   isClickStartedOnOverlay.value = false;
 };
+
+watch(() => props.isOpen, (newVal) => {
+  if (newVal) initializeForm();
+});
+
+onMounted(() => {
+  if (props.isOpen) initializeForm();
+});
 </script>
 
 <template>
   <div v-if="isOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp">
     <div class="modal-content register-modal">
       <div class="modal-header">
-        <h2>거래 대량 등록</h2>
+        <h2>거래 대량 등록 (TSV 붙여넣기)</h2>
         <button @click="emit('close')" class="close-btn">✕</button>
       </div>
       
@@ -343,148 +328,105 @@ const handleOverlayMouseUp = (e) => {
         </div>
         <div v-if="loading" class="alert alert-info">
           <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 
-          {{ validTradesCount }}건의 거래를 등록 중입니다...
+          작업을 진행 중입니다...
         </div>
 
-        <!-- 현재 자산 정보 요약 섹션 추가 -->
-        <div v-if="currentAssetInfo" class="asset-summary-banner">
-          <div class="summary-item">
-            <span class="summary-label">자산번호</span>
-            <span class="summary-value">{{ currentAssetInfo.asset_number }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">분류/모델</span>
-            <span class="summary-value">{{ currentAssetInfo.category }} / {{ currentAssetInfo.model }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">현재상태</span>
-            <span class="summary-value">{{ currentAssetInfo.state }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">
-              현재사용자
-              <button 
-                v-if="currentAssetInfo?.in_user && currentAssetInfo.in_user !== 'cjenc_inno'" 
-                class="btn-user-copy-tiny" 
-                @click="copyCurrentUserToInput"
-                title="현재사용자를 입력란으로 복사"
-              >
-                <img src="/images/down_arrow.png" alt="copy user" class="copy-icon-tiny" />
-              </button>
-            </span>
-            <span class="summary-value">{{ currentAssetInfo.user_name || '-' }} <small v-if="currentAssetInfo.user_part">({{ currentAssetInfo.user_part }})</small></span>
-          </div>
-          <div v-if="currentAssetInfo.memo" class="summary-item full-width">
-            <span class="summary-label">자산메모</span>
-            <span class="summary-value memo-text">{{ currentAssetInfo.memo }}</span>
+        <!-- 텍스트 입력 영역 -->
+        <div class="paste-section">
+          <label class="paste-label">
+            엑셀 데이터를 화면에 붙여넣고 파싱 버튼을 누르세요. 
+            (형식: 작업유형 / 자산번호 / CJ ID / 메모 / 시작일 / 종료일 / 단가)
+          </label>
+          <textarea 
+            v-model="rawTsvData" 
+            class="tsv-textarea" 
+            placeholder="여기에 엑셀 데이터를 붙여넣으세요...&#13;&#10;신규-지급&#9;ABC1234&#9;my_user&#9;지급메모&#13;&#10;반납-퇴사&#9;XYZ9876&#9;&#9;반납메모"
+          ></textarea>
+          <div class="button-group-left">
+            <button @click="parseTsvData" class="btn btn-parse">📝 파싱하기</button>
           </div>
         </div>
 
-        <div class="register-section">
+        <div class="register-section" v-if="parsedTrades.length > 0">
+          <h4>미리보기 및 상태 (총 {{ parsedTrades.length }}건)</h4>
           <div class="table-container">
             <div class="table-wrapper">
             <table class="register-table">
               <thead>
                 <tr>
                   <th class="row-number">#</th>
-                  <th style="width: 220px;">작업 유형</th>
-                  <th style="width: 200px;">자산 ID</th>
-                  <th style="width: 200px;">CJ ID</th>
-                  <th>거래메모 / 재계약 정보</th>
+                  <th>작업 유형</th>
+                  <th>자산번호</th>
+                  <th>보유/상태</th>
+                  <th>CJ ID</th>
+                  <th>메모</th>
+                  <th v-if="parsedTrades.some(t => getWorkTypeConfig(t.work_type)?.requiresDates)">날짜/단가</th>
+                  <th>유효성</th>
                   <th class="action">삭제</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(trade, index) in trades" :key="index" :class="{ 'stripe': index % 2 === 1 }">
+                <tr v-for="(trade, index) in parsedTrades" :key="index" :class="{ 'stripe': index % 2 === 1, 'invalid-row': trade.isValidationDone && !trade.isValid }">
                   <td class="row-number">{{ index + 1 }}</td>
+                  <td><b>{{ trade.work_type }}</b></td>
+                  <td>{{ trade.asset_number }}</td>
+                  
                   <td>
-                    <WorkTypeSearch
-                      :initial-value="trade.work_type || ''"
-                      placeholder="유형 선택"
-                      :id="`work_type_${index}`"
-                      :filter-fn="getWorkTypeFilter(trade)"
-                      @select="(item) => {
-                        trade.work_type = String(item.work_type || '');
-                        const config = getWorkTypeConfig(trade.work_type);
-                        if (config && config.fixedCjId) {
-                          if (config.fixedCjId === 'no-change') {
-                            if (trade.asset_in_user) trade.cj_id = trade.asset_in_user;
-                          } else {
-                            trade.cj_id = config.fixedCjId;
-                          }
-                        }
-                      }"
-                    />
+                     <span v-if="trade.isValidationDone && trade.asset_state">
+                       {{ trade.asset_in_user }}<br/><small style="color:#666">({{ getAssetDisplayName(trade.asset_state) }})</small>
+                     </span>
+                     <span v-else style="color:#aaa">-</span>
                   </td>
+                  
                   <td>
-                    <AutocompleteSearch
-                      :initial-value="trade.asset_number || ''"
-                      placeholder="자산번호"
-                      api-table="assets"
-                      api-column="asset_number"
-                      :id="`asset_number_${index}`"
-                      :api-params="getAssetApiParams(trade.work_type)"
-                      :validate-item="(item) => validateAssetForWorkType(item, trade.work_type)"
-                      @select="(item) => handleAssetSelect(item, trade, index)"
-                    />
-                  </td>
-                  <td>
-                    <div v-if="isCjIdDisabled(trade.work_type)" class="fixed-val">
-                      {{ getFixedCjIdDisplay(trade.work_type) }}
+                    <div v-if="trade.cj_name && trade.cj_id">
+                      {{ trade.cj_name }} <small>({{ trade.cj_id }})</small>
                     </div>
-                    <AutocompleteSearch
-                      v-else
-                      :initial-value="trade.cj_name || trade.cj_id || ''"
-                      placeholder="이름/ID"
-                      api-table="users"
-                      api-column="cj_id"
-                      :id="`cj_id_${index}`"
-                      @select="(item) => {
-                        trade.cj_id = String(item.cj_id || '');
-                        trade.cj_name = String(item.name || '');
-                      }"
-                    />
-                  </td>
-                  <td>
-                    <div class="memo-age-container">
-                      <input v-model="trade.memo" type="text" placeholder="거래메모" class="form-input" />
-                      <div v-if="getWorkTypeConfig(trade.work_type)?.requiresDates" class="recontract-fields">
-                        <div class="field-item">
-                          <span>시작:</span>
-                          <input v-model="trade.new_day_of_start" type="date" class="form-input mini" />
-                        </div>
-                        <div class="field-item">
-                          <span>종료:</span>
-                          <input v-model="trade.new_day_of_end" type="date" class="form-input mini" />
-                        </div>
-                        <div class="field-item">
-                          <span>단가:</span>
-                          <input v-model="trade.new_unit_price" type="number" placeholder="월단가" class="form-input mini" />
-                        </div>
-                      </div>
+                    <div v-else>
+                      {{ isCjIdDisabled(trade.work_type) ? getFixedCjIdDisplay(trade.work_type) : trade.cj_id }}
                     </div>
+                  </td>
+                  <td>{{ trade.memo }}</td>
+                  <td v-if="parsedTrades.some(t => getWorkTypeConfig(t.work_type)?.requiresDates)">
+                     <div v-if="getWorkTypeConfig(trade.work_type)?.requiresDates" style="font-size:11px">
+                       {{ trade.new_day_of_start }} ~ {{ trade.new_day_of_end }}<br/>{{ trade.new_unit_price }}
+                     </div>
+                  </td>
+                  <td class="validation-status">
+                    <span v-if="!trade.isValidationDone" class="status wait">대기</span>
+                    <span v-else-if="trade.isValid" class="status valid">✔️ {{ trade.validationMessage }}</span>
+                    <span v-else class="status invalid">❌ {{ trade.validationMessage }}</span>
                   </td>
                   <td class="action">
-                    <button @click="removeRow(index)" class="btn-delete-row" title="삭제"><img src="/images/recyclebin.png" alt="delete" class="delete-icon" /></button>
+                    <button @click="removeRow(index)" class="btn-delete-row" title="삭제">
+                      <img src="/images/recyclebin.png" alt="delete" class="delete-icon" />
+                    </button>
                   </td>
                 </tr>
               </tbody>
             </table>
-            </div> <!-- table-wrapper close -->
-          </div> <!-- table-container close -->
-        </div> <!-- register-section close -->
+            </div>
+          </div>
+        </div>
 
-        <div class="button-group">
-          <button @click="addRow" class="btn btn-modal btn-add">+ 행 추가</button>
-          <button @click="submitTrades" :disabled="loading" class="btn btn-modal btn-submit">
-            {{ loading ? '등록 중...' : '거래 등록' }}
+        <div class="button-group" v-if="parsedTrades.length > 0">
+          <button @click="validateAllTrades" :disabled="loading" class="btn btn-modal btn-check">
+            🔍 유효성 검사
+          </button>
+          <button 
+            @click="submitValidTrades" 
+            :disabled="loading || parsedTrades.filter(t => t.isValid && t.isValidationDone).length === 0" 
+            class="btn btn-modal btn-submit"
+          >
+            ✅ 유효한 거래 등록 ({{ parsedTrades.filter(t => t.isValid && t.isValidationDone).length }}건)
           </button>
         </div>
+
       </div>
 
       <div v-if="registeredTrades.length > 0" class="registered-list">
-        <h3>최근 등록 결과</h3>
-        <div class="scroll-table">
+        <h3 style="margin-left: 20px;">최근 등록 결과</h3>
+        <div class="scroll-table" style="margin: 0 20px 20px 20px;">
           <table class="registered-table">
             <thead>
               <tr>
@@ -519,55 +461,114 @@ const handleOverlayMouseUp = (e) => {
 <style scoped>
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center; /* 화면 정중앙 배치 */
+  display: flex; justify-content: center; align-items: center;
   z-index: 1000;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
+  background: white; border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
+  display: flex; flex-direction: column;
 }
 
 .register-modal {
   max-width: 1200px;
   width: 95%;
-  height: 80vh; /* 높이 고정으로 행 추가 시 창 크기 변동 방지 */
+  height: 85vh; /* 높은 높이를 가져 정보 보기 좋게 설정 */
+}
+
+/* Header */
+.modal-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
 }
 
 .modal-body {
   padding: 20px;
   overflow-y: auto;
-  flex: 1; /* 남은 공간 차지 */
+  flex: 1;
 }
 
+/* Paste Section */
+.paste-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.paste-label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 600;
+}
+
+.tsv-textarea {
+  width: 100%;
+  height: 120px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 10px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  resize: vertical;
+  background: #fff;
+}
+
+.tsv-textarea:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+}
+
+.button-group-left {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Table Section */
 .table-container {
   overflow: hidden;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
   border: 1px solid var(--border-color);
 }
 
 .table-wrapper {
   overflow: auto;
-  max-height: calc(85vh - 300px); /* 모달 높이에 맞게 비례 조정 */
-  min-height: 300px;
+  max-height: calc(85vh - 420px);
+  min-height: 200px;
 }
 
 .register-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
   min-width: 800px;
 }
 
@@ -583,6 +584,7 @@ const handleOverlayMouseUp = (e) => {
   padding: 10px;
   border-bottom: 1px solid var(--border-color);
   text-align: left;
+  vertical-align: middle;
 }
 
 .register-table th.row-number, .register-table td.row-number {
@@ -595,102 +597,67 @@ const handleOverlayMouseUp = (e) => {
   text-align: center;
 }
 
-.fixed-val {
-  display: flex;
-  align-items: center;
-  height: 38px;
-  padding: 0 10px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  border: 1px solid #d0d0d0;
-  font-size: 12px;
-  color: #666;
-  white-space: nowrap;
+.invalid-row td {
+  background-color: #ffebee;
 }
 
-.form-input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #d0d0d0;
+/* Statuses */
+.status {
+  padding: 4px 8px;
   border-radius: 4px;
-  font-size: 13px;
-}
-
-.form-input.mini {
-  padding: 4px 6px;
   font-size: 11px;
+  font-weight: bold;
 }
+.status.wait { background: #eee; color: #666; }
+.status.valid { background: #e8f5e9; color: #2e7d32; }
+.status.invalid { background: #ffebee; color: #c62828; }
 
-.memo-age-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.recontract-fields {
-  display: flex;
-  gap: 8px;
-  background: #fdf2f2;
-  padding: 6px;
-  border-radius: 4px;
-  border: 1px dashed #e74c3c;
-}
-
-.field-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #c0392b;
-  flex: 1;
-}
-
-.field-item span {
-  white-space: nowrap;
-}
-
+/* Buttons */
 .button-group {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
-  margin-bottom: 20px;
+  margin-top: 20px;
 }
 
-.btn-add { background: #777; color: white; }
-.btn-submit { background: var(--brand-blue); color: white; }
-.btn-submit:disabled { background: var(--border-color); cursor: not-allowed; }
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-parse { background: #455a64; color: white; margin-top: 5px;}
+.btn-parse:hover { background: #37474f; }
+
+.btn-check { background: #1976d2; color: white; }
+.btn-check:hover:not(:disabled) { background: #1565c0; }
+
+.btn-submit { background: #2e7d32; color: white; }
+.btn-submit:hover:not(:disabled) { background: #1b5e20; }
+.btn-submit:disabled, .btn-check:disabled { background: #ccc; cursor: not-allowed; }
 
 .btn-delete-row {
-  background: var(--error-color);
+  background: var(--error-color, #e74c3c);
   border: none;
   cursor: pointer;
-  padding: 6px;
+  padding: 4px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
 }
-.btn-delete-row:hover { 
-  background: #c0392b;
-}
-
 .btn-delete-row .delete-icon {
-  filter: brightness(0) invert(1);
+  width: 14px; height: 14px; filter: brightness(0) invert(1);
 }
 
+/* Extras */
 .registered-list {
-  margin-top: 30px;
   border-top: 2px solid #eee;
   padding-top: 20px;
-}
-.registered-list h3 { font-size: 16px; color: #666; margin-bottom: 10px; }
-
-.scroll-table {
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid #eee;
-  border-radius: 4px;
 }
 
 .registered-table {
@@ -700,130 +667,14 @@ const handleOverlayMouseUp = (e) => {
 }
 .registered-table th { background: #f5f5f5; padding: 8px; text-align: left; }
 .registered-table td { padding: 8px; border-bottom: 1px solid #eee; }
-
-.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
-.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
-.alert-success { background: #f1f8e9; color: #558b2f; border-left: 4px solid #8bc34a; }
-.alert-info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #2196f3; }
-
-.loading-icon, .delete-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
+.scroll-table {
+  max-height: 200px; overflow-y: auto;
+  border: 1px solid #eee; border-radius: 4px;
 }
 
-.loading-icon {
-  margin-right: 4px;
-}
-
-.checkmark-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-}
-
-.checkmark-icon {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-  vertical-align: middle;
-}
-
-/* 알림 스타일 */
-.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 14px; }
-.alert-error { background: #fef2f2; color: #e74c3c; border-left: 4px solid #e74c3c; }
-.alert-success { background: #f1f8e9; color: #2e7d32; border-left: 4px solid #4CAF50; }
-.alert-info { background: #e3f2fd; color: #1976d2; border-left: 4px solid #2196f3; }
-
-/* 자산 요약 배너 스타일 */
-.asset-summary-banner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
-}
-
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.summary-item.full-width {
-  flex-basis: 100%;
-}
-
-.summary-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.summary-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-}
-
-.memo-text {
-  font-weight: normal;
-  color: #666;
-  font-style: italic;
-}
-.btn-user-link-tiny {
-  background: transparent;
-  border: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  margin-left: 4px;
-  vertical-align: middle;
-  transition: opacity 0.2s;
-}
-
-.btn-user-link-tiny:hover {
-  opacity: 0.7;
-}
-
-.link-icon-tiny {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-  filter: brightness(0.6);
-}
-
-.btn-user-copy-tiny {
-  background: transparent;
-  border: none;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  margin-left: 6px;
-  vertical-align: middle;
-  transition: transform 0.2s, opacity 0.2s;
-}
-
-.btn-user-copy-tiny:hover {
-  opacity: 0.7;
-  transform: translateY(1px);
-}
-
-.copy-icon-tiny {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-}
+.alert { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; }
+.alert-error { background: #fef2f2; color: #c62828; border-left: 4px solid #c62828; }
+.alert-success { background: #f1f8e9; color: #2e7d32; border-left: 4px solid #2e7d32; }
+.alert-info { background: #e3f2fd; color: #1565c0; border-left: 4px solid #1976d2; }
+.loading-icon, .checkmark-icon { width: 16px; height: 16px; margin-right: 4px; vertical-align: middle; }
 </style>

@@ -277,13 +277,7 @@ const handleBlur = () => {
   blurTimeout.value = setTimeout(() => {
     if (isSelecting.value || !isOpen.value) return;
     if (!isDropdownHover.value) {
-      if (highlightedIndex.value >= 0 && filteredData.value[highlightedIndex.value]) {
-        selectValue(filteredData.value[highlightedIndex.value], 0);
-      } else if (filteredData.value.length === 1) {
-        selectValue(filteredData.value[0], 0);
-      } else {
-        isOpen.value = false;
-      }
+      isOpen.value = false;
     }
     blurTimeout.value = null;
   }, 150);

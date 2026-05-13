@@ -6,8 +6,8 @@ export const parseAndFilter = (item, query, searchFields = []) => {
     if (!query) return true;
 
     // "이름 (조건)" 형식 검사 및 실제 조건 추출
-    let actualQuery = query;
-    const bracketMatch = query.match(/^.+ \((.+)\)$/);
+    let actualQuery = String(query);
+    const bracketMatch = actualQuery.match(/^.+ \((.+)\)$/);
     if (bracketMatch) {
         actualQuery = bracketMatch[1];
     }
@@ -17,12 +17,18 @@ export const parseAndFilter = (item, query, searchFields = []) => {
     if (normalizedActual === '1인다PC보유자' || normalizedActual === '1인다PC사용자' || normalizedActual === '가용재고') return true;
 
     // 이후 로직에서 query 대신 actualQuery 사용
-    if (!actualQuery.includes(':') && !actualQuery.includes('>') && !actualQuery.includes('<') && !actualQuery.includes('OR') && !actualQuery.includes('AND')) {
+    if (!actualQuery.includes(':') && 
+        !actualQuery.includes('>') && 
+        !actualQuery.includes('<') && 
+        !actualQuery.includes('=') && 
+        !/\b(OR|AND)\b/i.test(actualQuery)) {
+        
         const keywords = actualQuery.toLowerCase().split(/\s+/).filter(k => k.length > 0);
         const itemString = (searchFields.length > 0
-            ? searchFields.map(f => item[f])
-            : Object.values(item)
-        ).map(v => String(v).toLowerCase()).join(' ');
+            ? searchFields.map(f => item[f] !== null && item[f] !== undefined ? String(item[f]) : '')
+            : Object.values(item).map(v => v !== null && v !== undefined ? String(v) : '')
+        ).map(v => v.toLowerCase()).join(' ');
+        
         return keywords.every(keyword => itemString.includes(keyword));
     }
 
@@ -31,14 +37,14 @@ export const parseAndFilter = (item, query, searchFields = []) => {
     if (!tokens) return true;
 
     try {
-        return evaluateTokens(item, tokens);
+        return evaluateTokens(item, tokens, searchFields);
     } catch (e) {
         console.error('Query parsing error:', e);
         return true;
     }
 };
 
-const evaluateTokens = (item, tokens) => {
+const evaluateTokens = (item, tokens, searchFields) => {
     // 실제 복잡한 파서 트리 대신 간단한 AND/OR 우선순위 처리
     // 1차: OR로 나누기 (OR의 우선순위가 낮음)
     let orGroups = [];
@@ -49,7 +55,7 @@ const evaluateTokens = (item, tokens) => {
         if (token === '(') parenDepth++;
         if (token === ')') parenDepth--;
 
-        if (token === 'OR' && parenDepth === 0) {
+        if (token.toUpperCase() === 'OR' && parenDepth === 0) {
             orGroups.push(currentGroup);
             currentGroup = [];
         } else {
@@ -69,7 +75,7 @@ const evaluateTokens = (item, tokens) => {
         for (let t of group) {
             if (t === '(') pDepth++;
             if (t === ')') pDepth--;
-            if (t === 'AND' && pDepth === 0) {
+            if (t.toUpperCase() === 'AND' && pDepth === 0) {
                 andGroups.push(subGroup);
                 subGroup = [];
             } else {
@@ -79,31 +85,31 @@ const evaluateTokens = (item, tokens) => {
         andGroups.push(subGroup);
 
         // 모든 그룹이 참이어야 함 (AND 로직)
-        return andGroups.every(tokens => evaluateAtomic(item, tokens));
+        return andGroups.every(tokens => evaluateAtomic(item, tokens, searchFields));
     });
 };
 
-const evaluateAtomic = (item, tokens) => {
+const evaluateAtomic = (item, tokens, searchFields) => {
     if (tokens.length === 0) return true;
 
     // 괄호 제거
     if (tokens[0] === '(' && tokens[tokens.length - 1] === ')') {
-        return evaluateTokens(item, tokens.slice(1, -1));
+        return evaluateTokens(item, tokens.slice(1, -1), searchFields);
     }
 
     const token = tokens.join(' ');
 
-    // 비교 연산 처리 (col:val, col>val 등)
-    const match = token.match(/^(\w+)([:><=!]+)(.+)$/);
+    // 비교 연산 처리 (col:val, col: val, col>val 등)
+    const match = token.match(/^(\w+)\s*([:><=!]+)\s*(.+)$/);
     if (match) {
         const [_, field, op, value] = match;
         const itemVal = item[field];
-        const cleanValue = value.replace(/"/g, '');
+        const cleanValue = value.replace(/"/g, '').trim();
 
-        if (itemVal === undefined) return false;
+        if (itemVal === undefined || itemVal === null) return false;
 
-        const v1 = isNaN(itemVal) ? String(itemVal).toLowerCase() : parseFloat(itemVal);
-        const v2 = isNaN(cleanValue) ? String(cleanValue).toLowerCase() : parseFloat(cleanValue);
+        const v1 = isNaN(itemVal) || String(itemVal).trim() === '' ? String(itemVal).toLowerCase() : parseFloat(itemVal);
+        const v2 = isNaN(cleanValue) || String(cleanValue).trim() === '' ? String(cleanValue).toLowerCase() : parseFloat(cleanValue);
 
         switch (op) {
             case ':': return String(itemVal).toLowerCase().includes(String(cleanValue).toLowerCase());
@@ -118,7 +124,11 @@ const evaluateAtomic = (item, tokens) => {
     }
 
     // 일반 키워드 검색
-    const keyword = token.toLowerCase().replace(/"/g, '');
-    const itemString = Object.values(item).map(v => String(v).toLowerCase()).join(' ');
+    const keyword = token.toLowerCase().replace(/"/g, '').trim();
+    const itemString = (searchFields && searchFields.length > 0
+        ? searchFields.map(f => item[f] !== null && item[f] !== undefined ? String(item[f]) : '')
+        : Object.values(item).map(v => v !== null && v !== undefined ? String(v) : '')
+    ).map(v => v.toLowerCase()).join(' ');
+    
     return itemString.includes(keyword);
 };

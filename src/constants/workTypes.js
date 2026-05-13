@@ -242,8 +242,6 @@ export const WORK_TYPES = [
         sourceType: 'stock'
     },
 
-    // --- 기타 (Misc) ---
-    { id: '이동', work_type: '이동', description: '사용자간 자산 이동', category: '출고', allowedStates: ['useable'] },
 ];
 
 export const getAllWorkTypes = () => WORK_TYPES;

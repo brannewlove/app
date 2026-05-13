@@ -70,7 +70,7 @@ class TradeService extends BaseService {
             case '입고-재입사예정':
                 await connection.query(
                     'UPDATE assets SET state = ? WHERE asset_number = ?',
-                    ['wait', asset_number]
+                    ['hold', asset_number]
                 );
                 break;
             case '출고-수리완료':
@@ -89,12 +89,6 @@ class TradeService extends BaseService {
                 await connection.query(
                     'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ?',
                     ['aj_rent', 'termination', asset_number]
-                );
-                break;
-            case '이동':
-                await connection.query(
-                    'UPDATE assets SET in_user = ?, state = ?, day_of_start = ? WHERE asset_number = ?',
-                    [cj_id, 'useable', work_date, asset_number]
                 );
                 break;
         }

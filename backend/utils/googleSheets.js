@@ -220,18 +220,33 @@ async function runBackup() {
  */
 async function rotateBackups(drive, folderId) {
     try {
-        const response = await drive.files.list({
-            q: `'${folderId}' in parents and name contains 'ASDB_' and trashed = false`,
-            fields: 'files(id, name, createdTime)',
-            orderBy: 'createdTime desc'
-        });
+        let allFiles = [];
+        let pageToken = null;
 
-        const files = response.data.files;
-        if (files.length > 200) {
-            console.log(`파일 개수 초과 (${files.length}/200). 오래된 파일을 삭제합니다...`);
-            for (let i = 200; i < files.length; i++) {
-                await drive.files.delete({ fileId: files[i].id });
-                console.log(`삭제된 파일: ${files[i].name} (${files[i].id})`);
+        do {
+            const response = await drive.files.list({
+                q: `'${folderId}' in parents and name contains 'ASDB_' and trashed = false`,
+                fields: 'nextPageToken, files(id, name, createdTime)',
+                orderBy: 'createdTime desc',
+                pageSize: 1000,
+                pageToken: pageToken
+            });
+
+            if (response.data.files) {
+                allFiles = allFiles.concat(response.data.files);
+            }
+            pageToken = response.data.nextPageToken;
+        } while (pageToken);
+
+        if (allFiles.length > 200) {
+            console.log(`파일 개수 초과 (${allFiles.length}/200). 오래된 파일을 삭제합니다...`);
+            for (let i = 200; i < allFiles.length; i++) {
+                try {
+                    await drive.files.delete({ fileId: allFiles[i].id });
+                    console.log(`삭제된 파일: ${allFiles[i].name} (${allFiles[i].id})`);
+                } catch (deleteErr) {
+                    console.error(`파일 삭제 실패 (${allFiles[i].name}):`, deleteErr.message);
+                }
             }
         }
     } catch (err) {

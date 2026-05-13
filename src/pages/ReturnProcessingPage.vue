@@ -8,6 +8,9 @@
       <div class="section-header">
         <h2>반납 처리 목록 ({{ filteredReturnedAssets.length }}개)</h2>
         <div class="header-actions">
+          <button @click="openBatchActionModal" class="btn btn-header btn-process-batch" :disabled="selectedAssetsList.length === 0" style="background-color: #4CAF50; color: white; border-color: #4CAF50;">
+            선택 일괄 처리 ({{ selectedAssetsList.length }})
+          </button>
           <button @click="openExportModal" class="btn btn-header btn-export">
             반납메일 Export ({{ exportAssets.length }})
           </button>
@@ -31,6 +34,9 @@
         <table class="returns-table">
           <thead>
             <tr>
+              <th class="checkbox-header" style="width: 40px; text-align: center;">
+                <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
+              </th>
               <th @click="handleSort('return_type')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'return_type' }">
                 <div class="header-content"><span>반납유형</span><span class="sort-icon">{{ getSortIcon('return_type') }}</span></div>
               </th>
@@ -52,12 +58,24 @@
               <th @click="handleSort('handover_date')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'handover_date' }">
                 <div class="header-content"><span>인계일</span><span class="sort-icon">{{ getSortIcon('handover_date') }}</span></div>
               </th>
-              <th class="vertical-header"><div>출고여부</div></th>
-              <th class="vertical-header"><div>전산실입고</div></th>
-              <th class="vertical-header"><div>로우포맷</div></th>
-              <th class="vertical-header"><div>전산반납</div></th>
-              <th class="vertical-header"><div>메일반납</div></th>
-              <th class="vertical-header"><div>실재반납</div></th>
+              <th @click="handleSort('release_status')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'release_status' }">
+                <div class="header-content"><span>출고여부</span><span class="sort-icon">{{ getSortIcon('release_status') }}</span></div>
+              </th>
+              <th @click="handleSort('it_room_stock')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'it_room_stock' }">
+                <div class="header-content"><span>전산실입고</span><span class="sort-icon">{{ getSortIcon('it_room_stock') }}</span></div>
+              </th>
+              <th @click="handleSort('low_format')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'low_format' }">
+                <div class="header-content"><span>로우포맷</span><span class="sort-icon">{{ getSortIcon('low_format') }}</span></div>
+              </th>
+              <th @click="handleSort('it_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'it_return' }">
+                <div class="header-content"><span>전산반납</span><span class="sort-icon">{{ getSortIcon('it_return') }}</span></div>
+              </th>
+              <th @click="handleSort('mail_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'mail_return' }">
+                <div class="header-content"><span>메일반납</span><span class="sort-icon">{{ getSortIcon('mail_return') }}</span></div>
+              </th>
+              <th @click="handleSort('actual_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'actual_return' }">
+                <div class="header-content"><span>실재반납</span><span class="sort-icon">{{ getSortIcon('actual_return') }}</span></div>
+              </th>
               <th @click="handleSort('remarks')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'remarks' }">
                 <div class="header-content"><span>비고</span><span class="sort-icon">{{ getSortIcon('remarks') }}</span></div>
               </th>
@@ -70,6 +88,9 @@
           <tbody>
             <tr v-for="(asset, index) in filteredReturnedAssets" :key="asset.return_id" 
                 :class="{ 'stripe': index % 2 === 1 }">
+              <td class="center">
+                <input type="checkbox" v-model="asset.selected" />
+              </td>
               <td>
                 <input type="text" v-model="asset.return_type" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="유형" />
               </td>
@@ -126,7 +147,7 @@
               </td>
             </tr>
             <tr v-if="filteredReturnedAssets.length === 0">
-                <td colspan="18" class="empty-state">반납된 자산이 없습니다.</td>
+                <td colspan="19" class="empty-state">반납된 자산이 없습니다.</td>
             </tr>
           </tbody>
         </table>
@@ -219,9 +240,18 @@
         </div>
         <div class="modal-body" style="padding: 25px;">
           <div class="asset-summary-box">
-            <p><strong>자산번호:</strong> <span class="bold-text">{{ selectedAssetForAction?.asset_number }}</span></p>
-            <p><strong>사용자:</strong> {{ selectedAssetForAction?.user_name }} ({{ selectedAssetForAction?.user_id }})</p>
-            <p><strong>반납사유:</strong> {{ selectedAssetForAction?.return_reason || '-' }}</p>
+            <template v-if="!isBatchMode">
+              <p><strong>자산번호:</strong> <span class="bold-text">{{ selectedAssetForAction?.asset_number }}</span></p>
+              <p><strong>사용자:</strong> {{ selectedAssetForAction?.user_name }} ({{ selectedAssetForAction?.user_id }})</p>
+              <p><strong>반납사유:</strong> {{ selectedAssetForAction?.return_reason || '-' }}</p>
+            </template>
+            <template v-else>
+              <p><strong>일괄 처리 대상:</strong> <span class="bold-text">{{ selectedAssetsList.length }}개 자산</span></p>
+              <p style="font-size: 0.9em; color: #666; margin-top: 5px;">선택된 자산들에 대해 동일한 처리가 적용됩니다.</p>
+              <p style="font-size: 0.85em; color: #d9534f; margin-top: 5px;" v-if="tradeForm.work_type === '반납-고장교체'">
+                ⚠️ 주의: 일괄 처리 시 '반납-고장교체' 작업은 사용할 수 없습니다.
+              </p>
+            </template>
           </div>
 
           <div class="process-form-group">
@@ -343,6 +373,23 @@ const isReplacementModalOpen = ref(false); // 기존 고장교체 전용 모달 
 const selectedAssetForAction = ref(null);
 const replacementAssetNumber = ref('');
 
+const isBatchMode = ref(false);
+
+const selectedAssetsList = computed(() => {
+  return returnedAssets.value.filter(a => a.selected);
+});
+
+const isAllSelected = computed(() => {
+  return filteredReturnedAssets.value.length > 0 && filteredReturnedAssets.value.every(a => a.selected);
+});
+
+const toggleSelectAll = (e) => {
+  const isChecked = e.target.checked;
+  filteredReturnedAssets.value.forEach(asset => {
+    asset.selected = isChecked;
+  });
+};
+
 // 새로운 거래 폼 데이터
 const tradeForm = ref({
   work_type: '',
@@ -392,6 +439,7 @@ const fetchReturnedAssets = async () => {
       mail_return: !!asset.mail_return,
       actual_return: !!asset.actual_return,
       processing: false,
+      selected: false,
       handover_date: formatDate(asset.handover_date),
       end_date: formatDate(asset.end_date),
     }));
@@ -422,6 +470,7 @@ const updateReturnedAsset = async (asset) => {
         mail_return: !!updatedItem.mail_return,
         actual_return: !!updatedItem.actual_return,
         processing: false,
+        selected: asset.selected, // Preserve selection state
         handover_date: formatDate(updatedItem.handover_date),
         end_date: formatDate(updatedItem.end_date),
       });
@@ -459,6 +508,7 @@ const cancelReturn = (asset) => {
 
 // 처리 선택 모달 열기
 const openActionChoiceModal = (asset) => {
+  isBatchMode.value = false;
   selectedAssetForAction.value = asset;
   // 기존 반납 사유 및 비고를 기본 메모로 설정
   const memoParts = [];
@@ -473,6 +523,22 @@ const openActionChoiceModal = (asset) => {
     replacement_asset: ''
   };
   isActionChoiceModalOpen.value = true;
+};
+
+const openBatchActionModal = () => {
+  if (selectedAssetsList.value.length === 0) return;
+  isBatchMode.value = false; // Reset first
+  setTimeout(() => {
+    isBatchMode.value = true;
+    tradeForm.value = {
+      work_type: '',
+      cj_id: '',
+      cj_name: '',
+      memo: '',
+      replacement_asset: ''
+    };
+    isActionChoiceModalOpen.value = true;
+  }, 0);
 };
 
 const closeActionChoiceModal = () => {
@@ -503,30 +569,50 @@ const handleWorkTypeSelect = (item) => {
 };
 
 const submitTradeAction = async () => {
-  const asset = selectedAssetForAction.value;
-  if (!asset || !tradeForm.value.work_type) return;
+  const assetsToProcess = isBatchMode.value ? selectedAssetsList.value : [selectedAssetForAction.value];
+  if (!assetsToProcess.length || !tradeForm.value.work_type) return;
+
+  // 일괄 처리 시 고장 교체 제한
+  if (isBatchMode.value && requiresReplacementAsset(tradeForm.value.work_type)) {
+    showModal('일괄 처리에서는 고장교체(교체 자산번호 입력 필요) 작업을 지원하지 않습니다. 개별 처리해주세요.', 'error');
+    return;
+  }
 
   loading.value = true;
   try {
     // 1. 거래 데이터 구성
-    const tradeData = {
-      work_type: tradeForm.value.work_type,
-      asset_number: asset.asset_number,
-      cj_id: tradeForm.value.cj_id,
-      ex_user: asset.user_id,
-      memo: tradeForm.value.memo || null,
-      asset_state: 'useable', // 반납 프로세스로 들어오기 전의 일반적인 상태
-      asset_in_user: asset.user_id,
-      asset_memo: asset.asset_memo
-    };
+    const tradeDataArray = [];
+    
+    for (const asset of assetsToProcess) {
+      let finalCjId = tradeForm.value.cj_id;
+      if (isCjIdDisabled(tradeForm.value.work_type)) {
+         const fixedId = getFixedCjId(tradeForm.value.work_type);
+         if (fixedId === 'no-change') {
+             finalCjId = asset.user_id || '';
+         } else {
+             finalCjId = fixedId;
+         }
+      }
+
+      tradeDataArray.push({
+        work_type: tradeForm.value.work_type,
+        asset_number: asset.asset_number,
+        cj_id: finalCjId,
+        ex_user: asset.user_id,
+        memo: tradeForm.value.memo || null,
+        asset_state: 'useable', // 반납 프로세스로 들어오기 전의 일반적인 상태
+        asset_in_user: asset.user_id,
+        asset_memo: asset.asset_memo
+      });
+    }
 
     // 2. 거래 등록 API 호출
-    await axios.post('/api/trades', [tradeData]);
+    await axios.post('/api/trades', tradeDataArray);
 
-    // 3. 고장교체인 경우 자산 정보의 replacement 필드 업데이트
-    // requiresReplacementAsset(tradeForm.value.work_type) 사용
-    if (requiresReplacementAsset(tradeForm.value.work_type) && tradeForm.value.replacement_asset) {
-      if (asset.asset_id) {
+    // 3. 고장교체인 경우 자산 정보의 replacement 필드 업데이트 (개별 처리일 때만)
+    if (!isBatchMode.value && requiresReplacementAsset(tradeForm.value.work_type) && tradeForm.value.replacement_asset) {
+      const asset = selectedAssetForAction.value;
+      if (asset && asset.asset_id) {
         await axios.put(`/api/assets/${asset.asset_id}`, { 
           asset_number: asset.asset_number,
           replacement: tradeForm.value.replacement_asset 
@@ -534,13 +620,18 @@ const submitTradeAction = async () => {
       }
     }
 
-    // 4. 반납 대기 목록에서 삭제
-    await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
+    // 4. 반납 대기 목록에서 삭제 및 로컬 목록에서 제거
+    for (const asset of assetsToProcess) {
+      await returnedAssetsApi.deleteReturnedAsset(asset.return_id);
+      removeAssetFromList(asset.return_id);
+    }
 
-    // 5. 로컬 목록에서 제거 및 종료
-    removeAssetFromList(asset.return_id);
     closeActionChoiceModal();
-    showModal('처리가 성공적으로 완료되었습니다.', 'success');
+    if (isBatchMode.value) {
+      showModal(`총 ${assetsToProcess.length}건의 처리가 성공적으로 완료되었습니다.`, 'success');
+    } else {
+      showModal('처리가 성공적으로 완료되었습니다.', 'success');
+    }
   } catch (err) {
     showModal(`처리 중 오류 발생: ${err.message}`, 'error');
   } finally {

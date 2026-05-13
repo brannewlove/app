@@ -52,9 +52,13 @@ export function useTable(data, options = {}) {
                 let bValue = bRaw === null || bRaw === undefined ? '' : bRaw;
 
                 let comparison = 0;
-                if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
-                    const numA = parseFloat(aValue);
-                    const numB = parseFloat(bValue);
+                if (typeof aValue === 'boolean' && typeof bValue === 'boolean') {
+                    comparison = (aValue === bValue) ? 0 : (aValue ? 1 : -1);
+                } else if (!isNaN(aValue) && !isNaN(bValue) && aValue !== '' && bValue !== '') {
+                    // parseFloat returns NaN for boolean strings if they were converted to strings, 
+                    // but !isNaN(true) is true. To be safe, use Number() or handle booleans first.
+                    const numA = Number(aValue);
+                    const numB = Number(bValue);
                     comparison = numA - numB;
                 } else {
                     aValue = String(aValue).toLowerCase();
