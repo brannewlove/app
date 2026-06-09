@@ -129,7 +129,7 @@ const handleClipboardCopy = () => {
   const dataToCopy = visibleAssets.value;
   if (dataToCopy.length === 0) return;
 
-  const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', '사용자명', '부서'];
+  const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', 'CJ ID', '사용자명', '부서'];
   
   // HTML 버전 (요청하신 스타일 적용)
   const htmlTable = `
@@ -146,6 +146,7 @@ const handleClipboardCopy = () => {
             <td style="border: 1px solid #000000; padding: 8px;">${asset.replacement || ''}</td>
             <td style="border: 1px solid #000000; padding: 8px;">${asset.model || ''}</td>
             <td style="border: 1px solid #000000; padding: 8px;">${asset.serial_number || ''}</td>
+            <td style="border: 1px solid #000000; padding: 8px;">${asset.replacement_user_id || '-'}</td>
             <td style="border: 1px solid #000000; padding: 8px;">${asset.replacement_user_name || '-'}</td>
             <td style="border: 1px solid #000000; padding: 8px;">${asset.replacement_user_part || '-'}</td>
           </tr>
@@ -162,6 +163,7 @@ const handleClipboardCopy = () => {
       asset.replacement || '', 
       asset.model || '', 
       asset.serial_number || '',
+      asset.replacement_user_id || '-',
       asset.replacement_user_name || '-', 
       asset.replacement_user_part || '-'
     ].join('\t'))
@@ -187,7 +189,7 @@ const downloadCSV = () => {
   }
   
   const filename = getTimestampFilename('AssetReplacements');
-  const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', '사용자명', '부서'];
+  const headers = ['교체전 자산', '교체후 자산', '모델명', '제조번호', 'CJ ID', '사용자명', '부서'];
 
   const dataRows = dataToDownload.map(asset => {
     return [
@@ -195,6 +197,7 @@ const downloadCSV = () => {
       asset.replacement || '', 
       asset.model || '', 
       asset.serial_number || '',
+      asset.replacement_user_id || '-',
       asset.replacement_user_name || '-', 
       asset.replacement_user_part || '-'
     ];
@@ -257,6 +260,7 @@ onMounted(async () => {
                   <th>교체후 자산</th>
                   <th>모델명</th>
                   <th>제조번호</th>
+                  <th>CJ ID</th>
                   <th>사용자명</th>
                   <th>부서</th>
                 </tr>
@@ -270,6 +274,7 @@ onMounted(async () => {
                   <td style="font-weight: bold; color: var(--brand-blue);">{{ asset.replacement }}</td>
                   <td>{{ asset.model }}</td>
                   <td style="font-size: 0.9em; color: #666;">{{ asset.serial_number || '-' }}</td>
+                  <td style="font-size: 0.9em; color: #666;">{{ asset.replacement_user_id || '-' }}</td>
                   <td>{{ asset.replacement_user_name || '-' }}</td>
                   <td>{{ asset.replacement_user_part || '-' }}</td>
                 </tr>

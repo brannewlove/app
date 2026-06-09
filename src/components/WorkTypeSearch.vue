@@ -46,7 +46,8 @@
           :ref="(el) => { itemRefs[index] = el; }"
           class="dropdown-item"
           :class="{ 'is-highlighted': index === highlightedIndex }"
-          @mousedown.prevent="handleItemClick(item)"
+          @mousedown.prevent
+          @click.stop="handleItemClick(item)"
         >
           <div class="item-primary-row">
             <span class="item-bold">{{ item.work_type }}</span>
@@ -132,11 +133,12 @@ const selectValue = (value, focusDirection = 0) => {
   inputValue.value = selectedValue;
   if (inputRef.value) inputRef.value.value = selectedValue;
   
+  emit('select', value);
+  
   isOpen.value = false;
   isDropdownHover.value = false;
   highlightedIndex.value = -1;
   filteredData.value = [];
-  emit('select', value);
   
   if (focusDirection !== 0) {
     setTimeout(() => {
@@ -150,9 +152,11 @@ const selectValue = (value, focusDirection = 0) => {
         }
       }
       isSelecting.value = false;
-    }, 50);
+    }, 60);
   } else {
-    isSelecting.value = false;
+    setTimeout(() => {
+      isSelecting.value = false;
+    }, 60);
   }
 };
 

@@ -20,6 +20,7 @@ class AssetService extends BaseService {
           a_repl.model,
           a_repl.serial_number,
           u_repl.name as replacement_user_name,
+          u_repl.cj_id as replacement_user_id,
           u_repl.part as replacement_user_part
         FROM assets a
         LEFT JOIN assets a_repl ON a.replacement = a_repl.asset_number

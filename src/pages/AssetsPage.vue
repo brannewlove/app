@@ -98,6 +98,28 @@ const searchPlaceholder = computed(() => {
   return "검색...";
 });
 
+const handleSearchPaste = (e) => {
+  const pasteData = e.clipboardData || window.clipboardData;
+  const text = pasteData?.getData('text');
+  if (text && text.includes('\n')) {
+    e.preventDefault();
+    const words = text.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);
+    if (words.length > 0) {
+      const insertText = words.join(' OR ');
+      const input = e.target;
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const currentValue = searchQuery.value || '';
+      
+      searchQuery.value = currentValue.slice(0, start) + insertText + currentValue.slice(end);
+      
+      setTimeout(() => {
+        input.selectionStart = input.selectionEnd = start + insertText.length;
+      }, 0);
+    }
+  }
+};
+
 const clearSearch = () => {
   searchQuery.value = '';
   activeSavedFilter.value = null;
@@ -921,7 +943,7 @@ onMounted(() => {
           </div>
         </div>
         <form class="search-input-wrapper" @submit.prevent>
-          <input v-model="searchQuery" type="text" :placeholder="searchPlaceholder" class="search-input" />
+          <input v-model="searchQuery" type="text" :placeholder="searchPlaceholder" class="search-input" @paste="handleSearchPaste" />
           <button v-if="searchQuery || activeSavedFilter" type="button" @click="clearSearch" class="clear-btn">✕</button>
         </form>
         <button @click="openSaveFilterModal" class="btn btn-save-filter" title="현재 필터 저장">

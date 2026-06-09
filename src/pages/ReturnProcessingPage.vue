@@ -22,7 +22,7 @@
       </div>
 
       <div class="search-container">
-        <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" />
+        <input v-model="searchQuery" type="text" placeholder="검색..." class="search-input" @paste="handleSearchPaste" />
         <button v-if="searchQuery" @click="searchQuery = ''" class="clear-btn">✕</button>
       </div>
 
@@ -357,6 +357,28 @@ import {
 const returnedAssets = ref([]);
 const loading = ref(false);
 const error = ref(null);
+
+const handleSearchPaste = (e) => {
+  const pasteData = e.clipboardData || window.clipboardData;
+  const text = pasteData?.getData('text');
+  if (text && text.includes('\n')) {
+    e.preventDefault();
+    const words = text.split(/\r?\n/).map(w => w.trim()).filter(w => w.length > 0);
+    if (words.length > 0) {
+      const insertText = words.join(' OR ');
+      const input = e.target;
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const currentValue = searchQuery.value || '';
+      
+      searchQuery.value = currentValue.slice(0, start) + insertText + currentValue.slice(end);
+      
+      setTimeout(() => {
+        input.selectionStart = input.selectionEnd = start + insertText.length;
+      }, 0);
+    }
+  }
+};
 
 const isModalOpen = ref(false);
 const modalMessage = ref('');
