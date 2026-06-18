@@ -322,6 +322,29 @@ const categoryBreakdown = computed(() => {
     .map(([category, count]) => ({ category, count }));
 });
 
+// 모델별 그룹화 (가용재고 필터용)
+const isGroupedView = ref(false);
+
+const modelGroupedAssets = computed(() => {
+  const groups = {};
+  filteredAssets.value.forEach(asset => {
+    const key = asset.model || '기타 모델';
+    if (!groups[key]) {
+      groups[key] = {
+        model: key,
+        category: asset.category || '기타',
+        count: 0
+      };
+    }
+    groups[key].count += 1;
+  });
+  return Object.values(groups).sort((a, b) => b.count - a.count);
+});
+
+const isAvailableMode = computed(() => {
+  return isAvailableStockQuery(searchQuery.value) || isAvailableStockQuery(activeSavedFilterQuery.value);
+});
+
 const isEditMode = ref(false);
 const editedAsset = ref(null);
 const isClickStartedOnOverlay = ref(false);
@@ -982,18 +1005,45 @@ onMounted(() => {
         </div>
       </div>
       
-      <div v-if="searchQuery || activeSavedFilter || activeFilter" class="filter-summary-area">
+      <div class="filter-summary-area">
         <span class="total-count">검색 결과 <strong>{{ filteredAssets.length }}</strong>건</span>
-        <div class="category-divider"></div>
-        <div class="category-chips">
-          <div v-for="item in categoryBreakdown" :key="item.category" class="chip">
-            <span class="chip-label">{{ item.category }}</span>
-            <span class="chip-value">{{ item.count }}</span>
+        <template v-if="searchQuery || activeSavedFilter || activeFilter">
+          <div class="category-divider"></div>
+          <div class="category-chips">
+            <div v-for="item in categoryBreakdown" :key="item.category" class="chip">
+              <span class="chip-label">{{ item.category }}</span>
+              <span class="chip-value">{{ item.count }}</span>
+            </div>
           </div>
+        </template>
+        <div class="summary-actions-group" style="margin-left: auto; display: flex; align-items: center;">
+          <label class="toggle-label" style="margin-bottom: 0;">
+            <input type="checkbox" v-model="isGroupedView" class="toggle-input" />
+            <span class="toggle-text">모델별 그룹화 보기</span>
+          </label>
         </div>
       </div>
-      
-      <div class="table-wrapper">
+
+      <div v-if="isGroupedView" class="table-wrapper grouped-table-wrapper">
+        <table class="assets-table">
+          <thead>
+            <tr>
+              <th>분류</th>
+              <th>모델명</th>
+              <th>수량</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(group, index) in modelGroupedAssets" :key="group.model" :class="{ 'stripe': index % 2 === 1 }">
+              <td class="bold-text">{{ group.category }}</td>
+              <td class="bold-text">{{ group.model }}</td>
+              <td class="count-text">{{ group.count }} 개</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="table-wrapper">
         <table class="assets-table">
           <thead>
             <tr>
@@ -1034,6 +1084,7 @@ onMounted(() => {
       </div>
       
       <TablePagination 
+        v-if="!(isAvailableMode && isGroupedView)"
         :current-page="currentPage" 
         :total-pages="totalPages" 
         :page-numbers="pageNumbers"
@@ -1391,6 +1442,44 @@ onMounted(() => {
 
 .btn-save-filter {
   background: var(--bg-muted);
+}
+
+.btn-trade-search:hover {
+  background: var(--bg-muted);
+}
+
+/* 추가: 가용재고 그룹화 뷰 스타일 */
+.view-toggle-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  background: var(--bg-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  transition: background-color 0.2s;
+}
+.toggle-label:hover {
+  background: var(--border-light);
+}
+.toggle-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+.grouped-table-wrapper {
+  margin-bottom: 20px;
+}
+.count-text {
+  color: var(--brand-blue);
+  font-weight: bold;
+  font-size: 15px;
 }
 
 .btn-saved-filters .btn-icon-svg, .btn-save-filter .btn-icon-svg {
