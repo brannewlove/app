@@ -17,13 +17,16 @@ router.get('/', async (req, res, next) => {
       `SELECT 
         ra.return_id, ra.asset_number, ra.return_reason, ra.model, ra.serial_number, ra.return_type,
         DATE_FORMAT(ra.end_date, '%Y-%m-%d') as end_date,
-        ra.user_id, ra.user_name, ra.department,
+        ra.user_id,
+        COALESCE(u.name, ra.user_name) AS user_name,
+        COALESCE(u.part, ra.department) AS department,
         DATE_FORMAT(ra.handover_date, '%Y-%m-%d') as handover_date,
         ra.release_status, ra.it_room_stock, ra.low_format, ra.it_return, ra.mail_return, ra.actual_return,
         ra.complete, ra.remarks, ra.created_at,
         a.asset_id, a.memo AS asset_memo
       FROM returned_assets ra
       LEFT JOIN assets a ON ra.asset_number = a.asset_number
+      LEFT JOIN users u ON ra.user_id = u.cj_id
       ORDER BY ra.created_at DESC`
     );
     success(res, returnedAssets);

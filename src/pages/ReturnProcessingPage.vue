@@ -98,11 +98,15 @@
                 <span :class="{ 'expired-date': isEndDateExpired(asset.end_date) }">{{ asset.end_date }}</span>
               </td>
               <td :title="asset.model" class="truncate">{{ asset.model }}</td>
-              <td><strong>{{ asset.asset_number }}</strong></td>
+              <td>
+                <strong class="bold-text clickable-asset" @click.stop="openAssetMenu($event, asset)">
+                  {{ asset.asset_number }}
+                </strong>
+              </td>
               <td>
                 <input type="text" v-model="asset.return_reason" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="사유" />
               </td>
-              <td>
+              <td class="clickable-user-name" @click.stop="openUserMenu($event, asset)">
                 <div style="line-height: 1.4;">
                   <strong>{{ asset.user_name || '-' }}</strong> ({{ asset.user_id || '-' }})
                   <div style="font-size: 0.85em; color: #666;">{{ asset.department || '-' }}</div>
@@ -334,25 +338,111 @@
         </div>
       </div>
     </div>
+
+    <UserDetailModal
+      :is-open="isUserDetailOpen"
+      :cj-id="userDetailCjId"
+      @close="isUserDetailOpen = false"
+    />
+
+    <AssetTrackingModal 
+      :is-open="isTrackingOpen" 
+      :initial-asset-number="selectedAsset?.asset_number || ''"
+      :initial-model="selectedAsset?.model || ''"
+      :initial-category="selectedAsset?.category || ''"
+      :initial-state="selectedAsset?.state || ''"
+      :initial-memo="selectedAsset?.memo || ''"
+      @close="isTrackingOpen = false" 
+    />
+
+    <TradeActionModal 
+      :is-open="isQuickTradeOpen" 
+      :asset-number="selectedAsset?.asset_number || ''"
+      @close="isQuickTradeOpen = false" 
+      @success="() => { fetchReturnedAssets(); }"
+    />
+
+    <AssetInfoModal
+      :is-open="isAssetInfoOpen"
+      :asset-number="infoAssetNumber"
+      :show-edit="true"
+      @close="isAssetInfoOpen = false"
+      @user-detail="openUserDetail"
+      @trade-search="(num) => { searchQuery = num; isAssetInfoOpen = false; }"
+      @updated="() => { fetchReturnedAssets(); }"
+      @track="(asset) => { selectedAsset = asset; isTrackingOpen = true; isAssetInfoOpen = false; }"
+      @quick-trade="(asset) => { selectedAsset = asset; isQuickTradeOpen = true; isAssetInfoOpen = false; }"
+    />
+
+    <!-- 자산 툴팁 메뉴 -->
+    <div v-if="menuVisible" class="asset-tooltip-menu" :style="{ top: menuPos.y + 'px', left: menuPos.x + 'px' }">
+      <div class="menu-item" @click="handleMenuAction('info')">
+        <img src="/images/infor.png" alt="info" class="menu-icon" />
+        정보
+      </div>
+      <div class="menu-item" @click="handleMenuAction('trade')">
+        <img src="/images/edit.png" alt="trade" class="menu-icon" />
+        거래
+      </div>
+      <div class="menu-item" @click="handleMenuAction('track')">
+        <img src="/images/go.png" alt="track" class="menu-icon" />
+        추적
+      </div>
+      <div class="menu-item" @click="handleMenuAction('copy')">
+        <img src="/images/clipboard.png" alt="copy" class="menu-icon" />
+        복사
+      </div>
+      <div class="menu-item" @click="handleMenuAction('search')">
+        <img src="/images/filter.png" alt="filter" class="menu-icon" />
+        검색
+      </div>
+    </div>
+
+    <!-- 사용자 툴팁 메뉴 -->
+    <div v-if="userMenuVisible" class="asset-tooltip-menu" :style="{ top: userMenuPos.y + 'px', left: userMenuPos.x + 'px' }">
+      <template v-if="selectedUserForMenu && !selectedUserForMenu.isPublic">
+        <div class="menu-item" @click="handleUserMenuAction('info')">
+          <img src="/images/infor.png" alt="info" class="menu-icon" />
+          정보
+        </div>
+        <div class="menu-item" @click="handleUserMenuAction('search')">
+          <img src="/images/boxes.png" alt="search" class="menu-icon" />
+          검색(소유)
+        </div>
+      </template>
+      <template v-else>
+        <div class="menu-item disabled" style="color: var(--text-muted); font-size: 11px; padding: 10px 15px;">
+          <img src="/images/warning.png" alt="warning" class="menu-icon" />
+          공용/렌탈 계정 안내 대상 제외
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import returnedAssetsApi from '../api/returnedAssets';
 import axios from 'axios';
 import { useTable } from '../composables/useTable';
 import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 import WorkTypeSearch from '../components/WorkTypeSearch.vue';
+import UserDetailModal from '../components/UserDetailModal.vue';
+import AssetInfoModal from '../components/AssetInfoModal.vue';
+import AssetTrackingModal from '../components/AssetTrackingModal.vue';
+import TradeActionModal from '../components/TradeActionModal.vue';
 import { getTimestampFilename, formatDateTime, formatDate } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
-import { copyRichToClipboard } from '../utils/clipboardUtils';
+import { copyToClipboard as copyAssetNumberToClipboard, copyRichToClipboard } from '../utils/clipboardUtils';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
   getFixedCjIdDisplay, 
   requiresReplacementAsset 
 } from '../constants/workTypes';
+
+const router = useRouter();
 
 const returnedAssets = ref([]);
 const loading = ref(false);
@@ -902,7 +992,135 @@ const handleKeyDown = (event) => {
     else if (isExportModalOpen.value) closeExportModal();
     else if (isActionChoiceModalOpen.value) closeActionChoiceModal();
     else if (isReplacementModalOpen.value) closeReplacementModal();
+    else if (isAssetInfoOpen.value) isAssetInfoOpen.value = false;
+    else if (isTrackingOpen.value) isTrackingOpen.value = false;
+    else if (isQuickTradeOpen.value) isQuickTradeOpen.value = false;
+    else if (userMenuVisible.value) userMenuVisible.value = false;
+    else if (menuVisible.value) menuVisible.value = false;
   }
+};
+
+// 자산 메뉴 관련 상태 및 함수
+const menuVisible = ref(false);
+const menuPos = ref({ x: 0, y: 0 });
+const selectedAssetForMenu = ref(null);
+const isAssetInfoOpen = ref(false);
+const infoAssetNumber = ref('');
+const isTrackingOpen = ref(false);
+const isQuickTradeOpen = ref(false);
+const selectedAsset = ref(null);
+
+const openAssetMenu = (event, asset) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  selectedAssetForMenu.value = asset;
+  const pos = getAdjustedPosition(event.clientX, event.clientY, 180, 220);
+  menuPos.value = pos;
+  
+  userMenuVisible.value = false;
+  menuVisible.value = true;
+  
+  const closeAllMenus = () => {
+    menuVisible.value = false;
+    userMenuVisible.value = false;
+    window.removeEventListener('click', closeAllMenus);
+  };
+  setTimeout(() => window.addEventListener('click', closeAllMenus), 0);
+};
+
+const handleMenuAction = (action) => {
+  if (!selectedAssetForMenu.value) return;
+  
+  const asset = selectedAssetForMenu.value;
+  if (action === 'info') {
+    infoAssetNumber.value = asset.asset_number;
+    isAssetInfoOpen.value = true;
+  } else if (action === 'trade') {
+    selectedAsset.value = asset;
+    isQuickTradeOpen.value = true;
+  } else if (action === 'track') {
+    selectedAsset.value = asset;
+    isTrackingOpen.value = true;
+  } else if (action === 'copy') {
+    copyAssetNumberToClipboard(asset.asset_number);
+  } else if (action === 'search') {
+    searchQuery.value = asset.asset_number;
+  }
+  menuVisible.value = false;
+};
+
+const openUserDetail = (cjId) => {
+  if (!cjId || cjId === 'cjenc_inno') return;
+  isAssetInfoOpen.value = false;
+  isQuickTradeOpen.value = false;
+  
+  userDetailCjId.value = cjId;
+  isUserDetailOpen.value = true;
+};
+
+// 사용자 메뉴 관련 상태 및 함수
+const isUserDetailOpen = ref(false);
+const userDetailCjId = ref('');
+const userMenuVisible = ref(false);
+const userMenuPos = ref({ x: 0, y: 0 });
+const selectedUserForMenu = ref(null);
+
+const getAdjustedPosition = (x, y, width = 180, height = 150) => {
+  const padding = 10;
+  let adjustedX = x + padding;
+  let adjustedY = y - 10;
+
+  if (adjustedX + width > window.innerWidth) {
+    adjustedX = x - width - padding;
+  }
+  if (adjustedY + height > window.innerHeight) {
+    adjustedY = window.innerHeight - height - padding;
+  }
+  if (adjustedY < 0) {
+    adjustedY = padding;
+  }
+  
+  return { x: adjustedX, y: adjustedY };
+};
+
+const openUserMenu = (event, asset) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const cjId = asset.user_id;
+  const name = asset.user_name || '-';
+  
+  const isPublic = !cjId || ['cjenc_inno', 'aj_rent', '-'].includes(cjId);
+  const displayId = cjId || '-';
+
+  selectedUserForMenu.value = { cjId: displayId, name, isPublic };
+  const pos = getAdjustedPosition(event.clientX, event.clientY, 180, isPublic ? 60 : 150);
+  userMenuPos.value = pos;
+  
+  userMenuVisible.value = true;
+  
+  const closeAllMenus = () => {
+    userMenuVisible.value = false;
+    window.removeEventListener('click', closeAllMenus);
+  };
+  setTimeout(() => window.addEventListener('click', closeAllMenus), 0);
+};
+
+const handleUserMenuAction = (action) => {
+  if (!selectedUserForMenu.value) return;
+  
+  const user = selectedUserForMenu.value;
+  if (action === 'info') {
+    userDetailCjId.value = user.cjId;
+    isUserDetailOpen.value = true;
+  } else if (action === 'search' || action === 'assets') {
+    router.push({
+      path: '/assets',
+      query: { q: user.cjId }
+    });
+  }
+  userMenuVisible.value = false;
 };
 
 onMounted(() => {
@@ -1062,5 +1280,72 @@ input[type="checkbox"] {
 
 .header-copy-btn:hover:not(:disabled) {
   background: var(--bg-muted);
+}
+
+.clickable-user-name {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.clickable-user-name:hover {
+  color: var(--brand-blue, #0052cc) !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.clickable-asset {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.clickable-asset:hover {
+  color: var(--brand-blue, #0052cc) !important;
+  text-decoration: underline;
+}
+
+.asset-tooltip-menu {
+  position: fixed;
+  background: white;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  padding: 8px 0;
+  z-index: 2000;
+  min-width: 160px;
+  border: 1px solid var(--border-color, #eee);
+  text-align: left;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main, #333);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.menu-item:hover {
+  background: var(--bg-hover, #f5f7fa);
+  color: var(--brand-blue, #0052cc);
+}
+
+.menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.menu-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.menu-item:hover .menu-icon {
+  opacity: 1;
+  filter: sepia(1) saturate(5) hue-rotate(180deg);
 }
 </style>
