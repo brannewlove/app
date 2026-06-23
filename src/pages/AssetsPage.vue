@@ -709,6 +709,19 @@ const getHeaderDisplayName = (columnName) => {
   return headerMap[columnName] || columnName;
 };
 
+const copyAllAssetNumbers = () => {
+  if (filteredAssets.value.length === 0) {
+    alert('복사할 자산이 없습니다.');
+    return;
+  }
+  const assetNumbers = filteredAssets.value
+    .map(a => a.asset_number)
+    .filter(Boolean)
+    .join('\n');
+    
+  copyToClipboard(assetNumbers);
+};
+
 const downloadCSV = () => {
   if (filteredAssets.value.length === 0) {
     error.value = '다운로드할 데이터가 없습니다.';
@@ -896,7 +909,10 @@ onMounted(() => {
     <div v-if="assets.length > 0" class="assets-section">
       <div class="assets-header-actions">
         <div class="header-title-group">
-          <h2>자산 목록 ({{ filteredAssets.length }}개)</h2>
+          <h2>
+            자산 목록 ({{ filteredAssets.length }}개)
+            <button @click="copyAllAssetNumbers" class="btn-admin-only" title="필터링된 모든 자산번호 복사">copy</button>
+          </h2>
         </div>
         <div class="filter-actions-group">
           <div class="filter-actions">
@@ -1811,5 +1827,21 @@ onMounted(() => {
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 12px;
+}
+
+.btn-admin-only {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 10px;
+  cursor: pointer;
+  margin-left: 8px;
+  opacity: 0.15;
+  transition: opacity 0.2s;
+  padding: 2px 4px;
+}
+.btn-admin-only:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
 </style>
