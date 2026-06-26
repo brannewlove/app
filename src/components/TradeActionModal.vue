@@ -280,6 +280,7 @@ const handleOverlayMouseUp = (e) => {
             <div class="form-group">
               <label>작업 유형</label>
               <WorkTypeSearch
+                id="trade-work-type"
                 :initial-value="trade.work_type"
                 placeholder="유형 선택"
                 :filter-fn="getWorkTypeFilter()"
@@ -292,6 +293,7 @@ const handleOverlayMouseUp = (e) => {
                 {{ getFixedCjIdDisplay(trade.work_type) }}
               </div>
               <AutocompleteSearch
+                id="trade-user-search"
                 v-else
                 :initial-value="trade.cj_name || trade.cj_id"
                 placeholder="사용자 검색"

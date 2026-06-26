@@ -261,6 +261,7 @@
           <div class="process-form-group">
             <label>작업 유형 선택</label>
             <WorkTypeSearch 
+              id="return-work-type"
               :initial-value="tradeForm.work_type"
               placeholder="작업 유형을 검색/선택하세요"
               :filter-fn="workTypeFilter"
@@ -274,6 +275,7 @@
               {{ getFixedCjIdDisplay(tradeForm.work_type) }}
             </div>
             <AutocompleteSearch 
+              id="return-user-search"
               v-else
               :initial-value="tradeForm.cj_name || tradeForm.cj_id"
               placeholder="이름/ID 검색"
@@ -294,6 +296,7 @@
           <div v-if="tradeForm.work_type === '반납-고장교체'" class="process-form-group mt-15">
             <label>교체 자산번호 (본체에 기록됨)</label>
             <AutocompleteSearch 
+              id="return-replacement-asset"
               :initial-value="tradeForm.replacement_asset"
               placeholder="교체될 자산번호 검색"
               api-table="assets"

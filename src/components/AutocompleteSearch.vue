@@ -6,7 +6,7 @@
       :value="inputValue"
       :data-id="id"
       :name="id"
-      autocomplete="off"
+      autocomplete="one-time-code"
       tabindex="0"
       :placeholder="placeholder"
       :disabled="disabled"
@@ -287,6 +287,7 @@ const handleBlur = () => {
 };
 
 const handleKeyDown = (e) => {
+  if (document.activeElement !== inputRef.value) return;
   switch (e.key) {
     case 'ArrowDown':
       e.preventDefault();

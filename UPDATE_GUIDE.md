@@ -52,9 +52,9 @@ pm2 restart asdb-app
 npm run deploy
 
 # 2. 백엔드 프로세스 재시작
-pm2 restart asdb-app
+npx pm2 restart asdb-app
 ```
 
 ### 요약 가이드
 - 화면에서 새로고침해도 코드가 반영되지 않아요 👉 **프론트엔드 빌드가 필요합니다 (`npm run deploy`)**
-- API 호출 결과나 DB를 다루는 로직이 안 바뀐 것 같아요 👉 **백엔드 재시작이 필요합니다 (`pm2 restart asdb-app`)**
+- API 호출 결과나 DB를 다루는 로직이 안 바뀐 것 같아요 👉 **백엔드 재시작이 필요합니다 (`npx pm2 restart asdb-app`)**
