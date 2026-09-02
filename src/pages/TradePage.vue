@@ -187,38 +187,62 @@ const closeRegisterModal = () => {
 
 // formatDateTime is now imported
 
-const downloadCSV = () => {
-  const tradesData = trades.value || [];
-  if (tradesData.length === 0) {
-    error.value = '다운로드할 데이터가 없습니다.';
-    return;
+const downloadCSV = async () => {
+  loading.value = true;
+  error.value = null;
+  try {
+    const params = new URLSearchParams({
+      page: 1,
+      limit: 1000000,
+      search: searchQuery.value,
+      sort: sortColumn.value,
+      direction: sortDirection.value
+    });
+    
+    const response = await fetch(`/api/trades?${params.toString()}`);
+    const result = await response.json();
+    
+    if (!result.success || !result.data || !result.data.data) {
+      error.value = 'CSV 데이터를 가져오는 데 실패했습니다.';
+      return;
+    }
+    
+    const tradesData = result.data.data;
+    if (tradesData.length === 0) {
+      error.value = '다운로드할 데이터가 없습니다.';
+      return;
+    }
+    
+    const filename = getTimestampFilename('TradePage');
+
+    const headerKeys = [
+      'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
+      'ex_user', 'ex_user_name', 'ex_user_part',
+      'cj_id', 'name', 'part', 'memo'
+    ];
+
+    const headerLabels = [
+      '순번', '작업시간', '작업유형', '자산번호', '모델명',
+      '이전 사용자ID', '이전 이름', '이전 부서',
+      '사용자ID', '이름', '부서', '거래메모'
+    ];
+
+    const dataRows = tradesData.map(trade => 
+      headerKeys.map(key => {
+        let value = trade[key];
+        if (key === 'timestamp') {
+          value = formatDateTime(value);
+        }
+        return value;
+      })
+    );
+    
+    downloadCSVFile(filename, headerLabels, dataRows);
+  } catch (err) {
+    error.value = 'CSV 다운로드 중 오류 발생: ' + err.message;
+  } finally {
+    loading.value = false;
   }
-  
-  const filename = getTimestampFilename('TradePage');
-
-  const headerKeys = [
-    'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
-    'ex_user', 'ex_user_name', 'ex_user_part',
-    'cj_id', 'name', 'part', 'memo'
-  ];
-
-  const headerLabels = [
-    '순번', '작업시간', '작업유형', '자산번호', '모델명',
-    '이전 사용자ID', '이전 이름', '이전 부서',
-    '사용자ID', '이름', '부서', '거래메모'
-  ];
-
-  const dataRows = tradesData.map(trade => 
-    headerKeys.map(key => {
-      let value = trade[key];
-      if (key === 'timestamp') {
-        value = formatDateTime(value);
-      }
-      return value;
-    })
-  );
-  
-  downloadCSVFile(filename, headerLabels, dataRows);
 };
 
 const showConfirm = (message, callback, type = 'confirm') => {

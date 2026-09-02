@@ -20,7 +20,7 @@ var backupRouter = require('./routes/backup');
 var filtersRouter = require('./routes/filters');
 var dashboardRouter = require('./routes/dashboard');
 var clientErrorsRouter = require('./routes/clientErrors');
-const { runBackup } = require('./utils/googleSheets');
+const { runBackup, checkAndRunMissingBackup } = require('./utils/googleSheets');
 const cron = require('node-cron');
 
 var app = express();
@@ -88,6 +88,26 @@ cron.schedule('0 13,18 * * *', async () => {
     }
   } catch (err) {
     console.error('Scheduled backup failed:', err);
+  }
+});
+
+// 서버 기동 후 5초 뒤 최초 1회 즉시 누락 백업 검증 실행
+setTimeout(async () => {
+  try {
+    console.log('[Scheduler] 서버 기동에 따른 누락 백업 검사(최초 1회) 시작...');
+    await checkAndRunMissingBackup();
+  } catch (err) {
+    console.error('[Scheduler] 최초 1회 누락 백업 검증 중 오류:', err);
+  }
+}, 5000);
+
+// 매 30분마다 누락 백업이 있는지 주기적으로 검사 등록
+cron.schedule('*/30 * * * *', async () => {
+  try {
+    console.log('[Scheduler] 매 30분 주기 누락 백업 검사 시작...');
+    await checkAndRunMissingBackup();
+  } catch (err) {
+    console.error('[Scheduler] 주기적 누락 백업 검사 중 오류:', err);
   }
 });
 

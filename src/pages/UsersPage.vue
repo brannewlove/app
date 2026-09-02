@@ -22,6 +22,24 @@ const showOnlyTempUsers = ref(false);
 const isTempUserListModalOpen = ref(false); // 임시 사용자 목록 모달
 const modalError = ref(null); // 모달 내부 에러 메시지
 
+// 임시 사용자 테이블 인라인 수정을 위한 상태 변수
+const localTempUsers = ref([]);
+const selectedTempUserIds = ref([]);
+const isAllTempUsersSelected = computed({
+  get() {
+    const tempUsers = localTempUsers.value;
+    if (tempUsers.length === 0) return false;
+    return tempUsers.every(u => selectedTempUserIds.value.includes(u.user_id));
+  },
+  set(value) {
+    if (value) {
+      selectedTempUserIds.value = localTempUsers.value.map(u => u.user_id);
+    } else {
+      selectedTempUserIds.value = [];
+    }
+  }
+});
+
 // 임시 사용자 필터링을 위한 computed
 const displayedUsers = computed(() => {
   if (showOnlyTempUsers.value) {
@@ -304,6 +322,8 @@ const finalizeUser = async () => {
 
 // 임시 사용자 목록 모달 열기
 const openTempUserListModal = () => {
+  localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)));
+  selectedTempUserIds.value = [];
   isTempUserListModalOpen.value = true;
 };
 
@@ -312,6 +332,8 @@ const closeTempUserListModal = () => {
   isTempUserListModalOpen.value = false;
   modalError.value = null;
   tempUserName.value = '';
+  localTempUsers.value = [];
+  selectedTempUserIds.value = [];
 };
 
 // 임시 사용자 목록에서 선택하여 편집
@@ -335,18 +357,203 @@ const editTempUser = async (user) => {
   }
 };
 
-// 임시 사용자 삭제
+// 임시 사용자 개별 삭제
 const deleteTempUser = async (user, event) => {
-  // 이벤트 전파 중지 (클릭 이벤트가 편집 모달을 열지 않도록)
-  event.stopPropagation();
+  if (event) event.stopPropagation();
 
-  showConfirm(`"${user.name}" 사용자를 삭제하시겠습니까?`, async () => {
+  showConfirm(`"${user.name || '새 사용자'}" 사용자를 삭제하시겠습니까?`, async () => {
     try {
       loading.value = true;
       modalError.value = null;
       
-      await userApi.deleteUser(user.user_id);
+      if (user.is_new) {
+        // DB에 없으므로 로컬에서만 삭제
+        localTempUsers.value = localTempUsers.value.filter(u => u.user_id !== user.user_id);
+        selectedTempUserIds.value = selectedTempUserIds.value.filter(id => id !== user.user_id);
+      } else {
+        await userApi.deleteUser(user.user_id);
+        await fetchUsers();
+        localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)));
+        selectedTempUserIds.value = selectedTempUserIds.value.filter(id => id !== user.user_id);
+      }
+    } catch (err) {
+      modalError.value = err.message;
+    } finally {
+      loading.value = false;
+    }
+  });
+};
+
+// 신규 임시 사용자 행 추가
+const addTempUserRow = () => {
+  localTempUsers.value.push({
+    user_id: 'new_' + Date.now(), // 로컬 전용 가상 ID
+    name: '',
+    cj_id: '',
+    part: '',
+    is_new: true,
+    is_temporary: true
+  });
+};
+
+// 임시 사용자 한 명 저장 (로직 캡슐화)
+const saveSingleTempUser = async (user) => {
+  if (!user.name || !user.name.trim()) {
+    throw new Error('이름은 필수 입력 항목입니다.');
+  }
+
+  if (user.is_new) {
+    // 1. 임시 사용자 생성
+    const result = await userApi.createTemporaryUser(user.name.trim());
+    const newUserId = result.user_id;
+
+    // 2. 부서 정보가 입력된 경우 추가 업데이트
+    if (user.part) {
+      await userApi.updateUser(newUserId, {
+        name: user.name.trim(),
+        part: user.part ? user.part.trim() : null
+      });
+    }
+  } else {
+    // 기존 사용자 업데이트
+    await userApi.updateUser(user.user_id, {
+      name: user.name.trim(),
+      part: user.part ? user.part.trim() : null
+    });
+  }
+};
+
+// 임시 사용자 개별 저장 (인라인 저장 버튼용)
+const saveTempUserInline = async (user) => {
+  if (!user.name || !user.name.trim()) {
+    modalError.value = '이름을 입력해주세요.';
+    return;
+  }
+
+  loading.value = true;
+  modalError.value = null;
+
+  try {
+    await saveSingleTempUser(user);
+    await fetchUsers();
+    localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)));
+    selectedTempUserIds.value = [];
+  } catch (err) {
+    modalError.value = err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 선택된 임시 사용자 일괄 저장
+const saveSelectedTempUsers = async () => {
+  if (selectedTempUserIds.value.length === 0) {
+    modalError.value = '선택된 사용자가 없습니다.';
+    return;
+  }
+
+  const selectedUsers = localTempUsers.value.filter(u => selectedTempUserIds.value.includes(u.user_id));
+  const invalidUser = selectedUsers.find(u => !u.name || !u.name.trim());
+  if (invalidUser) {
+    modalError.value = '선택된 사용자 중 이름이 비어있는 사용자가 있습니다.';
+    return;
+  }
+
+  loading.value = true;
+  modalError.value = null;
+
+  try {
+    await Promise.all(selectedUsers.map(u => saveSingleTempUser(u)));
+    await fetchUsers();
+    localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)));
+    selectedTempUserIds.value = [];
+    alert('선택된 임시 사용자의 정보가 저장되었습니다.');
+  } catch (err) {
+    modalError.value = err.message;
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 선택된 임시 사용자 일괄 삭제
+const deleteSelectedTempUsers = async () => {
+  if (selectedTempUserIds.value.length === 0) {
+    modalError.value = '선택된 사용자가 없습니다.';
+    return;
+  }
+
+  showConfirm(`선택한 ${selectedTempUserIds.value.length}명의 사용자를 삭제하시겠습니까?`, async () => {
+    loading.value = true;
+    modalError.value = null;
+
+    try {
+      const idsToDelete = [];
+      const localOnlyIds = [];
+
+      selectedTempUserIds.value.forEach(id => {
+        if (typeof id === 'string' && id.startsWith('new_')) {
+          localOnlyIds.push(id);
+        } else {
+          idsToDelete.push(id);
+        }
+      });
+
+      if (idsToDelete.length > 0) {
+        await Promise.all(idsToDelete.map(id => userApi.deleteUser(id)));
+      }
+
       await fetchUsers();
+      
+      // 로컬 데이터 최신화 및 아직 저장안된 로컬 제거
+      localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)))
+        .filter(u => !localOnlyIds.includes(u.user_id));
+      selectedTempUserIds.value = [];
+      alert('선택된 사용자가 삭제되었습니다.');
+    } catch (err) {
+      modalError.value = err.message;
+    } finally {
+      loading.value = false;
+    }
+  });
+};
+
+// 선택된 임시 사용자 일괄 정식 전환
+const finalizeSelectedTempUsers = async () => {
+  if (selectedTempUserIds.value.length === 0) {
+    modalError.value = '선택된 사용자가 없습니다.';
+    return;
+  }
+
+  const selectedUsers = localTempUsers.value.filter(u => selectedTempUserIds.value.includes(u.user_id));
+  
+  const hasNewUser = selectedUsers.some(u => u.is_new);
+  if (hasNewUser) {
+    modalError.value = '저장되지 않은 신규 행은 먼저 저장(추가)해야 정식 전환이 가능합니다.';
+    return;
+  }
+
+  const invalidUser = selectedUsers.find(u => !u.cj_id || !u.cj_id.trim() || u.cj_id.toUpperCase().startsWith('TEMP_'));
+  if (invalidUser) {
+    modalError.value = `"${invalidUser.name}" 사용자의 CJ ID를 올바르게 입력해주세요. (TEMP_ 형식은 불가)`;
+    return;
+  }
+
+  showConfirm(`선택한 ${selectedUsers.length}명의 사용자를 정식 사용자로 전환하시겠습니까?`, async () => {
+    loading.value = true;
+    modalError.value = null;
+
+    try {
+      for (const u of selectedUsers) {
+        await userApi.finalizeUser(u.user_id, {
+          cj_id: u.cj_id.trim(),
+          part: u.part ? u.part.trim() : null
+        });
+      }
+
+      await fetchUsers();
+      localTempUsers.value = JSON.parse(JSON.stringify(users.value.filter(u => u.is_temporary)));
+      selectedTempUserIds.value = [];
+      alert('선택된 사용자가 정식 사용자로 전환되었습니다.');
     } catch (err) {
       modalError.value = err.message;
     } finally {
@@ -417,7 +624,7 @@ onMounted(() => {
     
     <!-- 임시 사용자 관리 통합 모달 -->
     <div v-if="isTempUserListModalOpen" class="modal-overlay" @mousedown="handleOverlayMouseDown" @mouseup="handleOverlayMouseUp($event, closeTempUserListModal)">
-      <div class="modal-content temp-user-list-modal">
+      <div class="modal-content temp-user-list-modal wide-modal">
         <div class="modal-header">
           <h2>임시 사용자 관리</h2>
           <button @click="closeTempUserListModal" class="close-btn">✕</button>
@@ -429,45 +636,68 @@ onMounted(() => {
             ❌ {{ modalError }}
           </div>
 
-          <!-- 임시 사용자 추가 폼 -->
-          <div class="add-temp-user-form">
-            <h3>새 임시 사용자 추가</h3>
-            <div class="form-group-inline">
-              <input 
-                v-model="tempUserName" 
-                type="text" 
-                class="form-input" 
-                placeholder="사용자 이름 입력"
-                @keyup.enter="createTempUserInline"
-              />
-              <button @click="createTempUserInline" class="btn btn-save" :disabled="loading">추가</button>
+          <!-- 테이블 상단 제어 버튼 및 다중 선택 액션 -->
+          <div class="temp-user-controls">
+            <button @click="addTempUserRow" class="btn btn-add-row">
+              ➕ 행 추가
+            </button>
+            <div class="bulk-actions">
+              <button @click="saveSelectedTempUsers" class="btn btn-bulk-save" :disabled="selectedTempUserIds.length === 0 || loading">
+                💾 선택 저장
+              </button>
+              <button @click="finalizeSelectedTempUsers" class="btn btn-bulk-finalize" :disabled="selectedTempUserIds.length === 0 || loading">
+                🎓 선택 정식 전환
+              </button>
+              <button @click="deleteSelectedTempUsers" class="btn btn-bulk-delete" :disabled="selectedTempUserIds.length === 0 || loading">
+                🗑️ 선택 삭제
+              </button>
             </div>
           </div>
           
-          <hr class="divider" />
-          
-          <!-- 임시 사용자 목록 -->
-          <h3>임시 사용자 목록</h3>
-          <div v-if="users.filter(u => u.is_temporary).length === 0" class="empty-state">
-            임시 사용자가 없습니다.
+          <!-- 임시 사용자 목록 테이블 -->
+          <div v-if="localTempUsers.length === 0" class="empty-state">
+            임시 사용자가 없습니다. "행 추가" 버튼을 눌러 새 임시 사용자를 등록해 주세요.
           </div>
-          <div v-else class="temp-user-list">
-            <div 
-              v-for="user in users.filter(u => u.is_temporary)" 
-              :key="user.user_id" 
-              class="temp-user-item"
-              @click="editTempUser(user)"
-            >
-              <div class="user-info">
-                <div class="user-name">{{ user.name }}</div>
-                <div class="user-cjid">{{ user.cj_id }}</div>
-              </div>
-              <div class="item-actions">
-                <button @click="deleteTempUser(user, $event)" class="btn-icon-delete" title="삭제">
-                  <img src="/images/del.png" alt="삭제" class="del-btn-icon" />
-                </button>
-              </div>
-            </div>
+          <div v-else class="temp-user-table-wrapper">
+            <table class="temp-user-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" v-model="isAllTempUsersSelected" />
+                  </th>
+                  <th>이름</th>
+                  <th>CJ ID (임시 ID)</th>
+                  <th>부서</th>
+                  <th style="width: 90px; text-align: center;">관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="user in localTempUsers" :key="user.user_id" :class="{ 'new-row': user.is_new }">
+                  <td style="text-align: center;">
+                    <input type="checkbox" :value="user.user_id" v-model="selectedTempUserIds" />
+                  </td>
+                  <td>
+                    <input type="text" class="table-input" v-model="user.name" placeholder="이름 입력 (필수)" />
+                  </td>
+                  <td>
+                    <input type="text" class="table-input" v-model="user.cj_id" placeholder="사번(전환 시 필수 입력)" />
+                  </td>
+                  <td>
+                    <input type="text" class="table-input" v-model="user.part" placeholder="부서 입력" />
+                  </td>
+                  <td style="text-align: center;">
+                    <div class="row-actions">
+                      <button @click="saveTempUserInline(user)" class="btn-table-action btn-save-row" title="저장">
+                        💾
+                      </button>
+                      <button @click="deleteTempUser(user)" class="btn-table-action btn-delete-row" title="삭제">
+                        ❌
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
         
@@ -678,113 +908,181 @@ onMounted(() => {
 }
 
 /* 임시 사용자 목록 모달 */
-.temp-user-list-modal {
-  max-width: 500px;
+.temp-user-list-modal.wide-modal {
+  max-width: 950px;
+  width: 90%;
 }
 
-.temp-user-list {
-  display: flex;
-  flex-direction: column;
-  max-height: 400px;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-}
-
-.temp-user-item {
+.temp-user-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 15px;
-  background: white;
-  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 15px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-add-row {
+  background: var(--brand-purple);
+  color: white;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  border: none;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.btn-add-row:hover {
+  background: var(--brand-purple-dark);
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bulk-actions .btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: none;
   transition: all 0.2s;
 }
 
-.temp-user-item:last-child {
-  border-bottom: none;
+.btn-bulk-save {
+  background: var(--brand-blue);
+  color: white;
+}
+.btn-bulk-save:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 
-.temp-user-item:hover {
-  background: #fff3e0;
+.btn-bulk-finalize {
+  background: var(--success-color);
+  color: white;
+}
+.btn-bulk-finalize:hover:not(:disabled) {
+  background: #3e8e41;
 }
 
-.temp-user-item .user-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 15px;
+.btn-bulk-delete {
+  background: var(--danger-color);
+  color: white;
+}
+.btn-bulk-delete:hover:not(:disabled) {
+  background: #d32f2f;
 }
 
-.temp-user-item .user-name {
-  font-weight: 500;
-  font-size: 14px;
+.bulk-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.temp-user-table-wrapper {
+  max-height: 450px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.temp-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.temp-user-table th {
+  background: #f8f9fa;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.temp-user-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+}
+
+.temp-user-table tr:hover {
+  background: var(--border-light);
+}
+
+.temp-user-table tr.new-row {
+  background-color: #e8f5e9;
+}
+
+.temp-user-table tr.new-row:hover {
+  background-color: #c8e6c9;
+}
+
+.table-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: white;
   color: var(--text-main);
-  min-width: 100px;
+  box-sizing: border-box;
 }
 
-.temp-user-item .user-cjid {
-  font-size: 12px;
-  color: var(--text-light);
-  font-family: monospace;
+.table-input:focus {
+  border-color: var(--brand-purple);
+  outline: none;
 }
 
-.btn-icon-delete {
+.table-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: white;
+  color: var(--text-main);
+}
+
+.table-select:focus {
+  border-color: var(--brand-purple);
+  outline: none;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.btn-table-action {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
-  transition: all 0.2s;
-  opacity: 0.6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-icon-delete:hover {
-  background: #ffebee;
-  opacity: 1;
-}
-
-.del-btn-icon {
-  width: 14px;
-  height: 14px;
-  object-fit: contain;
-}
-
-/* 임시 사용자 추가 폼 (모달 내) */
-.add-temp-user-form {
-  margin-bottom: 20px;
-}
-
-.add-temp-user-form h3 {
   font-size: 14px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
+  transition: background-color 0.2s;
 }
 
-.form-group-inline {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.btn-table-action:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
-.form-group-inline .form-input {
-  flex: 1;
-  height: 38px;
+.btn-delete-row:hover {
+  background-color: #ffebee;
 }
 
-.form-group-inline .btn {
-  height: 38px;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  font-weight: 600;
-  font-size: 14px;
+.btn-save-row:hover {
+  background-color: #e8f5e9;
 }
 
 .header-icon-small {
