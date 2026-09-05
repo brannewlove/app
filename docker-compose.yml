@@ -1,0 +1,55 @@
+services:
+  # 1. MySQL 데이터베이스 서비스
+  db:
+    image: mysql:8.0
+    container_name: assetdb-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root1234}
+      MYSQL_DATABASE: ${DB_NAME:-assetdb}
+    ports:
+      - "${DB_EXTERNAL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 최초 컨테이너 실행 시 DB_SCHEMA.sql을 실행하여 DB 및 테이블 자동 생성
+      - ./DB_SCHEMA.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-root1234}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 2. 웹 애플리케이션 서비스 (프론트엔드 + 백엔드 API 통합)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: assetdb-app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-root1234}
+      DB_NAME: ${DB_NAME:-assetdb}
+      # Google Sheets 백업 연동용 (필요 시 주입)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
+      GOOGLE_SHEET_ID: ${GOOGLE_SHEET_ID:-}
+
+volumes:
+  mysql_data:
+    driver: local
