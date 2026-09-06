@@ -1,5 +1,4 @@
 const { google } = require('googleapis');
-const axios = require('axios');
 const path = require('path');
 const dotenv = require('dotenv');
 
@@ -129,8 +128,12 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             if (rows.length === 0) {
                 try {
                     const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tableName)}`;
-                    const res = await axios.get(csvUrl, { timeout: 10000 });
-                    rows = parseCSV(res.data);
+                    const res = await fetch(csvUrl, { signal: AbortSignal.timeout(15000) });
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                    }
+                    const csvText = await res.text();
+                    rows = parseCSV(csvText);
                 } catch (csvErr) {
                     console.log(`⚠️ '${tableName}' 시트 데이터를 가져올 수 없습니다: ${csvErr.message}`);
                     continue;
