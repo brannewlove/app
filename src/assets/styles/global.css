@@ -376,11 +376,11 @@ th {
   text-align: left;
   font-weight: 600;
   border-bottom: 2px solid #333;
-  position: sticky;
-  top: 0;
-  background: var(--primary-color);
+  position: sticky !important;
+  top: 0 !important;
+  background: var(--primary-color) !important;
   /* sticky 작동 시 배경색 유지 */
-  z-index: 10;
+  z-index: 50;
 }
 
 thead tr:first-child th:first-child {
@@ -640,12 +640,15 @@ tbody tr.active {
 
 /* 테이블 터치 가로 스크롤 공통 보장 */
 .table-container,
-.table-wrapper,
 .table-responsive,
 .data-table-wrapper {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper {
+  overflow: visible !important;
 }
 
 @media (max-width: 768px) {
