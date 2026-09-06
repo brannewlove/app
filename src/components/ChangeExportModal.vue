@@ -355,7 +355,7 @@ onMounted(async () => {
 .btn-secondary { background: white; color: #333; border: 1px solid var(--border-color); }
 .btn-secondary:hover { background: #f5f5f5; }
 .export-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
-.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid var(--border-color); font-weight: bold; color: #333; }
+.export-table th { background: var(--primary-color, #4a4a4a); padding: 12px; text-align: left; border-bottom: 2px solid #333; font-weight: bold; color: white !important; }
 .export-table td { padding: 12px; border-bottom: 1px solid #eee; }
 .export-table tbody tr:hover { background: #f9f9f9; }
 .export-table tbody tr.excluded { opacity: 0.6; text-decoration: line-through; }

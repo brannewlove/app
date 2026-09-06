@@ -344,7 +344,7 @@ onMounted(async () => {
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
 .table-container { border: 1px solid #eee; border-radius: 4px; overflow: hidden; }
 .export-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.export-table th { background: #f5f5f5; padding: 12px; text-align: left; border-bottom: 2px solid var(--border-color); font-weight: bold; color: #333; }
+.export-table th { background: var(--primary-color, #4a4a4a); padding: 12px; text-align: left; border-bottom: 2px solid #333; font-weight: bold; color: white !important; }
 .export-table td { padding: 12px; border-bottom: 1px solid #eee; }
 .export-table tbody tr:hover { background: #f9f9f9; }
 
