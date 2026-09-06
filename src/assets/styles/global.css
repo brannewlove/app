@@ -377,7 +377,7 @@ th {
   font-weight: 600;
   border-bottom: 2px solid #333;
   position: sticky;
-  top: 70px;
+  top: 0;
   background: var(--primary-color);
   /* sticky 작동 시 배경색 유지 */
   z-index: 10;
@@ -649,11 +649,6 @@ tbody tr.active {
 }
 
 @media (max-width: 768px) {
-  /* 모바일 테이블 헤더 상단 고정 위치 */
-  th {
-    top: 60px !important;
-  }
-
   /* 페이지 헤더 반응형 */
   .page-header {
     flex-direction: column !important;
