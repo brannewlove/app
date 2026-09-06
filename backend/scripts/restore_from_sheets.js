@@ -1,12 +1,56 @@
 const { google } = require('googleapis');
+const axios = require('axios');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// backend 폴더 또는 프로젝트 루트의 .env 로드
 dotenv.config({ path: path.join(__dirname, '../.env') });
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const pool = require('../utils/db');
+
+/**
+ * CSV 파싱 유틸리티 (구글 시트 CSV 파싱)
+ */
+function parseCSV(text) {
+    const lines = [];
+    let row = [];
+    let cur = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+
+        if (c === '"') {
+            if (inQuotes && next === '"') {
+                cur += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c === ',' && !inQuotes) {
+            row.push(cur);
+            cur = '';
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+            if (c === '\r' && next === '\n') i++;
+            row.push(cur);
+            if (row.length > 0 && row.some(v => v !== '')) {
+                lines.push(row);
+            }
+            row = [];
+            cur = '';
+        } else {
+            cur += c;
+        }
+    }
+    if (cur || row.length > 0) {
+        row.push(cur);
+        if (row.some(v => v !== '')) {
+            lines.push(row);
+        }
+    }
+    return lines;
+}
 
 /**
  * Google Sheets에서 데이터를 가져와 DB로 복원하는 스크립트
@@ -18,91 +62,96 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
         if (!spreadsheetId) {
             console.error('❌ Google Spreadsheet ID가 필요합니다.');
             console.log('사용법: node backend/scripts/restore_from_sheets.js <SPREADSHEET_ID>');
-            console.log('예시: node backend/scripts/restore_from_sheets.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
             process.exit(1);
         }
 
-        console.log(`\n🔄 [1/5] Google Sheets 인증 및 정보 조회 시작 (Sheet ID: ${spreadsheetId})...`);
+        console.log(`\n🔄 [1/4] Google Sheets 연결 확인 중 (Sheet ID: ${spreadsheetId})...`);
 
         const clientId = process.env.GOOGLE_CLIENT_ID;
         const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
         const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
+        let useOAuth = false;
         let sheets;
 
         if (clientId && clientSecret && refreshToken) {
-            const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-            oauth2Client.setCredentials({ refresh_token: refreshToken });
-            await oauth2Client.getAccessToken();
-            sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+            try {
+                const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+                oauth2Client.setCredentials({ refresh_token: refreshToken });
+                await oauth2Client.getAccessToken();
+                sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+                useOAuth = true;
+                console.log('✅ Google OAuth 인증 성공');
+            } catch (authErr) {
+                console.log('⚠️ OAuth 인증 실패. 공개 CSV 다운로드 방식으로 전환합니다.');
+            }
         } else {
-            console.log('⚠️ .env에 Google OAuth 설정이 없습니다. API Key 또는 공용 접근으로 시도합니다.');
-            const apiKey = process.env.GOOGLE_API_KEY;
-            sheets = google.sheets({ version: 'v4', auth: apiKey });
+            console.log('ℹ️ OAuth 미설정: 공개 시트 CSV 다운로드 방식으로 진행합니다.');
         }
-
-        // 1. 스프레드시트 메타데이터 조회 (모든 시트 탭 이름 가져오기)
-        const metaRes = await sheets.spreadsheets.get({
-            spreadsheetId,
-        });
-
-        const sheetNames = metaRes.data.sheets.map(s => s.properties.title);
-        console.log(`✅ 확인된 시트 탭 목록: ${sheetNames.join(', ')}`);
 
         connection = await pool.getConnection();
 
+        // 1. 복원 대상 테이블 목록
+        const targetTables = ['users', 'assets', 'confirmed_assets', 'trade', 'assetlogs', 'settings'];
+
         // 2. 외래키 제약조건 일시 해제
-        console.log('\n🔒 [2/5] 외래키 체크 일시 비활성화...');
+        console.log('\n🔒 [2/4] 외래키 체크 일시 비활성화...');
         await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
 
-        // 복원 우선순위 순서 (참조 관계 고려)
-        const priorityOrder = ['users', 'assets', 'confirmed_assets', 'trade', 'assetlogs', 'settings'];
-        const sortedSheetNames = [...sheetNames].sort((a, b) => {
-            const idxA = priorityOrder.indexOf(a);
-            const idxB = priorityOrder.indexOf(b);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return 0;
-        });
+        console.log('\n📥 [3/4] 시트 데이터 다운로드 및 DB 복원 시작...');
 
-        console.log('\n📥 [3/5] 데이터 읽기 및 DB 복원 시작...');
-
-        for (const tableName of sortedSheetNames) {
-            // DB에 해당 테이블이 존재하는지 확인
+        for (const tableName of targetTables) {
             const [tableCheck] = await connection.query(`SHOW TABLES LIKE ?`, [tableName]);
             if (tableCheck.length === 0) {
                 console.log(`⚠️ 테이블 '${tableName}'이 DB에 존재하지 않아 건너뜁니다.`);
                 continue;
             }
 
-            console.log(`\n--- 📄 [시트: ${tableName}] 데이터 처리 중 ---`);
+            console.log(`\n--- 📄 [시트/테이블: ${tableName}] 처리 중 ---`);
 
-            // 시트 데이터 가져오기
-            const sheetData = await sheets.spreadsheets.values.get({
-                spreadsheetId,
-                range: `'${tableName}'!A1:ZZ`,
-                valueRenderOption: 'UNFORMATTED_VALUE',
-                dateTimeRenderOption: 'FORMATTED_STRING'
-            });
+            let rows = [];
 
-            const rows = sheetData.data.values;
+            if (useOAuth) {
+                try {
+                    const sheetData = await sheets.spreadsheets.values.get({
+                        spreadsheetId,
+                        range: `'${tableName}'!A1:ZZ`,
+                        valueRenderOption: 'UNFORMATTED_VALUE',
+                        dateTimeRenderOption: 'FORMATTED_STRING'
+                    });
+                    rows = sheetData.data.values || [];
+                } catch (e) {
+                    console.log(`⚠️ OAuth로 '${tableName}' 시트를 읽지 못했습니다 (${e.message}).`);
+                }
+            }
+
+            // OAuth 실패 또는 미사용 시 공개 CSV 다운로드
+            if (rows.length === 0) {
+                try {
+                    const csvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tableName)}`;
+                    const res = await axios.get(csvUrl, { timeout: 10000 });
+                    rows = parseCSV(res.data);
+                } catch (csvErr) {
+                    console.log(`⚠️ '${tableName}' 시트 데이터를 가져올 수 없습니다: ${csvErr.message}`);
+                    continue;
+                }
+            }
+
             if (!rows || rows.length <= 1) {
                 console.log(`ℹ️ '${tableName}' 시트에 데이터가 없거나 헤더만 있습니다.`);
                 continue;
             }
 
-            const headers = rows[0].map(h => String(h).trim());
+            const headers = rows[0].map(h => String(h).trim().replace(/^"|"$/g, ''));
             const dataRows = rows.slice(1);
 
             // DB 컬럼 정보 조회
             const [columnsInfo] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
             const validDbColumns = new Set(columnsInfo.map(c => c.Field));
             const generatedColumns = new Set(
-                columnsInfo.filter(c => c.Extra && c.Extra.includes('VIRTUAL') || c.Extra.includes('STORED')).map(c => c.Field)
+                columnsInfo.filter(c => c.Extra && (c.Extra.includes('VIRTUAL') || c.Extra.includes('STORED'))).map(c => c.Field)
             );
 
-            // 시트 헤더 중 실제 DB에 존재하고 가상(Generated) 컬럼이 아닌 것만 필터링
             const validHeaderIndices = [];
             const targetColumns = [];
 
@@ -114,15 +163,14 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             });
 
             if (targetColumns.length === 0) {
-                console.log(`⚠️ '${tableName}' 시트의 컬럼이 DB 테이블과 일치하지 않습니다.`);
+                console.log(`⚠️ '${tableName}' 시트의 컬럼과 DB 컬럼이 일치하지 않습니다.`);
                 continue;
             }
 
-            // 기존 데이터 삭제 (Clean Restore)
+            // 테이블 데이터 초기화
             await connection.query(`TRUNCATE TABLE \`${tableName}\``);
-            console.log(`🧹 '${tableName}' 테이블 초기화 완료`);
 
-            // 일괄 삽입 (배치 처리)
+            // 일괄 삽입
             const BATCH_SIZE = 500;
             let totalInserted = 0;
 
@@ -151,11 +199,11 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             console.log(`✅ '${tableName}' 테이블: 총 ${totalInserted}건 복원 완료!`);
         }
 
-        // 4. 외래키 체크 다시 활성화
-        console.log('\n🔓 [4/5] 외래키 체크 재활성화...');
+        // 3. 외래키 체크 다시 활성화
+        console.log('\n🔓 [4/4] 외래키 체크 재활성화...');
         await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
 
-        console.log('\n🎉 [5/5] 구글 시트 백업 데이터가 DB로 성공적으로 복원되었습니다!\n');
+        console.log('\n🎉 구글 시트 백업 데이터가 DB로 성공적으로 복원되었습니다!\n');
     } catch (error) {
         console.error('\n❌ 복원 중 오류 발생:', error);
         if (connection) {
@@ -170,7 +218,6 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
     }
 }
 
-// CLI 실행 처리
 const args = process.argv.slice(2);
 const targetId = args[0];
 restoreFromGoogleSheets(targetId);
