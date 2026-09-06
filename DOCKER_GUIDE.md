@@ -129,11 +129,55 @@ docker compose up -d --build
 
 ---
 
-## 6. 💾 데이터 백업 및 보존 안내
+## 6. 💾 데이터 백업 및 복원 안내
+
+### 1) MySQL 데이터 영구 보존
 
 * MySQL 데이터는 Docker 볼륨(`mysql_data`)에 영구 보존되므로, 컨테이너를 재시작하거나 재빌드(`docker compose up -d --build`)해도 **데이터가 사라지지 않습니다.**
-* DB 수동 덤프 백업이 필요한 경우:
+
+### 2) DB 수동 덤프 백업 및 복원
+
+* **백업 (Dump):**
 
   ```bash
   docker compose exec db mysqldump -u root -proot1234 assetdb > backup.sql
   ```
+
+* **복원 (Restore):**
+
+  ```bash
+  docker compose exec -T db mysql -u root -proot1234 assetdb < backup.sql
+  ```
+
+---
+
+## 7. 📊 구글 시트 백업 데이터를 DB로 복원(마이그레이션)하는 방법
+
+구글 시트에 백업되어 있는 데이터(`users`, `assets`, `trade`, `assetlogs` 등)를 DB로 한 번에 복원할 수 있습니다.
+
+### Step 1. 구글 시트 준비
+
+1. 복원할 백업 구글 시트를 웹 브라우저에서 엽니다.
+2. 우측 상단 **[공유]** 버튼 클릭 후 일반 액세스를 **"링크가 있는 모든 사용자 (뷰어)"**로 설정합니다.
+3. 주소창 URL에서 **스프레드시트 ID**를 복사합니다:
+   > `https://docs.google.com/spreadsheets/d/` **`15h1Btie3-xYk2Zerc5XN9QLS--sw2-Xe0H2Kscvx8Io`** `/edit`
+
+### Step 2. 복원 스크립트 실행
+
+서버 터미널에서 아래 명령어를 실행합니다:
+
+```bash
+docker compose exec app node backend/scripts/restore_from_sheets.js <구글_스프레드시트_ID>
+```
+
+**실행 예시:**
+
+```bash
+docker compose exec app node backend/scripts/restore_from_sheets.js 15h1Btie3-xYk2Zerc5XN9QLS--sw2-Xe0H2Kscvx8Io
+```
+
+> 💡 **스크립트 자동 처리 내용:**
+>
+> * 외래키(Foreign Key) 제약 조건을 일시 해제하여 참조 충돌 없이 안전하게 복원
+> * `users` ➔ `assets` ➔ `confirmed_assets` ➔ `trade` ➔ `assetlogs` ➔ `settings` 순서로 일괄 자동 복원
+> * 복원 완료 후 외래키 제약 조건을 자동으로 다시 활성화
