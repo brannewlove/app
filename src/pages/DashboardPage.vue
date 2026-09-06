@@ -865,4 +865,101 @@ onMounted(() => {
     height: 100%;
     min-height: 500px;
 }
+
+/* 📱 모바일/스마트폰 반응형 최적화 */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 0;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .stats-card {
+        padding: 14px 12px;
+        gap: 10px;
+        border-radius: var(--radius-md);
+    }
+
+    .card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+    }
+
+    .icon-img {
+        width: 22px;
+        height: 22px;
+    }
+
+    .card-info h3 {
+        font-size: 12px;
+    }
+
+    .card-info .number {
+        font-size: 20px;
+        margin-top: 2px;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr !important;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .chart-card {
+        padding: 16px 14px;
+    }
+
+    .chart-wrapper {
+        height: 250px;
+    }
+
+    .expand-modal-overlay {
+        padding: 10px;
+    }
+
+    .expand-modal-header {
+        padding: 12px 15px;
+    }
+
+    .expand-modal-header h2 {
+        font-size: 16px;
+    }
+
+    .total-assets-badge {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+
+    .close-expand-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+    }
+
+    .expand-modal-body {
+        padding: 12px;
+    }
+
+    .chart-wrapper.expanded {
+        min-height: 350px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px;
+    }
+
+    .stats-card {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px 10px;
+    }
+}
 </style>

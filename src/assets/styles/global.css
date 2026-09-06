@@ -633,3 +633,123 @@ tbody tr.active {
 .form-value:hover {
   background: #e9ecef;
 }
+
+/* ==========================================================================
+   📱 Mobile Responsive System (Global Styles)
+   ========================================================================== */
+
+/* 테이블 터치 가로 스크롤 공통 보장 */
+.table-container,
+.table-wrapper,
+.table-responsive,
+.data-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  /* 페이지 헤더 반응형 */
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-header {
+    flex: 1 1 auto;
+    min-width: 100px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  /* 검색 및 필터 바 반응형 */
+  .search-filter-bar,
+  .filter-section,
+  .controls-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .search-input-group {
+    width: 100% !important;
+  }
+
+  /* 모달 팝업 반응형 */
+  .modal-overlay {
+    padding: 10px !important;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    border-radius: var(--radius-md) !important;
+    margin: 0 !important;
+  }
+
+  .modal-header {
+    padding: 16px 18px !important;
+  }
+
+  .modal-body {
+    padding: 16px 14px !important;
+    max-height: calc(92vh - 120px) !important;
+    overflow-y: auto !important;
+  }
+
+  .modal-footer {
+    padding: 14px 16px !important;
+    flex-wrap: wrap;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 45%;
+    height: 42px;
+  }
+
+  /* 폼 그리드 모바일 1열 전환 */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  /* 모바일 폼 입력 터치 영역 확보 */
+  .form-input,
+  select.form-input,
+  textarea.form-input {
+    min-height: 42px;
+    font-size: 15px !important; /* iOS 자동 줌 방지 */
+  }
+
+  /* 통계 카드 및 칩 반응형 */
+  .stats-grid,
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .chip {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-modal {
+    width: 100%;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+}

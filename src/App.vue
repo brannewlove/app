@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
@@ -118,12 +118,24 @@ const closeNotifications = () => {
   showNotifications.value = false;
 };
 
+const isMobileMenuOpen = ref(false);
+
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+};
+
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false;
+};
+
 // 라우트 변경 시도 감시
 watch(() => router.currentRoute.value.path, () => {
   updateAuthState();
+  closeMobileMenu();
 });
 
 const navigateTo = (path) => {
+  closeMobileMenu();
   if (router.currentRoute.value.path === path) {
     window.location.href = path; // 혹은 window.location.reload()
   } else {
@@ -142,60 +154,87 @@ const navigateTo = (path) => {
             <h1>관리 시스템</h1>
           </a>
         </div>
-        <ul class="navbar-menu">
-          <li>
-            <a href="/users" class="nav-link" :class="{ active: $route.path === '/users' }" @click.prevent="navigateTo('/users')">
-               사용자 관리
-            </a>
-          </li>
-          <li>
-            <a href="/assets" class="nav-link" :class="{ active: $route.path === '/assets' }" @click.prevent="navigateTo('/assets')">
-               자산 관리
-            </a>
-          </li>
-          <li>
-            <a href="/trades" class="nav-link" :class="{ active: $route.path === '/trades' }" @click.prevent="navigateTo('/trades')">
-               거래 관리
-            </a>
-          </li>
-          <li>
-            <a href="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }" @click.prevent="navigateTo('/return-processing')">
-               반납처리
-            </a>
-          </li>
-          <li v-if="currentUser && Number(currentUser.sec_level) === 100">
-            <a href="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }" @click.prevent="navigateTo('/data-management')">
-               데이터관리
-            </a>
-          </li>
-        </ul>
-        <div class="navbar-right">
-          <span class="user-info" v-if="currentUser">{{ currentUser.name?.trim() }}</span>
-          
-          <!-- 알림 버튼 -->
-          <div class="notification-wrapper" v-if="currentUser && Number(currentUser.sec_level) === 100">
-            <button @click="toggleNotifications" class="notification-btn">
+
+        <!-- 모바일 햄버거 버튼 및 알림 바로가기 -->
+        <div class="mobile-header-actions">
+          <!-- 모바일 알림 버튼 -->
+          <div class="notification-wrapper mobile-only" v-if="currentUser && Number(currentUser.sec_level) === 100">
+            <button @click="toggleNotifications" class="notification-btn" aria-label="알림">
               <img src="/images/alram.png" alt="Notification" class="notification-icon" />
               <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
             </button>
-            <div v-if="showNotifications" class="notification-dropdown" @click.stop>
-              <div class="notification-header">시스템 알림</div>
-              <div v-if="notifications.length === 0" class="notification-empty">
-                알림이 없습니다.
-              </div>
-              <div v-else class="notification-list">
-                <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ unread: !n.read }">
-                  <div class="notification-title"><img src="/images/warning.png" alt="warning" class="warning-icon" /> {{ n.title }}</div>
-                  <div class="notification-message">{{ n.message }}</div>
-                </div>
-              </div>
+          </div>
+
+          <button class="hamburger-btn" @click="toggleMobileMenu" :class="{ open: isMobileMenuOpen }" aria-label="메뉴 열기">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+        </div>
+
+        <!-- 네비게이션 메뉴 (데스크톱 및 모바일 반응형) -->
+        <div class="navbar-collapse" :class="{ 'show-mobile': isMobileMenuOpen }">
+          <ul class="navbar-menu">
+            <li>
+              <a href="/users" class="nav-link" :class="{ active: $route.path === '/users' }" @click.prevent="navigateTo('/users')">
+                 사용자 관리
+              </a>
+            </li>
+            <li>
+              <a href="/assets" class="nav-link" :class="{ active: $route.path === '/assets' }" @click.prevent="navigateTo('/assets')">
+                 자산 관리
+              </a>
+            </li>
+            <li>
+              <a href="/trades" class="nav-link" :class="{ active: $route.path === '/trades' }" @click.prevent="navigateTo('/trades')">
+                 거래 관리
+              </a>
+            </li>
+            <li>
+              <a href="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }" @click.prevent="navigateTo('/return-processing')">
+                 반납처리
+              </a>
+            </li>
+            <li v-if="currentUser && Number(currentUser.sec_level) === 100">
+              <a href="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }" @click.prevent="navigateTo('/data-management')">
+                 데이터관리
+              </a>
+            </li>
+          </ul>
+
+          <div class="navbar-right">
+            <span class="user-info" v-if="currentUser">{{ currentUser.name?.trim() }}</span>
+            
+            <!-- 데스크톱 알림 버튼 -->
+            <div class="notification-wrapper desktop-only" v-if="currentUser && Number(currentUser.sec_level) === 100">
+              <button @click="toggleNotifications" class="notification-btn" aria-label="알림">
+                <img src="/images/alram.png" alt="Notification" class="notification-icon" />
+                <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
+              </button>
+            </div>
+            
+            <button @click="handleLogout" class="logout-btn">로그아웃</button>
+          </div>
+        </div>
+
+        <!-- 알림 드롭다운 (공통) -->
+        <div v-if="showNotifications" class="notification-dropdown" @click.stop>
+          <div class="notification-header">시스템 알림</div>
+          <div v-if="notifications.length === 0" class="notification-empty">
+            알림이 없습니다.
+          </div>
+          <div v-else class="notification-list">
+            <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ unread: !n.read }">
+              <div class="notification-title"><img src="/images/warning.png" alt="warning" class="warning-icon" /> {{ n.title }}</div>
+              <div class="notification-message">{{ n.message }}</div>
             </div>
           </div>
-          
-          <button @click="handleLogout" class="logout-btn">로그아웃</button>
         </div>
       </div>
     </nav>
+
+    <!-- 모바일 메뉴 배경 오버레이 -->
+    <div v-if="isMobileMenuOpen" class="mobile-backdrop" @click="closeMobileMenu"></div>
 
     <!-- 메인 콘텐츠 -->
     <div class="main-content">
@@ -232,20 +271,20 @@ const navigateTo = (path) => {
   display: flex;
   align-items: center;
   height: 70px;
-  gap: 0;
+  gap: 20px;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
 }
 
 .navbar-brand {
   flex-shrink: 0;
   white-space: nowrap;
-  min-width: 150px;
 }
 
 .navbar-brand h1 {
   color: white;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: bold;
   margin: 0;
   border-bottom: none;
@@ -256,10 +295,17 @@ const navigateTo = (path) => {
   cursor: pointer;
 }
 
+.navbar-collapse {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+}
+
 .navbar-menu {
   display: flex;
   list-style: none;
-  gap: 0;
+  gap: 6px;
   flex: 1;
   height: 100%;
   margin: 0;
@@ -274,12 +320,13 @@ const navigateTo = (path) => {
 }
 
 .nav-link {
-  color: white;
+  color: #f1f5f9;
   text-decoration: none;
-  padding: 10px 15px;
+  padding: 10px 14px;
   border-radius: 6px;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
   font-weight: 500;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,20 +335,19 @@ const navigateTo = (path) => {
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .nav-link.active {
-  background: rgba(255, 255, 255, 0.3);
-  border-bottom: 3px solid white;
-  border-radius: 6px 6px 0 0;
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  color: white;
 }
 
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -309,24 +355,78 @@ const navigateTo = (path) => {
 .user-info {
   color: white;
   font-weight: 500;
-  padding: 0 15px;
+  font-size: 14px;
+  padding: 0 10px;
   border-right: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .logout-btn {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 8px 14px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.3s ease;
+  font-size: 13px;
+  transition: all 0.2s ease;
 }
 
 .logout-btn:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+}
+
+.mobile-header-actions {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.desktop-only {
+  display: block;
+}
+
+/* 햄버거 버튼 스타일 */
+.hamburger-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 30px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 110;
+}
+
+.hamburger-btn .bar {
+  width: 100%;
+  height: 3px;
+  background-color: white;
+  border-radius: 3px;
+  transition: all 0.3s ease-in-out;
+}
+
+.hamburger-btn.open .bar:nth-child(1) {
+  transform: translateY(9.5px) rotate(45deg);
+}
+
+.hamburger-btn.open .bar:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-btn.open .bar:nth-child(3) {
+  transform: translateY(-9.5px) rotate(-45deg);
+}
+
+.mobile-backdrop {
+  display: none;
 }
 
 .main-content {
@@ -335,21 +435,120 @@ const navigateTo = (path) => {
   padding: 20px;
 }
 
+/* 📱 스마트폰/모바일 반응형 스타일 (768px 이하) */
 @media (max-width: 768px) {
   .navbar-container {
+    height: 60px;
+    padding: 0 15px;
+  }
+
+  .mobile-header-actions {
+    display: flex;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+
+  .navbar-collapse {
+    display: none;
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: #3f3f3f;
     flex-direction: column;
-    height: auto;
-    padding: 15px 20px;
+    padding: 15px 20px 20px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    animation: slideDown 0.25s ease-out;
+  }
+
+  .navbar-collapse.show-mobile {
+    display: flex;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .navbar-menu {
     flex-direction: column;
-    gap: 10px;
-    margin-top: 15px;
+    width: 100%;
+    gap: 6px;
+    margin-bottom: 15px;
+  }
+
+  .navbar-menu li {
+    width: 100%;
+  }
+
+  .nav-link {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px 16px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+
+  .nav-link.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-bottom: none;
+    border-left: 4px solid var(--brand-blue, #4682B4);
+  }
+
+  .navbar-right {
+    width: 100%;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    justify-content: space-between;
+    margin-left: 0;
+  }
+
+  .user-info {
+    border-right: none;
+    padding: 0;
+    font-size: 15px;
+  }
+
+  .logout-btn {
+    padding: 10px 18px;
+    font-size: 14px;
+  }
+
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 90;
+    backdrop-filter: blur(2px);
   }
 
   .main-content {
-    padding: 10px;
+    padding: 10px 8px;
+  }
+
+  .notification-dropdown {
+    right: 15px !important;
+    left: 15px !important;
+    width: auto !important;
+    top: 65px !important;
   }
 }
 

@@ -270,4 +270,44 @@ const handleLogin = async () => {
   font-size: 12px;
   color: var(--text-light);
 }
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: 15px;
+  }
+
+  .login-box {
+    padding: 35px 20px;
+    border-radius: var(--radius-md);
+  }
+
+  .login-box h1 {
+    font-size: 26px;
+  }
+
+  .login-subtitle {
+    font-size: 14px;
+    margin-bottom: 25px;
+  }
+
+  .login-logo {
+    width: 65px;
+    height: 65px;
+    border-radius: 16px;
+    margin-bottom: 15px;
+  }
+
+  .logo-img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .form-group {
+    gap: 6px;
+  }
+
+  .login-form {
+    gap: 18px;
+  }
+}
 </style>
