@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 프론트엔드 패키지 파일 복사 및 설치
 COPY package*.json ./
-RUN npm install
+RUN npm install --ignore-scripts
 
 # 소스 코드 복사 및 빌드 (dist 폴더 생성)
 COPY . .
