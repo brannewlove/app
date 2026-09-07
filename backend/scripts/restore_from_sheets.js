@@ -91,7 +91,17 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
         connection = await pool.getConnection();
 
         // 1. 복원 대상 테이블 목록
-        const targetTables = ['users', 'assets', 'confirmed_assets', 'trade', 'assetlogs', 'settings'];
+        const targetTables = [
+            'users',
+            'assets',
+            'confirmed_assets',
+            'confirmed_replacements',
+            'returned_assets',
+            'trade',
+            'assetlogs',
+            'saved_filters',
+            'settings'
+        ];
 
         // 2. 외래키 제약조건 일시 해제
         console.log('\n🔒 [2/4] 외래키 체크 일시 비활성화...');
