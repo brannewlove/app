@@ -39,17 +39,21 @@ const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
 const isAssetInfoOpen = ref(false);
 const infoAssetNumber = ref('');
 
+const cleanFilterString = (str) => {
+  return String(str || '').replace(/^["'\\]+|["'\\]+$/g, '').replace(/\s/g, '');
+};
+
 const isMultiPcQuery = (q) => {
-  const normalized = String(q || '').replace(/\s/g, '');
-  const filterName = String(activeSavedFilter.value?.name || '').replace(/\s/g, '');
-  return normalized === '1인다PC보유자' || normalized === '1인다PC사용자' || 
-         filterName === '1인다PC보유자' || filterName === '1인다PC사용자';
+  const normalized = cleanFilterString(q);
+  const filterName = cleanFilterString(activeSavedFilter.value?.name);
+  return normalized.includes('1인다PC보유자') || normalized.includes('1인다PC사용자') || 
+         filterName.includes('1인다PC보유자') || filterName.includes('1인다PC사용자');
 };
 
 const isAvailableStockQuery = (q) => {
-  const normalized = String(q || '').replace(/\s/g, '');
-  const filterName = String(activeSavedFilter.value?.name || '').replace(/\s/g, '');
-  return normalized === '가용재고' || filterName === '가용재고';
+  const normalized = cleanFilterString(q);
+  const filterName = cleanFilterString(activeSavedFilter.value?.name);
+  return normalized.includes('가용재고') || filterName.includes('가용재고');
 };
 
 // 1인 다기기 보유자 계산 (노트북 or 데스크탑이 2개 이상이면서 useable 상태)
@@ -67,7 +71,7 @@ const multiPcUserIds = computed(() => {
   const userCounts = {};
   pcAssets.forEach(a => {
     const userId = String(a.in_user || '').trim().toLowerCase();
-    if (userId && userId !== 'cjenc_inno') {
+    if (userId && userId !== 'cjenc_inno' && userId !== 'aj_rent') {
       userCounts[userId] = (userCounts[userId] || 0) + 1;
     }
   });
@@ -85,10 +89,16 @@ const activeSavedFilter = ref(null);
 
 const activeSavedFilterQuery = computed(() => {
   if (!activeSavedFilter.value) return '';
-  const data = typeof activeSavedFilter.value.filter_data === 'string'
-    ? JSON.parse(activeSavedFilter.value.filter_data)
-    : activeSavedFilter.value.filter_data;
-  return data.searchQuery || '';
+  let data = activeSavedFilter.value.filter_data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      data = {};
+    }
+  }
+  const nameVal = String(activeSavedFilter.value.name || '').replace(/^["'\\]+|["'\\]+$/g, '').trim();
+  return (data && data.searchQuery) ? data.searchQuery : nameVal;
 });
 
 const searchPlaceholder = computed(() => {

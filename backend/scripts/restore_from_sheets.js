@@ -202,15 +202,27 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
                             return null;
                         }
 
+                        // 문자열 양 끝의 불필요한 이스케이프/따옴표 제거 (단, JSON 문자열 제외)
+                        if (typeof val === 'string' && !colType.includes('json')) {
+                            let s = val.trim();
+                            if (s.startsWith('\\"') && s.endsWith('\\"') && s.length >= 4) {
+                                s = s.slice(2, -2).trim();
+                            }
+                            val = s;
+                        }
+
                         // JSON 타입 컬럼 안전 변환
                         if (colType.includes('json')) {
                             if (typeof val === 'object') {
                                 return JSON.stringify(val);
                             }
                             if (typeof val === 'string') {
-                                const trimmed = val.trim();
+                                let trimmed = val.trim();
                                 if (trimmed === '[object Object]' || trimmed === '') {
                                     return '{}';
+                                }
+                                if (trimmed.startsWith('\\"') && trimmed.endsWith('\\"') && trimmed.length >= 4) {
+                                    trimmed = trimmed.slice(2, -2).trim();
                                 }
                                 try {
                                     JSON.parse(trimmed);
@@ -232,6 +244,20 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
 
                         return val;
                     });
+
+                    // saved_filters의 filter_data가 유실된 경우 name을 기반으로 복원
+                    if (tableName === 'saved_filters') {
+                        const fdIdx = targetColumns.indexOf('filter_data');
+                        const nameIdx = targetColumns.indexOf('name');
+                        if (fdIdx !== -1 && nameIdx !== -1) {
+                            const curFd = rowValues[fdIdx];
+                            const curName = rowValues[nameIdx];
+                            if (!curFd || curFd === '{}' || curFd === 'null') {
+                                rowValues[fdIdx] = JSON.stringify({ searchQuery: curName || '' });
+                            }
+                        }
+                    }
+
                     values.push(rowValues);
                 }
 
