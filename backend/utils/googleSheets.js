@@ -95,6 +95,11 @@ class GoogleSheetsBackupService {
                 return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
             }
 
+            // 객체 또는 배열 (JSON 타입 컬럼 등)
+            if (typeof val === 'object') {
+                return JSON.stringify(val);
+            }
+
             return String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
         }));
 

@@ -107,7 +107,7 @@ git push origin main
 
 ```bash
 # 최신 코드 가져오기
-git pull origin main
+git pull origin 도커-적용
 
 # 도커 컨테이너 재빌드 및 재시작 (무중단 갱신)
 docker compose up -d --build

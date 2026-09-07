@@ -161,6 +161,7 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             // DB 컬럼 정보 조회
             const [columnsInfo] = await connection.query(`SHOW COLUMNS FROM \`${tableName}\``);
             const validDbColumns = new Set(columnsInfo.map(c => c.Field));
+            const columnTypeMap = new Map(columnsInfo.map(c => [c.Field, (c.Type || '').toLowerCase()]));
             const generatedColumns = new Set(
                 columnsInfo.filter(c => c.Extra && (c.Extra.includes('VIRTUAL') || c.Extra.includes('STORED'))).map(c => c.Field)
             );
@@ -192,11 +193,43 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
                 const values = [];
 
                 for (const row of batch) {
-                    const rowValues = validHeaderIndices.map(colIdx => {
+                    const rowValues = validHeaderIndices.map((colIdx, colPos) => {
                         let val = row[colIdx];
+                        const colName = targetColumns[colPos];
+                        const colType = columnTypeMap.get(colName) || '';
+
                         if (val === undefined || val === null || val === '') {
                             return null;
                         }
+
+                        // JSON 타입 컬럼 안전 변환
+                        if (colType.includes('json')) {
+                            if (typeof val === 'object') {
+                                return JSON.stringify(val);
+                            }
+                            if (typeof val === 'string') {
+                                const trimmed = val.trim();
+                                if (trimmed === '[object Object]' || trimmed === '') {
+                                    return '{}';
+                                }
+                                try {
+                                    JSON.parse(trimmed);
+                                    return trimmed;
+                                } catch (e) {
+                                    return '{}';
+                                }
+                            }
+                            return '{}';
+                        }
+
+                        // Boolean / tinyint(1) 처리
+                        if (colType.includes('tinyint(1)')) {
+                            if (typeof val === 'string') {
+                                if (val.toUpperCase() === 'TRUE') return 1;
+                                if (val.toUpperCase() === 'FALSE') return 0;
+                            }
+                        }
+
                         return val;
                     });
                     values.push(rowValues);
