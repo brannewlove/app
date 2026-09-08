@@ -39,6 +39,21 @@ const activeFilter = ref(null); // null, 'available', 'rent', 'repair'
 const isAssetInfoOpen = ref(false);
 const infoAssetNumber = ref('');
 
+const filterColumns = [
+  { val: 'category', label: '분류' },
+  { val: 'model', label: '모델' },
+  { val: 'asset_number', label: '자산번호' },
+  { val: 'serial_number', label: '시리얼번호' },
+  { val: 'in_user', label: '사용자ID' },
+  { val: 'user_name', label: '사용자명' },
+  { val: 'user_part', label: '부서' },
+  { val: 'state', label: '상태' },
+  { val: 'unit_price', label: '월단가' },
+  { val: 'contract_month', label: '계약월' }
+];
+
+const activeSavedFilter = ref(null);
+
 const cleanFilterString = (str) => {
   return String(str || '').replace(/^["'\\]+|["'\\]+$/g, '').replace(/\s/g, '');
 };
@@ -439,19 +454,6 @@ const builderConfig = ref({
   value: ''
 });
 const filterGuideOpen = ref(false);
-
-const filterColumns = [
-  { val: 'category', label: '분류' },
-  { val: 'model', label: '모델' },
-  { val: 'asset_number', label: '자산번호' },
-  { val: 'serial_number', label: '시리얼번호' },
-  { val: 'in_user', label: '사용자ID' },
-  { val: 'user_name', label: '사용자명' },
-  { val: 'user_part', label: '부서' },
-  { val: 'state', label: '상태' },
-  { val: 'unit_price', label: '월단가' },
-  { val: 'contract_month', label: '계약월' }
-];
 
 const operators = [
   { val: ':', label: '포함' },
