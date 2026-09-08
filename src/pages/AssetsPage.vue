@@ -85,7 +85,28 @@ const getRawQuery = (query) => {
   return match ? match[1] : query;
 };
 
-const activeSavedFilter = ref(null);
+const resolveFilterQuery = (query, filterName) => {
+  const raw = String(query || '').replace(/^["'\\]+|["'\\]+$/g, '').trim();
+  const name = String(filterName || '').replace(/^["'\\]+|["'\\]+$/g, '').trim();
+  
+  // 1. 이미 조건식인 경우 (콜론, 연산자, 예약어 포함)
+  if (raw && (raw.includes(':') || raw.includes('>') || raw.includes('<') || raw.includes('=') || /\b(AND|OR)\b/i.test(raw))) {
+    return raw;
+  }
+
+  const target = (raw && raw !== '{}' && raw !== '[object Object]') ? raw : name;
+  const normalized = target.replace(/\s/g, '');
+
+  // 2. 알려진 필터명/한글 상태 매핑
+  if (normalized === '대여중' || normalized === '대여') return 'state:rent';
+  if (normalized === '수리중' || normalized === '수리') return 'state:repair';
+  if (normalized === '출고대기' || normalized === '대기') return 'state:wait';
+  if (normalized.includes('사용중인NT551') || normalized.includes('NT551(교체대상)') || normalized.includes('NT551')) return 'model:NT551 AND state:useable';
+  if (normalized === '사용중') return 'state:useable';
+  if (normalized === '해지' || normalized === '폐기' || normalized === '반납완료') return 'state:termination';
+
+  return target;
+};
 
 const activeSavedFilterQuery = computed(() => {
   if (!activeSavedFilter.value) return '';
@@ -97,8 +118,8 @@ const activeSavedFilterQuery = computed(() => {
       data = {};
     }
   }
-  const nameVal = String(activeSavedFilter.value.name || '').replace(/^["'\\]+|["'\\]+$/g, '').trim();
-  return (data && data.searchQuery) ? data.searchQuery : nameVal;
+  const q = (data && data.searchQuery && data.searchQuery !== '{}' && data.searchQuery !== '[object Object]') ? data.searchQuery : '';
+  return resolveFilterQuery(q, activeSavedFilter.value.name);
 });
 
 const searchPlaceholder = computed(() => {
