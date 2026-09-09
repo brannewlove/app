@@ -10,6 +10,7 @@ import TradeRegisterModal from '../components/TradeRegisterModal.vue';
 import TradeActionModal from '../components/TradeActionModal.vue';
 import UserDetailModal from '../components/UserDetailModal.vue';
 import AssetInfoModal from '../components/AssetInfoModal.vue';
+import TradeCancelModal from '../components/TradeCancelModal.vue';
 import { getTimestampFilename, formatDateTime } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
 
@@ -20,6 +21,11 @@ const initialSearch = computed(() => route.query.search || '');
 const trades = ref([]);
 const loading = ref(false);
 const error = ref(null);
+
+// 취소 모달 관련
+const isCancelModalOpen = ref(false);
+const targetTradeForCancel = ref(null);
+const cancelLoading = ref(false);
 
 const isTrackingOpen = ref(false);
 const trackingAssetNumber = ref('');
@@ -261,35 +267,37 @@ const handleConfirmYes = () => {
   isConfirmModalOpen.value = false;
 };
 
-const handleCancelTrade = async (trade) => {
-  const isNew = ['신규-계약', '신규-고장교체', '신규-기타'].includes(trade.work_type);
-  const detailMsg = isNew
-    ? `취소시 해당 신규 등록 자산('${trade.asset_number}')이 <span class="font-bold text-danger">완전 삭제</span>됩니다.`
-    : `취소시 자산의 상태와 사용자 정보가 거래 전으로 <span class="font-bold text-danger">복구</span>됩니다.`;
+const handleCancelTrade = (trade) => {
+  targetTradeForCancel.value = trade;
+  isCancelModalOpen.value = true;
+};
 
-  showConfirm(
-    `'${trade.asset_number}'의 [${trade.work_type}] 거래를 <span class="text-danger">취소</span>하시겠습니까?\n${detailMsg}`,
-    async () => {
-      loading.value = true;
-      try {
-        const response = await fetch(`/api/trades/${trade.trade_id}`, {
-          method: 'DELETE'
-        });
-        const result = await response.json();
-        if (result.success) {
-          showConfirm('거래가 취소처리 성공.', () => {
-             fetchTrades();
-          }, 'alert');
-        } else {
-          error.value = result.message || '거래 취소처리 실패';
-        }
-      } catch (err) {
-        error.value = '거래 취소 중 오류 발생: ' + err.message;
-      } finally {
-        loading.value = false;
-      }
+const handleConfirmCancel = async ({ trade, reason }) => {
+  if (!trade) return;
+  cancelLoading.value = true;
+  try {
+    const response = await fetch(`/api/trades/${trade.trade_id}/cancel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ cancel_reason: reason })
+    });
+    const result = await response.json();
+    if (result.success) {
+      isCancelModalOpen.value = false;
+      targetTradeForCancel.value = null;
+      showConfirm('거래 취소 처리가 완료되었으며, 새로운 취소 로그가 기록되었습니다.', () => {
+        fetchTrades();
+      }, 'alert');
+    } else {
+      error.value = result.message || '거래 취소처리 실패';
     }
-  );
+  } catch (err) {
+    error.value = '거래 취소 중 오류 발생: ' + err.message;
+  } finally {
+    cancelLoading.value = false;
+  }
 };
 
 const handleKeyDown = (e) => {
@@ -390,6 +398,13 @@ onUnmounted(() => {
       :type="confirmModalType"
       @confirm="handleConfirmYes"
       @cancel="isConfirmModalOpen = false"
+    />
+    <TradeCancelModal
+      :is-open="isCancelModalOpen"
+      :trade="targetTradeForCancel"
+      :loading="cancelLoading"
+      @close="isCancelModalOpen = false"
+      @confirm="handleConfirmCancel"
     />
     <TradeRegisterModal 
       :is-open="isRegisterModalOpen" 

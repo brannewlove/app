@@ -167,12 +167,26 @@ router.post('/', async (req, res, next) => {
     }
 });
 
-/* DELETE trade by id - 거래 취소 및 자산 상태 복구 */
+/* POST trade cancel by id - 거래 취소 및 신규 취소 로그 생성 */
+router.post('/:id/cancel', async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { cancel_reason } = req.body || {};
+        const result = await tradeService.cancelTrade(id, cancel_reason);
+        success(res, { message: '거래가 취소되었으며 새로운 취소 로그가 기록되었습니다.', data: result });
+    } catch (err) {
+        console.error('거래 취소 오류:', err);
+        error(res, '거래 취소 중 오류 발생: ' + err.message);
+    }
+});
+
+/* DELETE trade by id - 거래 취소 (호환성 유지) */
 router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
-        await tradeService.cancelTrade(id);
-        success(res, { message: '거래가 취소되었으며 자산 상태가 복구되었습니다.' });
+        const { cancel_reason } = req.body || {};
+        const result = await tradeService.cancelTrade(id, cancel_reason);
+        success(res, { message: '거래가 취소되었으며 새로운 취소 로그가 기록되었습니다.', data: result });
     } catch (err) {
         console.error('거래 취소 오류:', err);
         error(res, '거래 취소 중 오류 발생: ' + err.message);

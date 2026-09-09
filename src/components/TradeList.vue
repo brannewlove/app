@@ -329,7 +329,7 @@ const handleUserMenuAction = (action) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1, 'row-cancelled': isCancelledTrade(trade) }">
+          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1, 'row-cancelled': isCancelledTrade(trade) || (trade.work_type && trade.work_type.startsWith('취소-')) }">
             <td v-for="header in orderedColumns" :key="header">
               <template v-if="header === 'timestamp'">
                 <span :title="isCancelledTrade(trade) && trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : ''">
@@ -340,6 +340,8 @@ const handleUserMenuAction = (action) => {
                 <div class="ellipsis-cell" :title="trade[header]">
                   <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
                   <span v-if="isCancelledTrade(trade)" class="badge-cancelled-inline" title="취소된 거래">취소됨</span>
+                  <span v-else-if="trade.work_type && trade.work_type.startsWith('취소-')" class="badge-cancelled-inline" title="거래 취소 로그">취소로그</span>
+                  <span v-else-if="trade.work_type && trade.work_type.startsWith('재실행-')" class="badge-reexec-inline" title="취소 철회 재실행 로그">재실행</span>
                 </div>
               </template>
               <template v-else-if="header === 'ex_user_info'">
@@ -371,7 +373,15 @@ const handleUserMenuAction = (action) => {
                 <span v-if="isCancelledTrade(trade)" class="badge-cancelled" :title="trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : '취소된 거래'">
                   취소완료
                 </span>
-                <button v-else-if="isLatestTrade(trade)" @click="emit('cancel-trade', trade)" class="btn-action btn-cancel" title="거래 취소 및 자산 복구">취소</button>
+                <button 
+                  v-else-if="isLatestTrade(trade)" 
+                  @click="emit('cancel-trade', trade)" 
+                  class="btn-action"
+                  :class="trade.work_type && trade.work_type.startsWith('취소-') ? 'btn-revert-cancel' : 'btn-cancel'" 
+                  :title="trade.work_type && trade.work_type.startsWith('취소-') ? '취소 철회 및 자산 재원복' : '거래 취소 및 자산 복구'"
+                >
+                  {{ trade.work_type && trade.work_type.startsWith('취소-') ? '취소철회' : '취소' }}
+                </button>
                 <span v-else class="text-muted-dash" title="이후 거래가 발생하여 취소 불가">-</span>
               </div>
             </td>
@@ -720,6 +730,22 @@ const handleUserMenuAction = (action) => {
   background-color: #fee2e2;
   color: #b91c1c;
   vertical-align: middle;
+}
+
+.badge-reexec-inline {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 3px);
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  vertical-align: middle;
+}
+
+.btn-revert-cancel {
+  background: var(--brand-blue, #0052CC) !important;
 }
 
 .text-muted-dash {

@@ -144,43 +144,88 @@ class TradeService extends BaseService {
     }
 
     /**
-     * 거래 취소 및 자산 상태 복구
-     * @param {number} id 거래 ID
+     * 거래 취소 및 자산 상태 복구 (새 거래 로그 생성 및 취소 사유 기록)
+     * @param {number} id 취소 대상 거래 ID
+     * @param {string} cancelReason 사용자가 입력한 취소 사유
      */
-    async cancelTrade(id) {
+    async cancelTrade(id, cancelReason = '') {
         const connection = await this.pool.getConnection();
         try {
             await connection.beginTransaction();
 
-            // 1. 거래 정보 조회
+            // 1. 취소 대상 거래 정보 조회
             const [tradeRows] = await connection.query('SELECT * FROM trade WHERE trade_id = ?', [id]);
             if (tradeRows.length === 0) {
                 throw new Error('거래를 찾을 수 없습니다.');
             }
-            const trade = tradeRows[0];
-            if (trade.is_cancelled) {
-                throw new Error('이미 취소된 거래입니다.');
-            }
-            const { asset_number, work_type, ex_user, asset_state, asset_in_user, asset_memo } = trade;
+            const originTrade = tradeRows[0];
+            const { asset_number, work_type, ex_user, asset_state, asset_in_user, asset_memo, cj_id } = originTrade;
 
-            // 2. 복구할 상태 결정
-            let revertUser = asset_in_user || ex_user || null;
-            let revertState = asset_state || null;
+            // 2. 현재 자산 정보 조회
+            const [assetRows] = await connection.query('SELECT * FROM assets WHERE asset_number = ?', [asset_number]);
+            const currentAsset = assetRows.length > 0 ? assetRows[0] : null;
 
-            if (!revertState) {
-                if (work_type.startsWith('출고-신규')) revertState = 'wait';
-                else if (work_type === '출고-대여' || work_type === '입고-대여반납' || work_type === '입고-수리필요') revertState = 'useable';
-                else if (work_type === '출고-수리완료') revertState = 'repair';
-                else revertState = 'useable';
-            }
+            let newWorkType = '';
+            let newCjId = null;
+            let newExUser = currentAsset ? currentAsset.in_user : cj_id;
+            let newAssetState = currentAsset ? currentAsset.state : asset_state;
+            let newAssetInUser = currentAsset ? currentAsset.in_user : cj_id;
+            let newAssetMemo = currentAsset ? currentAsset.memo : null;
 
-            // 3. 자산 테이블 복구 또는 삭제
+            const isRevertCancel = work_type.startsWith('취소-');
             const isNewRegistration = ['신규-계약', '신규-고장교체', '신규-기타'].includes(work_type);
 
-            if (isNewRegistration) {
-                // 신규 등록 거래 취소 시 생성되었던 자산 삭제
+            if (isRevertCancel) {
+                // ==========================================
+                // Case A: "취소의 취소 (Re-cancel)" 처리
+                // ==========================================
+                const origType = work_type.replace(/^취소-/, '');
+                newWorkType = `재실행-${origType}`;
+
+                const revertUser = asset_in_user || ex_user || cj_id || null;
+                const revertState = asset_state || 'useable';
+                const revertMemo = asset_memo || null;
+
+                if (!currentAsset) {
+                    // 신규 자산 취소로 삭제되었던 자산 복원 생성
+                    await connection.query(
+                        `INSERT INTO assets (asset_number, state, in_user, memo) VALUES (?, ?, ?, ?)`,
+                        [asset_number, revertState, revertUser, revertMemo]
+                    );
+                } else {
+                    await connection.query(
+                        'UPDATE assets SET in_user = ?, state = ?, memo = ? WHERE asset_number = ?',
+                        [revertUser, revertState, revertMemo, asset_number]
+                    );
+                }
+
+                newCjId = revertUser;
+                newExUser = currentAsset ? currentAsset.in_user : null;
+            } else if (isNewRegistration) {
+                // ==========================================
+                // Case B: 신규 등록 거래 취소 (자산 삭제)
+                // ==========================================
+                newWorkType = `취소-${work_type}`;
+                newCjId = null;
+                newExUser = currentAsset ? currentAsset.in_user : cj_id;
+
                 await connection.query('DELETE FROM assets WHERE asset_number = ?', [asset_number]);
             } else {
+                // ==========================================
+                // Case C: 일반 출고/입고/반납 거래 취소
+                // ==========================================
+                newWorkType = `취소-${work_type}`;
+
+                let revertUser = asset_in_user || ex_user || null;
+                let revertState = asset_state || null;
+
+                if (!revertState) {
+                    if (work_type.startsWith('출고-신규')) revertState = 'wait';
+                    else if (work_type === '출고-대여' || work_type === '입고-대여반납' || work_type === '입고-수리필요') revertState = 'useable';
+                    else if (work_type === '출고-수리완료') revertState = 'repair';
+                    else revertState = 'useable';
+                }
+
                 let updateAssetQuery = 'UPDATE assets SET in_user = ?, state = ?';
                 let params = [revertUser, revertState];
 
@@ -193,13 +238,34 @@ class TradeService extends BaseService {
                 params.push(asset_number);
 
                 await connection.query(updateAssetQuery, params);
+
+                newCjId = revertUser;
             }
 
-            // 4. 거래 내역 취소 상태로 업데이트 (기록 보존)
-            await connection.query('UPDATE trade SET is_cancelled = 1, cancelled_at = CURRENT_TIMESTAMP WHERE trade_id = ?', [id]);
+            // 3. 신규 취소/재실행 거래 로그 레코드 INSERT
+            const finalMemo = cancelReason 
+                ? (isRevertCancel ? `[취소철회 사유] ${cancelReason}` : `[취소사유] ${cancelReason}`)
+                : (isRevertCancel ? '취소 철회 (거래 재실행)' : '거래 취소');
+
+            const [insertResult] = await connection.query(
+                `INSERT INTO trade (
+                    asset_number, work_type, cj_id, ex_user, 
+                    asset_state, asset_in_user, asset_memo, memo, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                [
+                    asset_number, newWorkType, newCjId, newExUser,
+                    newAssetState, newAssetInUser, newAssetMemo, finalMemo
+                ]
+            );
 
             await connection.commit();
-            return true;
+            return {
+                trade_id: insertResult.insertId,
+                work_type: newWorkType,
+                asset_number,
+                cj_id: newCjId,
+                memo: finalMemo
+            };
         } catch (err) {
             await connection.rollback();
             throw err;
