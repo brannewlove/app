@@ -227,10 +227,13 @@ const goToTradeSearch = () => {
         <div v-else-if="trackingLogs.length > 0">
           <h3>사용자 변경 로그</h3>
           <div class="tracking-flow" @wheel.prevent="handleTrackingWheel">
-            <div v-for="(log, index) in trackingLogs" :key="`${log.trade_id}-${log.timestamp}`" class="flow-item">
+            <div v-for="(log, index) in trackingLogs" :key="`${log.trade_id}-${log.timestamp}`" class="flow-item" :class="{ 'log-cancelled': log.is_cancelled }">
               <div class="flow-content">
                 <div class="flow-header">
-                  <span class="flow-work-type">{{ log.work_type }}</span>
+                  <span class="flow-work-type">
+                    {{ log.work_type }}
+                    <small v-if="log.is_cancelled" style="color: #ef4444; font-size: 10px; margin-left: 2px;">(취소됨)</small>
+                  </span>
                   <span class="flow-user">{{ log.user_name || log.cj_id || '-' }}</span>
                 </div>
                 <div class="flow-date">{{ new Date(log.timestamp).toLocaleString('ko-KR') }}</div>
@@ -387,5 +390,15 @@ const goToTradeSearch = () => {
   height: 14px;
   object-fit: contain;
   filter: brightness(0) invert(1);
+}
+
+.log-cancelled {
+  opacity: 0.6;
+  filter: grayscale(0.6);
+}
+
+.log-cancelled .flow-content {
+  background-color: var(--bg-hover, #f1f5f9) !important;
+  border: 1px dashed var(--border-color, #cbd5e1);
 }
 </style>

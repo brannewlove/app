@@ -21,7 +21,9 @@ router.get('/', async (req, res) => {
         u1.name as user_name,
         t.ex_user,
         u2.name as ex_user_name,
-        t.timestamp
+        t.timestamp,
+        t.is_cancelled,
+        t.cancelled_at
       FROM trade t
       LEFT JOIN users u1 ON t.cj_id = u1.cj_id
       LEFT JOIN users u2 ON t.ex_user = u2.cj_id
@@ -69,7 +71,9 @@ router.get('/', async (req, res) => {
                     work_type: t.work_type,
                     cj_id: t.cj_id,
                     user_name: t.user_name || (t.cj_id === 'cjenc_inno' ? '건설경영혁신' : (t.cj_id === 'aj_rent' ? 'AJ랜탈' : t.cj_id)),
-                    timestamp: t.timestamp
+                    timestamp: t.timestamp,
+                    is_cancelled: t.is_cancelled,
+                    cancelled_at: t.cancelled_at
                 });
             });
         } else {
@@ -81,7 +85,9 @@ router.get('/', async (req, res) => {
           '자산 등록' as work_type,
           a.in_user as cj_id,
           u.name as user_name,
-          COALESCE(a.day_of_start, '2000-01-01') as timestamp
+          COALESCE(a.day_of_start, '2000-01-01') as timestamp,
+          0 as is_cancelled,
+          NULL as cancelled_at
         FROM assets a
         LEFT JOIN users u ON a.in_user = u.cj_id
         WHERE TRIM(a.asset_number) = TRIM(?) OR (LENGTH(?) >= 8 AND a.asset_number LIKE CONCAT('%', ?))
@@ -122,7 +128,8 @@ router.get('/currentUsers', async (req, res) => {
           work_type,
           ROW_NUMBER() OVER (PARTITION BY asset_number ORDER BY timestamp DESC) as rn
         FROM trade
-        WHERE work_type LIKE '%입고%' OR work_type LIKE '%출고%'
+        WHERE (work_type LIKE '%입고%' OR work_type LIKE '%출고%')
+          AND (is_cancelled IS NULL OR is_cancelled = 0)
       ) t
       LEFT JOIN users u ON t.cj_id = u.cj_id
       WHERE t.rn = 1 AND t.cj_id != COALESCE(t.ex_user, '')

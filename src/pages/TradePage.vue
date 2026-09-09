@@ -218,20 +218,22 @@ const downloadCSV = async () => {
     const headerKeys = [
       'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
       'ex_user', 'ex_user_name', 'ex_user_part',
-      'cj_id', 'name', 'part', 'memo'
+      'cj_id', 'name', 'part', 'memo', 'is_cancelled', 'cancelled_at'
     ];
 
     const headerLabels = [
       '순번', '작업시간', '작업유형', '자산번호', '모델명',
       '이전 사용자ID', '이전 이름', '이전 부서',
-      '사용자ID', '이름', '부서', '거래메모'
+      '사용자ID', '이름', '부서', '거래메모', '취소여부', '취소시간'
     ];
 
     const dataRows = tradesData.map(trade => 
       headerKeys.map(key => {
         let value = trade[key];
-        if (key === 'timestamp') {
-          value = formatDateTime(value);
+        if (key === 'timestamp' || key === 'cancelled_at') {
+          value = value ? formatDateTime(value) : '';
+        } else if (key === 'is_cancelled') {
+          value = trade.is_cancelled ? '취소됨' : '정상';
         }
         return value;
       })
@@ -260,8 +262,13 @@ const handleConfirmYes = () => {
 };
 
 const handleCancelTrade = async (trade) => {
+  const isNew = ['신규-계약', '신규-고장교체', '신규-기타'].includes(trade.work_type);
+  const detailMsg = isNew
+    ? `취소시 해당 신규 등록 자산('${trade.asset_number}')이 <span class="font-bold text-danger">완전 삭제</span>됩니다.`
+    : `취소시 자산의 상태와 사용자 정보가 거래 전으로 <span class="font-bold text-danger">복구</span>됩니다.`;
+
   showConfirm(
-    `'${trade.asset_number}'의 [${trade.work_type}] 거래를 <span class="text-danger">취소</span>하시겠습니까?\n취소시 자산의 상태와 사용자 정보가 거래 전으로 <span class="font-bold text-danger">복구</span>됩니다.`,
+    `'${trade.asset_number}'의 [${trade.work_type}] 거래를 <span class="text-danger">취소</span>하시겠습니까?\n${detailMsg}`,
     async () => {
       loading.value = true;
       try {

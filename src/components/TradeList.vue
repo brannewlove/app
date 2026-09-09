@@ -131,7 +131,7 @@ const orderedColumns = computed(() => {
     'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
     'cj_id', 'name', 'part', 'category', 'state',
     'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
-    'created_at', 'updated_at'
+    'created_at', 'updated_at', 'is_cancelled', 'cancelled_at'
   ];
   
   const allHeaders = Object.keys(props.trades[0]);
@@ -144,11 +144,11 @@ const download = () => {
     emit('download', props.trades);
 }
 
-// 각 자산별 최신 거래 ID 맵핑
+// 각 자산별 최신 유효(미취소) 거래 ID 맵핑
 const latestTradeIdsPerAsset = computed(() => {
   const map = {};
   props.trades.forEach(t => {
-    if (!map[t.asset_number] || t.trade_id > map[t.asset_number]) {
+    if (!t.is_cancelled && (!map[t.asset_number] || t.trade_id > map[t.asset_number])) {
       map[t.asset_number] = t.trade_id;
     }
   });
@@ -156,7 +156,7 @@ const latestTradeIdsPerAsset = computed(() => {
 });
 
 const isLatestTrade = (trade) => {
-  return latestTradeIdsPerAsset.value[trade.asset_number] === trade.trade_id;
+  return !trade.is_cancelled && latestTradeIdsPerAsset.value[trade.asset_number] === trade.trade_id;
 };
 
 // 자산 메뉴 관련
@@ -312,9 +312,19 @@ const handleUserMenuAction = (action) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1 }">
+          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1, 'row-cancelled': trade.is_cancelled }">
             <td v-for="header in orderedColumns" :key="header">
-              <template v-if="header === 'timestamp'">{{ formatDateTime(trade[header]) }}</template>
+              <template v-if="header === 'timestamp'">
+                <span :title="trade.is_cancelled && trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : ''">
+                  {{ formatDateTime(trade[header]) }}
+                </span>
+              </template>
+              <template v-else-if="header === 'work_type'">
+                <div class="ellipsis-cell" :title="trade[header]">
+                  <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
+                  <span v-if="trade.is_cancelled" class="badge-cancelled-inline" title="취소된 거래">취소됨</span>
+                </div>
+              </template>
               <template v-else-if="header === 'ex_user_info'">
                 <div style="line-height: 1.4;" class="user-info-cell" @click="openUserMenu($event, 'ex', trade)">
                    <strong class="clickable-filter" v-if="trade.ex_user_name">{{ trade.ex_user_name }}</strong> 
@@ -332,7 +342,7 @@ const handleUserMenuAction = (action) => {
               <template v-else-if="header === 'asset_number'">
                 <span class="bold-text clickable-asset" @click="openAssetMenu($event, trade)">{{ trade[header] || '-' }}</span>
               </template>
-              <template v-else-if="header === 'work_type' || header === 'model'">
+              <template v-else-if="header === 'model'">
                 <div class="ellipsis-cell" :title="trade[header]">
                   <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
                 </div>
@@ -340,8 +350,12 @@ const handleUserMenuAction = (action) => {
               <template v-else>{{ trade[header] || '-' }}</template>
             </td>
             <td class="action-cell">
-              <div style="display: flex; gap: 4px; justify-content: center;">
-                <button @click="emit('cancel-trade', trade)" class="btn-action btn-cancel">취소</button>
+              <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
+                <span v-if="trade.is_cancelled" class="badge-cancelled" :title="trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : '취소된 거래'">
+                  취소완료
+                </span>
+                <button v-else-if="isLatestTrade(trade)" @click="emit('cancel-trade', trade)" class="btn-action btn-cancel" title="거래 취소 및 자산 복구">취소</button>
+                <span v-else class="text-muted-dash" title="이후 거래가 발생하여 취소 불가">-</span>
               </div>
             </td>
           </tr>
@@ -655,5 +669,45 @@ const handleUserMenuAction = (action) => {
 .clickable-user:hover {
   opacity: 0.7;
   text-decoration: underline;
+}
+
+/* 취소된 거래 행 스타일 */
+.row-cancelled {
+  opacity: 0.65;
+  background-color: var(--bg-hover, #f8f9fa) !important;
+}
+
+.row-cancelled td {
+  color: var(--text-muted, #718096);
+}
+
+.badge-cancelled {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 4px);
+  background-color: var(--bg-hover, #e2e8f0);
+  color: var(--text-muted, #64748b);
+  border: 1px solid var(--border-color, #cbd5e1);
+  letter-spacing: -0.5px;
+}
+
+.badge-cancelled-inline {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 3px);
+  background-color: #fee2e2;
+  color: #b91c1c;
+  vertical-align: middle;
+}
+
+.text-muted-dash {
+  color: var(--text-muted, #a0aec0);
+  font-weight: 700;
+  font-size: 14px;
 }
 </style>

@@ -73,6 +73,7 @@ router.get('/', async (req, res) => {
                 work_type,
                 COUNT(*) as count
             FROM trade
+            WHERE (is_cancelled IS NULL OR is_cancelled = 0)
             GROUP BY year, month, work_type
             ORDER BY year DESC, month DESC
         `);

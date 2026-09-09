@@ -158,6 +158,9 @@ class TradeService extends BaseService {
                 throw new Error('거래를 찾을 수 없습니다.');
             }
             const trade = tradeRows[0];
+            if (trade.is_cancelled) {
+                throw new Error('이미 취소된 거래입니다.');
+            }
             const { asset_number, work_type, ex_user, asset_state, asset_in_user, asset_memo } = trade;
 
             // 2. 복구할 상태 결정
@@ -171,22 +174,29 @@ class TradeService extends BaseService {
                 else revertState = 'useable';
             }
 
-            // 3. 자산 테이블 복구
-            let updateAssetQuery = 'UPDATE assets SET in_user = ?, state = ?';
-            let params = [revertUser, revertState];
+            // 3. 자산 테이블 복구 또는 삭제
+            const isNewRegistration = ['신규-계약', '신규-고장교체', '신규-기타'].includes(work_type);
 
-            if (asset_memo !== undefined && asset_memo !== null) {
-                updateAssetQuery += ', memo = ?';
-                params.push(asset_memo);
+            if (isNewRegistration) {
+                // 신규 등록 거래 취소 시 생성되었던 자산 삭제
+                await connection.query('DELETE FROM assets WHERE asset_number = ?', [asset_number]);
+            } else {
+                let updateAssetQuery = 'UPDATE assets SET in_user = ?, state = ?';
+                let params = [revertUser, revertState];
+
+                if (asset_memo !== undefined && asset_memo !== null) {
+                    updateAssetQuery += ', memo = ?';
+                    params.push(asset_memo);
+                }
+
+                updateAssetQuery += ' WHERE asset_number = ?';
+                params.push(asset_number);
+
+                await connection.query(updateAssetQuery, params);
             }
 
-            updateAssetQuery += ' WHERE asset_number = ?';
-            params.push(asset_number);
-
-            await connection.query(updateAssetQuery, params);
-
-            // 4. 거래 내역 삭제
-            await connection.query('DELETE FROM trade WHERE trade_id = ?', [id]);
+            // 4. 거래 내역 취소 상태로 업데이트 (기록 보존)
+            await connection.query('UPDATE trade SET is_cancelled = 1, cancelled_at = CURRENT_TIMESTAMP WHERE trade_id = ?', [id]);
 
             await connection.commit();
             return true;

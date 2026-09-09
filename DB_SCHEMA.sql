@@ -133,6 +133,8 @@ CREATE TABLE `trade` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일',
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일',
   `ex_user` varchar(200) DEFAULT NULL,
+  `is_cancelled` tinyint(1) DEFAULT '0' COMMENT '취소 여부 (0: 정상, 1: 취소됨)',
+  `cancelled_at` timestamp NULL DEFAULT NULL COMMENT '취소 처리 시간',
   PRIMARY KEY (`trade_id`),
   KEY `idx_trade_id` (`trade_id`),
   KEY `idx_asset_number` (`asset_number`),
