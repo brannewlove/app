@@ -32,7 +32,7 @@ async function initDbSchema() {
             console.log('[DB Init] asset_snapshot 컬럼 추가 완료');
         }
 
-        // 4. settings 테이블 확인 및 생성
+        // 4. settings 테이블 확인 및 생성 / s_value 컬럼 MEDIUMTEXT 확장
         await pool.query(`
             CREATE TABLE IF NOT EXISTS \`settings\` (
                 \`s_key\` VARCHAR(100) NOT NULL PRIMARY KEY,
@@ -40,6 +40,11 @@ async function initDbSchema() {
                 \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
+        try {
+            await pool.query("ALTER TABLE `settings` MODIFY COLUMN `s_value` MEDIUMTEXT NULL");
+        } catch (alterErr) {
+            // 이미 타입이 변경되었거나 지원되지 않을 경우 무시
+        }
 
         // 5. trade 테이블 asset_number 인덱스 확인 및 생성 (조회/서브쿼리 성능 최적화)
         const [indexes] = await pool.query("SHOW INDEX FROM `trade` WHERE Key_name = 'idx_trade_asset_number'");

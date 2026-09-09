@@ -113,7 +113,7 @@ CREATE TABLE `saved_filters` (
 DROP TABLE IF EXISTS `settings`;
 CREATE TABLE `settings` (
   `s_key` varchar(200) NOT NULL,
-  `s_value` varchar(200) NOT NULL,
+  `s_value` mediumtext NULL,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`s_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
