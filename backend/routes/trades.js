@@ -76,10 +76,10 @@ router.get('/', async (req, res, next) => {
         const dataQuery = `
       SELECT 
         t.*,
-        a.model,
-        a.category,
-        a.state,
-        a.memo AS asset_memo,
+        COALESCE(a.model, JSON_UNQUOTE(JSON_EXTRACT(t.asset_snapshot, '$.model'))) AS model,
+        COALESCE(a.category, JSON_UNQUOTE(JSON_EXTRACT(t.asset_snapshot, '$.category'))) AS category,
+        COALESCE(a.state, t.asset_state) AS state,
+        COALESCE(a.memo, t.asset_memo) AS asset_memo,
         u.name,
         u.part,
         u2.name AS ex_user_name,

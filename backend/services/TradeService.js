@@ -175,6 +175,16 @@ class TradeService extends BaseService {
             const isRevertCancel = work_type.startsWith('취소-');
             const isNewRegistration = ['신규-계약', '신규-고장교체', '신규-기타'].includes(work_type);
 
+            // 오직 자산이 삭제되는 신규 자산 취소(또는 그 철회) 시에만 스냅샷을 선별 저장하여 리소스 절약
+            let newAssetSnapshot = null;
+            if (isNewRegistration && currentAsset) {
+                newAssetSnapshot = JSON.stringify(currentAsset);
+            } else if (isRevertCancel && originTrade.asset_snapshot) {
+                newAssetSnapshot = typeof originTrade.asset_snapshot === 'string'
+                    ? originTrade.asset_snapshot
+                    : JSON.stringify(originTrade.asset_snapshot);
+            }
+
             if (isRevertCancel) {
                 // ==========================================
                 // Case A: "취소의 취소 (Re-cancel)" 처리
@@ -186,8 +196,39 @@ class TradeService extends BaseService {
                 const revertState = asset_state || 'useable';
                 const revertMemo = asset_memo || null;
 
-                if (!currentAsset) {
-                    // 신규 자산 취소로 삭제되었던 자산 복원 생성
+                let snapshotData = null;
+                if (originTrade.asset_snapshot) {
+                    try {
+                        snapshotData = typeof originTrade.asset_snapshot === 'string'
+                            ? JSON.parse(originTrade.asset_snapshot)
+                            : originTrade.asset_snapshot;
+                    } catch (e) {
+                        snapshotData = null;
+                    }
+                }
+
+                if (!currentAsset && snapshotData) {
+                    // 신규 자산 취소로 삭제되었던 자산을 스냅샷의 전체 스펙(모델, 시리얼, 계약일, 단가 등)으로 완벽 복원 생성
+                    await connection.query(
+                        `INSERT INTO assets (
+                            asset_number, category, model, serial_number, state, in_user, 
+                            day_of_start, day_of_end, unit_price, memo
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            asset_number,
+                            snapshotData.category || null,
+                            snapshotData.model || null,
+                            snapshotData.serial_number || null,
+                            snapshotData.state || revertState,
+                            snapshotData.in_user || revertUser,
+                            snapshotData.day_of_start || null,
+                            snapshotData.day_of_end || null,
+                            snapshotData.unit_price || 0,
+                            snapshotData.memo || revertMemo
+                        ]
+                    );
+                } else if (!currentAsset) {
+                    // 스냅샷이 없는 과거 데이터 폴백
                     await connection.query(
                         `INSERT INTO assets (asset_number, state, in_user, memo) VALUES (?, ?, ?, ?)`,
                         [asset_number, revertState, revertUser, revertMemo]
@@ -250,11 +291,13 @@ class TradeService extends BaseService {
             const [insertResult] = await connection.query(
                 `INSERT INTO trade (
                     asset_number, work_type, cj_id, ex_user, 
-                    asset_state, asset_in_user, asset_memo, memo, timestamp
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                    asset_state, asset_in_user, asset_memo, memo, 
+                    asset_snapshot, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
                 [
                     asset_number, newWorkType, newCjId, newExUser,
-                    newAssetState, newAssetInUser, newAssetMemo, finalMemo
+                    newAssetState, newAssetInUser, newAssetMemo, finalMemo,
+                    newAssetSnapshot
                 ]
             );
 

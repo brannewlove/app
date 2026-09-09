@@ -24,6 +24,14 @@ async function initDbSchema() {
             console.log('[DB Init] cancelled_at 컬럼 추가 완료');
         }
 
+        // 3. trade 테이블에 asset_snapshot 컬럼 확인
+        const [snapshotCol] = await pool.query("SHOW COLUMNS FROM `trade` LIKE 'asset_snapshot'");
+        if (snapshotCol.length === 0) {
+            console.log('[DB Init] trade 테이블에 asset_snapshot 컬럼 추가 중...');
+            await pool.query("ALTER TABLE `trade` ADD COLUMN `asset_snapshot` JSON DEFAULT NULL COMMENT '자산 마스터 정보 전체 스냅샷 (JSON)'");
+            console.log('[DB Init] asset_snapshot 컬럼 추가 완료');
+        }
+
         console.log('[DB Init] 데이터베이스 스키마 검증 완료');
     } catch (err) {
         console.error('[DB Init] 스키마 검증 중 오류 발생 (무시하고 계속 진행):', err.message);

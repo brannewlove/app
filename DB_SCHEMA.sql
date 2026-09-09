@@ -135,6 +135,7 @@ CREATE TABLE `trade` (
   `ex_user` varchar(200) DEFAULT NULL,
   `is_cancelled` tinyint(1) DEFAULT '0' COMMENT '취소 여부 (0: 정상, 1: 취소됨)',
   `cancelled_at` timestamp NULL DEFAULT NULL COMMENT '취소 처리 시간',
+  `asset_snapshot` json DEFAULT NULL COMMENT '자산 마스터 정보 전체 스냅샷 (JSON)',
   PRIMARY KEY (`trade_id`),
   KEY `idx_trade_id` (`trade_id`),
   KEY `idx_asset_number` (`asset_number`),
