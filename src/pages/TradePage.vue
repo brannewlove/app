@@ -133,7 +133,7 @@ const fetchTrades = async () => {
       trades.value = result.data.data;
       totalItems.value = result.data.total;
     } else {
-      error.value = result.message || '거래 로드 실패';
+      error.value = result.error || result.message || '거래 로드 실패';
     }
   } catch (err) {
     error.value = '거래 로드 중 오류 발생: ' + err.message;

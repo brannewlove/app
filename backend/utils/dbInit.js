@@ -41,6 +41,14 @@ async function initDbSchema() {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `);
 
+        // 5. trade 테이블 asset_number 인덱스 확인 및 생성 (조회/서브쿼리 성능 최적화)
+        const [indexes] = await pool.query("SHOW INDEX FROM `trade` WHERE Key_name = 'idx_trade_asset_number'");
+        if (indexes.length === 0) {
+            console.log('[DB Init] trade 테이블에 idx_trade_asset_number 인덱스 생성 중...');
+            await pool.query("CREATE INDEX `idx_trade_asset_number` ON `trade` (`asset_number`)");
+            console.log('[DB Init] idx_trade_asset_number 인덱스 생성 완료');
+        }
+
         console.log('[DB Init] 데이터베이스 스키마 검증 완료');
     } catch (err) {
         console.error('[DB Init] 스키마 검증 중 오류 발생 (무시하고 계속 진행):', err.message);

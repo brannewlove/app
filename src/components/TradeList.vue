@@ -1,6 +1,10 @@
 <script setup>
-import { ref, computed, watch, toRef } from 'vue';
+import { ref, computed, watch, toRef, onMounted } from 'vue';
 import { copyToClipboard } from '../utils/clipboardUtils';
+import { formatDateTime } from '../utils/dateUtils';
+import TablePagination from './TablePagination.vue';
+import settingsApi from '../api/settings';
+import { mergeTableColumns } from '../utils/tableColumns';
 
 const props = defineProps({
   trades: {
@@ -40,9 +44,6 @@ const props = defineProps({
     default: false
   }
 });
-
-import { formatDateTime } from '../utils/dateUtils';
-import TablePagination from './TablePagination.vue';
 
 const emit = defineEmits(['download', 'track-asset', 'cancel-trade', 'register-trade', 'user-detail', 'asset-info', 'user-assets-search', 'page-change', 'search-change', 'sort-change']);
 
