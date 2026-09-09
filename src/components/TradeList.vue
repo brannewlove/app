@@ -131,7 +131,7 @@ const orderedColumns = computed(() => {
     'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
     'cj_id', 'name', 'part', 'category', 'state',
     'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
-    'created_at', 'updated_at', 'is_cancelled', 'cancelled_at'
+    'created_at', 'updated_at', 'is_cancelled', 'cancelled_at', 'is_latest'
   ];
   
   const allHeaders = Object.keys(props.trades[0]);
@@ -144,19 +144,36 @@ const download = () => {
     emit('download', props.trades);
 }
 
-// 각 자산별 최신 유효(미취소) 거래 ID 맵핑
+const isCancelledTrade = (trade) => {
+  if (!trade) return false;
+  return trade.is_cancelled === 1 || trade.is_cancelled === '1' || trade.is_cancelled === true;
+};
+
+// 각 자산별 최신 유효(미취소) 거래 ID 맵핑 (클라이언트 측 보조)
 const latestTradeIdsPerAsset = computed(() => {
   const map = {};
+  if (!props.trades) return map;
   props.trades.forEach(t => {
-    if (!t.is_cancelled && (!map[t.asset_number] || t.trade_id > map[t.asset_number])) {
-      map[t.asset_number] = t.trade_id;
+    if (!isCancelledTrade(t) && t.asset_number) {
+      const assetKey = String(t.asset_number).trim();
+      const currentId = Number(t.trade_id);
+      if (!map[assetKey] || currentId > map[assetKey]) {
+        map[assetKey] = currentId;
+      }
     }
   });
   return map;
 });
 
 const isLatestTrade = (trade) => {
-  return !trade.is_cancelled && latestTradeIdsPerAsset.value[trade.asset_number] === trade.trade_id;
+  if (!trade || isCancelledTrade(trade)) return false;
+  // 1. 서버에서 계산된 is_latest 필드가 있으면 우선 활용
+  if (trade.is_latest !== undefined && trade.is_latest !== null) {
+    return Number(trade.is_latest) === 1;
+  }
+  // 2. 클라이언트 맵핑 폴백
+  const assetKey = String(trade.asset_number || '').trim();
+  return latestTradeIdsPerAsset.value[assetKey] === Number(trade.trade_id);
 };
 
 // 자산 메뉴 관련
@@ -312,17 +329,17 @@ const handleUserMenuAction = (action) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1, 'row-cancelled': trade.is_cancelled }">
+          <tr v-for="(trade, index) in paginatedTrades" :key="`${trade.trade_id}-${index}`" :class="{ 'stripe': index % 2 === 1, 'row-cancelled': isCancelledTrade(trade) }">
             <td v-for="header in orderedColumns" :key="header">
               <template v-if="header === 'timestamp'">
-                <span :title="trade.is_cancelled && trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : ''">
+                <span :title="isCancelledTrade(trade) && trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : ''">
                   {{ formatDateTime(trade[header]) }}
                 </span>
               </template>
               <template v-else-if="header === 'work_type'">
                 <div class="ellipsis-cell" :title="trade[header]">
                   <span class="clickable-filter" @click="searchQuery = trade[header]">{{ trade[header] || '-' }}</span>
-                  <span v-if="trade.is_cancelled" class="badge-cancelled-inline" title="취소된 거래">취소됨</span>
+                  <span v-if="isCancelledTrade(trade)" class="badge-cancelled-inline" title="취소된 거래">취소됨</span>
                 </div>
               </template>
               <template v-else-if="header === 'ex_user_info'">
@@ -351,7 +368,7 @@ const handleUserMenuAction = (action) => {
             </td>
             <td class="action-cell">
               <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
-                <span v-if="trade.is_cancelled" class="badge-cancelled" :title="trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : '취소된 거래'">
+                <span v-if="isCancelledTrade(trade)" class="badge-cancelled" :title="trade.cancelled_at ? `취소일시: ${formatDateTime(trade.cancelled_at)}` : '취소된 거래'">
                   취소완료
                 </span>
                 <button v-else-if="isLatestTrade(trade)" @click="emit('cancel-trade', trade)" class="btn-action btn-cancel" title="거래 취소 및 자산 복구">취소</button>

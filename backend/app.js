@@ -21,7 +21,11 @@ var filtersRouter = require('./routes/filters');
 var dashboardRouter = require('./routes/dashboard');
 var clientErrorsRouter = require('./routes/clientErrors');
 const { runBackup, checkAndRunMissingBackup } = require('./utils/googleSheets');
+const { initDbSchema } = require('./utils/dbInit');
 const cron = require('node-cron');
+
+// 서버 기동 시 스키마 자동 점검 및 보정
+initDbSchema();
 
 var app = express();
 

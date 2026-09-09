@@ -83,7 +83,17 @@ router.get('/', async (req, res, next) => {
         u.name,
         u.part,
         u2.name AS ex_user_name,
-        u2.part AS ex_user_part
+        u2.part AS ex_user_part,
+        CASE 
+          WHEN t.is_cancelled = 1 THEN 0
+          WHEN t.trade_id = (
+            SELECT MAX(t_sub.trade_id) 
+            FROM trade t_sub 
+            WHERE t_sub.asset_number = t.asset_number 
+              AND (t_sub.is_cancelled IS NULL OR t_sub.is_cancelled = 0)
+          ) THEN 1
+          ELSE 0
+        END AS is_latest
       FROM trade t
       LEFT JOIN assets a ON t.asset_number = a.asset_number
       LEFT JOIN users u ON t.cj_id = u.cj_id
