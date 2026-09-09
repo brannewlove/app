@@ -12,6 +12,8 @@ import AutocompleteSearch from '../components/AutocompleteSearch.vue';
 import WorkTypeSearch from '../components/WorkTypeSearch.vue';
 import assetApi from '../api/assets';
 import filterApi from '../api/filters';
+import settingsApi from '../api/settings';
+import { mergeTableColumns } from '../utils/tableColumns';
 import { useTable } from '../composables/useTable';
 import axios from 'axios';
 import { getTimestampFilename } from '../utils/dateUtils';
@@ -690,24 +692,22 @@ const openUserDetail = (cjId) => {
   isUserDetailOpen.value = true;
 };
 
-const getTableHeaders = (data) => {
-  if (data.length === 0) return [];
-  
-  const headers = Object.keys(data[0]);
-  const filtered = headers.filter(h => !['asset_id', 'user_cj_id', 'user_name', 'user_part', 'unit_price', 'replacement'].includes(h));
-  
-  const result = [];
-  for (let header of filtered) {
-    if (header === 'in_user') {
-      if (!result.includes('state')) result.push('state');
-      result.push(header);
-      result.push('user_name');
-      result.push('user_part');
-    } else if (header !== 'state') {
-      result.push(header);
+const customColumns = ref(mergeTableColumns('assets', []));
+
+const loadTableColumns = async () => {
+  try {
+    const saved = await settingsApi.getSetting('table_headers_assets');
+    if (saved) {
+      customColumns.value = mergeTableColumns('assets', saved);
     }
+  } catch (err) {
+    console.error('Failed to load assets table headers config:', err);
   }
-  return result;
+};
+
+const getTableHeaders = (data) => {
+  if (!data || data.length === 0) return customColumns.value.filter(c => c.visible).map(c => c.key);
+  return customColumns.value.filter(c => c.visible).map(c => c.key);
 };
 
 const formatCellValue = (value, columnName, item) => {
@@ -843,6 +843,7 @@ const getExpirationClass = (asset) => {
 onMounted(() => {
   fetchAssets();
   fetchSavedFilters();
+  loadTableColumns();
 
   // 1. URL 쿼리(q) -> 검색어 동기화 (단일 소모성)
   // '자산 보기' 클릭 등으로 전달된 q를 검색창에 넣고 URL에서는 즉시 지웁니다.

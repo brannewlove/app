@@ -32,6 +32,15 @@ async function initDbSchema() {
             console.log('[DB Init] asset_snapshot 컬럼 추가 완료');
         }
 
+        // 4. settings 테이블 확인 및 생성
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS \`settings\` (
+                \`s_key\` VARCHAR(100) NOT NULL PRIMARY KEY,
+                \`s_value\` MEDIUMTEXT NULL,
+                \`updated_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+
         console.log('[DB Init] 데이터베이스 스키마 검증 완료');
     } catch (err) {
         console.error('[DB Init] 스키마 검증 중 오류 발생 (무시하고 계속 진행):', err.message);

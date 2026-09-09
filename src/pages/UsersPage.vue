@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import userApi from '../api/users';
+import settingsApi from '../api/settings';
+import { mergeTableColumns } from '../utils/tableColumns';
 import { useTable } from '../composables/useTable';
 import TablePagination from '../components/TablePagination.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
@@ -111,10 +113,23 @@ const handleConfirmYes = () => {
   confirmCallback.value = null;
 };
 
-// 테이블 헤더 가져오기 (user_id, password, google_id, is_temporary 제외)
+// 테이블 헤더 가져오기
+const customColumns = ref(mergeTableColumns('users', []));
+
+const loadTableColumns = async () => {
+  try {
+    const saved = await settingsApi.getSetting('table_headers_users');
+    if (saved) {
+      customColumns.value = mergeTableColumns('users', saved);
+    }
+  } catch (err) {
+    console.error('Failed to load users table headers config:', err);
+  }
+};
+
 const getTableHeaders = (data) => {
-  if (data.length === 0) return [];
-  return Object.keys(data[0]).filter(key => !['user_id', 'password', 'google_id', 'is_temporary', 'asset_counts'].includes(key));
+  if (!data || data.length === 0) return customColumns.value.filter(c => c.visible).map(c => c.key);
+  return customColumns.value.filter(c => c.visible).map(c => c.key);
 };
 
 // 컬럼 라벨 매핑
@@ -592,6 +607,7 @@ const downloadCSV = () => {
 // 컴포넌트 마운트 시 사용자 목록 조회
 onMounted(() => {
   fetchUsers();
+  loadTableColumns();
   // ESC 키로 모달 닫기
   const handleKeyDown = (event) => {
     if (event.key === 'Escape') {

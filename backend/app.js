@@ -20,6 +20,7 @@ var backupRouter = require('./routes/backup');
 var filtersRouter = require('./routes/filters');
 var dashboardRouter = require('./routes/dashboard');
 var clientErrorsRouter = require('./routes/clientErrors');
+var settingsRouter = require('./routes/settings');
 const { runBackup, checkAndRunMissingBackup } = require('./utils/googleSheets');
 const { initDbSchema } = require('./utils/dbInit');
 const cron = require('node-cron');
@@ -70,6 +71,7 @@ app.use('/api/backup', backupRouter);
 app.use('/api/saved-filters', filtersRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/system-report', clientErrorsRouter);
+app.use('/api/settings', settingsRouter);
 app.use('/db-test', dbTestRouter);
 
 const pool = require('./utils/db');

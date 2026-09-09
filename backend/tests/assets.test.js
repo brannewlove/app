@@ -7,6 +7,11 @@ jest.mock('node-cron', () => ({
     schedule: jest.fn(),
 }));
 
+// Mock dbInit to prevent schema check queries from consuming mock queue
+jest.mock('../utils/dbInit', () => ({
+    initDbSchema: jest.fn(),
+}));
+
 // Mock the database pool
 jest.mock('../utils/db', () => ({
     query: jest.fn(),
@@ -33,8 +38,6 @@ describe('Assets API', () => {
 
     describe('PUT /api/assets/:id', () => {
         it('should update an asset when data is valid', async () => {
-            // Mock checking for existing asset
-            pool.query.mockResolvedValueOnce([[{ asset_id: 1, asset_number: 'A001' }]]);
             // Mock update result
             pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
 
@@ -46,7 +49,7 @@ describe('Assets API', () => {
 
             expect(res.statusCode).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(pool.query).toHaveBeenCalledTimes(2); // check exist + update
+            expect(pool.query).toHaveBeenCalledTimes(1);
         });
 
         it('should return 400 if asset_number is missing', async () => {
@@ -65,7 +68,7 @@ describe('Assets API', () => {
         });
 
         it('should return 404 if asset not found', async () => {
-            pool.query.mockResolvedValueOnce([[]]); // Empty result for select
+            pool.query.mockResolvedValueOnce([{ affectedRows: 0 }]);
 
             const updateData = { asset_number: 'A999', model: 'Ghost' };
 
@@ -74,7 +77,7 @@ describe('Assets API', () => {
                 .send(updateData);
 
             expect(res.statusCode).toBe(404);
-            expect(res.body.error).toBe('자산을 찾을 수 없습니다.');
+            expect(res.body.error).toBe('자산을 찾을 수 없거나 수정 실패');
         });
     });
 });

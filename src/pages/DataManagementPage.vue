@@ -272,9 +272,81 @@ const saveFilterChanges = async () => {
     }
 };
 
+import settingsApi from '../api/settings';
+import { mergeTableColumns, DEFAULT_TABLE_COLUMNS } from '../utils/tableColumns';
+
+const headerTab = ref('assets'); // 'assets', 'trades', 'users', 'returns'
+const headerResult = ref(null);
+const headerError = ref(null);
+
+const tableColumnsConfig = ref({
+    assets: mergeTableColumns('assets', []),
+    trades: mergeTableColumns('trades', []),
+    users: mergeTableColumns('users', []),
+    returns: mergeTableColumns('returns', [])
+});
+
+const headerTabOptions = [
+    { key: 'assets', label: '자산 관리' },
+    { key: 'trades', label: '거래 관리' },
+    { key: 'users', label: '사용자 관리' },
+    { key: 'returns', label: '반납 관리' }
+];
+
+const fetchHeaderConfigs = async () => {
+    try {
+        const [assetsCfg, tradesCfg, usersCfg, returnsCfg] = await Promise.all([
+            settingsApi.getSetting('table_headers_assets'),
+            settingsApi.getSetting('table_headers_trades'),
+            settingsApi.getSetting('table_headers_users'),
+            settingsApi.getSetting('table_headers_returns')
+        ]);
+        tableColumnsConfig.value.assets = mergeTableColumns('assets', assetsCfg);
+        tableColumnsConfig.value.trades = mergeTableColumns('trades', tradesCfg);
+        tableColumnsConfig.value.users = mergeTableColumns('users', usersCfg);
+        tableColumnsConfig.value.returns = mergeTableColumns('returns', returnsCfg);
+    } catch (err) {
+        console.error('Failed to load table header configs:', err);
+    }
+};
+
+const moveColumn = (tableKey, index, direction) => {
+    const list = [...tableColumnsConfig.value[tableKey]];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    [list[index], list[targetIndex]] = [list[targetIndex], list[index]];
+    tableColumnsConfig.value[tableKey] = list;
+};
+
+const resetHeaderConfig = (tableKey) => {
+    if (!confirm('이 테이블의 헤더 설정을 기본값으로 초기화하시겠습니까?')) return;
+    const defaults = DEFAULT_TABLE_COLUMNS[tableKey] || [];
+    tableColumnsConfig.value[tableKey] = defaults.map(col => ({ ...col }));
+};
+
+const saveHeaderChanges = async (tableKey) => {
+    try {
+        loading.value = true;
+        headerError.value = null;
+        headerResult.value = null;
+        const configToSave = tableColumnsConfig.value[tableKey].map(c => ({
+            key: c.key,
+            label: c.label,
+            visible: c.visible !== false
+        }));
+        await settingsApi.saveSetting(`table_headers_${tableKey}`, configToSave);
+        headerResult.value = { message: '테이블 헤더 설정이 성공적으로 저장되었습니다.' };
+    } catch (err) {
+        headerError.value = '헤더 설정 저장 실패: ' + err.message;
+    } finally {
+        loading.value = false;
+    }
+};
+
 onMounted(() => {
     fetchBackupConfig();
     fetchFilters();
+    fetchHeaderConfigs();
 });
 
 const handleManualBackup = async () => {
@@ -527,6 +599,65 @@ const handleManualBackup = async () => {
                 <div class="card-footer">
                     <button class="btn btn-modal btn-save" :disabled="loading" @click="saveFilterChanges">
                         {{ loading ? '저장 중...' : '필터 설정 저장' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 테이블 헤더 관리 섹션 -->
+            <div class="import-card header-management-card">
+                <div v-if="headerResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ headerResult.message }}
+                </div>
+                <div v-if="headerError" class="alert alert-error mb-15">
+                    ❌ {{ headerError }}
+                </div>
+                <div class="card-header">
+                    <span class="icon">
+                        <img src="/images/edit.png" alt="headers" class="header-icon-img" />
+                    </span>
+                    <h2>테이블 헤더 설정 관리</h2>
+                </div>
+                <div class="card-body">
+                    <p>페이지별 테이블의 컬럼 순서(▲/▼) 및 숨김/표시 여부를 설정하고 저장합니다.</p>
+                    
+                    <!-- 테이블 선택 탭 -->
+                    <div class="header-tab-bar">
+                        <button 
+                            v-for="tab in headerTabOptions" 
+                            :key="tab.key"
+                            :class="['tab-btn-mini', { active: headerTab === tab.key }]"
+                            @click="headerTab = tab.key"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+
+                    <!-- 선택된 테이블의 컬럼 리스트 -->
+                    <div class="column-config-list">
+                        <div 
+                            v-for="(col, idx) in tableColumnsConfig[headerTab]" 
+                            :key="col.key" 
+                            class="column-config-item"
+                            :class="{ 'item-hidden': !col.visible }"
+                        >
+                            <div class="col-order-btns">
+                                <button @click="moveColumn(headerTab, idx, -1)" :disabled="idx === 0" class="btn-order">▲</button>
+                                <button @click="moveColumn(headerTab, idx, 1)" :disabled="idx === tableColumnsConfig[headerTab].length - 1" class="btn-order">▼</button>
+                            </div>
+                            <label class="col-visible-label">
+                                <input type="checkbox" v-model="col.visible" class="col-checkbox" />
+                                <span class="col-label-text">{{ col.label }}</span>
+                                <span class="col-key-text">({{ col.key }})</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer footer-between">
+                    <button class="btn btn-modal btn-cancel" :disabled="loading" @click="resetHeaderConfig(headerTab)">
+                        기본값 초기화
+                    </button>
+                    <button class="btn btn-modal btn-save" :disabled="loading" @click="saveHeaderChanges(headerTab)">
+                        {{ loading ? '저장 중...' : `${headerTabOptions.find(t => t.key === headerTab)?.label} 설정 저장` }}
                     </button>
                 </div>
             </div>
@@ -921,5 +1052,112 @@ input:checked + .slider:before { transform: translateX(22px); }
     width: 14px;
     height: 14px;
     object-fit: contain;
+}
+
+/* 테이블 헤더 관리 카드 스타일 */
+.header-management-card {
+    border-top: 4px solid var(--brand-blue);
+}
+
+.header-tab-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    background: var(--bg-muted);
+    padding: 6px;
+    border-radius: var(--radius-md);
+}
+
+.tab-btn-mini {
+    flex: 1;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn-mini:hover {
+    color: var(--brand-blue);
+}
+
+.tab-btn-mini.active {
+    background: white;
+    color: var(--brand-blue);
+    border-color: var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.column-config-list {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    background: #ffffff;
+}
+
+.column-config-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.column-config-item:last-child {
+    border-bottom: none;
+}
+
+.column-config-item:hover {
+    background: var(--bg-muted);
+}
+
+.column-config-item.item-hidden {
+    opacity: 0.55;
+    background: #fafafa;
+}
+
+.col-order-btns {
+    display: flex;
+    gap: 3px;
+}
+
+.col-visible-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    flex: 1;
+}
+
+.col-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--brand-blue);
+}
+
+.col-label-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.col-key-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono, monospace);
+}
+
+.footer-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 </style>

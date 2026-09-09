@@ -37,50 +37,14 @@
               <th class="checkbox-header" style="width: 40px; text-align: center;">
                 <input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected" />
               </th>
-              <th @click="handleSort('return_type')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'return_type' }">
-                <div class="header-content"><span>반납유형</span><span class="sort-icon">{{ getSortIcon('return_type') }}</span></div>
-              </th>
-              <th @click="handleSort('end_date')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'end_date' }">
-                <div class="header-content"><span>종료일</span><span class="sort-icon">{{ getSortIcon('end_date') }}</span></div>
-              </th>
-              <th @click="handleSort('model')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'model' }">
-                <div class="header-content"><span>모델</span><span class="sort-icon">{{ getSortIcon('model') }}</span></div>
-              </th>
-              <th @click="handleSort('asset_number')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'asset_number' }">
-                <div class="header-content"><span>자산번호</span><span class="sort-icon">{{ getSortIcon('asset_number') }}</span></div>
-              </th>
-              <th @click="handleSort('return_reason')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'return_reason' }">
-                <div class="header-content"><span>반납사유</span><span class="sort-icon">{{ getSortIcon('return_reason') }}</span></div>
-              </th>
-              <th @click="handleSort('user_name')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'user_name' }">
-                <div class="header-content"><span>사용자 정보</span><span class="sort-icon">{{ getSortIcon('user_name') }}</span></div>
-              </th>
-              <th @click="handleSort('handover_date')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'handover_date' }">
-                <div class="header-content"><span>인계일</span><span class="sort-icon">{{ getSortIcon('handover_date') }}</span></div>
-              </th>
-              <th @click="handleSort('release_status')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'release_status' }">
-                <div class="header-content"><span>출고여부</span><span class="sort-icon">{{ getSortIcon('release_status') }}</span></div>
-              </th>
-              <th @click="handleSort('it_room_stock')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'it_room_stock' }">
-                <div class="header-content"><span>전산실입고</span><span class="sort-icon">{{ getSortIcon('it_room_stock') }}</span></div>
-              </th>
-              <th @click="handleSort('low_format')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'low_format' }">
-                <div class="header-content"><span>로우포맷</span><span class="sort-icon">{{ getSortIcon('low_format') }}</span></div>
-              </th>
-              <th @click="handleSort('it_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'it_return' }">
-                <div class="header-content"><span>전산반납</span><span class="sort-icon">{{ getSortIcon('it_return') }}</span></div>
-              </th>
-              <th @click="handleSort('mail_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'mail_return' }">
-                <div class="header-content"><span>메일반납</span><span class="sort-icon">{{ getSortIcon('mail_return') }}</span></div>
-              </th>
-              <th @click="handleSort('actual_return')" class="vertical-header sortable-header" :class="{ active: isManualSort && sortColumn === 'actual_return' }">
-                <div class="header-content"><span>실재반납</span><span class="sort-icon">{{ getSortIcon('actual_return') }}</span></div>
-              </th>
-              <th @click="handleSort('remarks')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'remarks' }">
-                <div class="header-content"><span>비고</span><span class="sort-icon">{{ getSortIcon('remarks') }}</span></div>
-              </th>
-              <th @click="handleSort('created_at')" class="sortable-header" :class="{ active: isManualSort && sortColumn === 'created_at' }">
-                <div class="header-content"><span>생성일</span><span class="sort-icon">{{ getSortIcon('created_at') }}</span></div>
+              <th v-for="col in visibleColumns" :key="col.key" 
+                  @click="handleSort(col.key)" 
+                  class="sortable-header" 
+                  :class="[{ active: isManualSort && sortColumn === col.key }, { 'vertical-header': isVerticalHeader(col.key) }]">
+                <div class="header-content">
+                  <span>{{ col.label }}</span>
+                  <span class="sort-icon">{{ getSortIcon(col.key) }}</span>
+                </div>
               </th>
               <th class="actions-header">Actions</th>
             </tr>
@@ -91,54 +55,83 @@
               <td class="center">
                 <input type="checkbox" v-model="asset.selected" />
               </td>
-              <td>
-                <input type="text" v-model="asset.return_type" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="유형" />
+              <td v-for="col in visibleColumns" :key="col.key" 
+                  :class="[
+                    { 'center': ['release_status', 'it_room_stock', 'low_format', 'it_return', 'mail_return', 'actual_return'].includes(col.key) },
+                    { 'status-checked': ['release_status', 'it_room_stock', 'low_format', 'it_return', 'mail_return', 'actual_return', 'handover_date'].includes(col.key) && (col.key === 'handover_date' ? asset.release_status : asset[col.key]) }
+                  ]">
+                <!-- 1. 반납유형 -->
+                <template v-if="col.key === 'return_type'">
+                  <input type="text" v-model="asset.return_type" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="유형" />
+                </template>
+                <!-- 2. 종료일 -->
+                <template v-else-if="col.key === 'end_date'">
+                  <span :class="{ 'expired-date': isEndDateExpired(asset.end_date) }">{{ asset.end_date }}</span>
+                </template>
+                <!-- 3. 모델 -->
+                <template v-else-if="col.key === 'model'">
+                  <span :title="asset.model" class="truncate">{{ asset.model }}</span>
+                </template>
+                <!-- 4. 자산번호 -->
+                <template v-else-if="col.key === 'asset_number'">
+                  <strong class="bold-text clickable-asset" @click.stop="openAssetMenu($event, asset)">
+                    {{ asset.asset_number }}
+                  </strong>
+                </template>
+                <!-- 5. 반납사유 -->
+                <template v-else-if="col.key === 'return_reason'">
+                  <input type="text" v-model="asset.return_reason" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="사유" />
+                </template>
+                <!-- 6. 사용자 정보 -->
+                <template v-else-if="col.key === 'user_name'">
+                  <div class="clickable-user-name" @click.stop="openUserMenu($event, asset)" style="line-height: 1.4;">
+                    <strong>{{ asset.user_name || '-' }}</strong> ({{ asset.user_id || '-' }})
+                    <div style="font-size: 0.85em; color: #666;">{{ asset.department || '-' }}</div>
+                  </div>
+                </template>
+                <!-- 7. 인계일 -->
+                <template v-else-if="col.key === 'handover_date'">
+                  <input type="text" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
+                         class="inline-input" :class="{ 'warning-highlight': shouldHighlight(asset.handover_date) }"
+                         placeholder="YYYY-MM-DD" />
+                </template>
+                <!-- 8. 출고여부 -->
+                <template v-else-if="col.key === 'release_status'">
+                  <input type="checkbox" v-model="asset.release_status" @change="handleReleaseStatusChange(asset)" />
+                </template>
+                <!-- 9. 전산실입고 -->
+                <template v-else-if="col.key === 'it_room_stock'">
+                  <input type="checkbox" v-model="asset.it_room_stock" @change="updateReturnedAsset(asset)" />
+                </template>
+                <!-- 10. 로우포맷 -->
+                <template v-else-if="col.key === 'low_format'">
+                  <input type="checkbox" v-model="asset.low_format" @change="updateReturnedAsset(asset)" />
+                </template>
+                <!-- 11. 전산반납 -->
+                <template v-else-if="col.key === 'it_return'">
+                  <input type="checkbox" v-model="asset.it_return" @change="updateReturnedAsset(asset)" />
+                </template>
+                <!-- 12. 메일반납 -->
+                <template v-else-if="col.key === 'mail_return'">
+                  <input type="checkbox" v-model="asset.mail_return" @change="updateReturnedAsset(asset)" />
+                </template>
+                <!-- 13. 실재반납 -->
+                <template v-else-if="col.key === 'actual_return'">
+                  <input type="checkbox" v-model="asset.actual_return" @change="updateReturnedAsset(asset)" />
+                </template>
+                <!-- 14. 비고 -->
+                <template v-else-if="col.key === 'remarks'">
+                  <input type="text" v-model="asset.remarks" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="비고" />
+                </template>
+                <!-- 15. 생성일 -->
+                <template v-else-if="col.key === 'created_at'">
+                  {{ formatDateTime(asset.created_at) }}
+                </template>
+                <!-- 기본 -->
+                <template v-else>
+                  {{ asset[col.key] || '-' }}
+                </template>
               </td>
-              <td>
-                <span :class="{ 'expired-date': isEndDateExpired(asset.end_date) }">{{ asset.end_date }}</span>
-              </td>
-              <td :title="asset.model" class="truncate">{{ asset.model }}</td>
-              <td>
-                <strong class="bold-text clickable-asset" @click.stop="openAssetMenu($event, asset)">
-                  {{ asset.asset_number }}
-                </strong>
-              </td>
-              <td>
-                <input type="text" v-model="asset.return_reason" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="사유" />
-              </td>
-              <td class="clickable-user-name" @click.stop="openUserMenu($event, asset)">
-                <div style="line-height: 1.4;">
-                  <strong>{{ asset.user_name || '-' }}</strong> ({{ asset.user_id || '-' }})
-                  <div style="font-size: 0.85em; color: #666;">{{ asset.department || '-' }}</div>
-                </div>
-              </td>
-              <td :class="{ 'status-checked': asset.release_status }">
-                <input type="text" v-model="asset.handover_date" @change="updateReturnedAsset(asset)" 
-                       class="inline-input" :class="{ 'warning-highlight': shouldHighlight(asset.handover_date) }"
-                       placeholder="YYYY-MM-DD" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.release_status }">
-                <input type="checkbox" v-model="asset.release_status" @change="handleReleaseStatusChange(asset)" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.it_room_stock }">
-                <input type="checkbox" v-model="asset.it_room_stock" @change="updateReturnedAsset(asset)" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.low_format }">
-                <input type="checkbox" v-model="asset.low_format" @change="updateReturnedAsset(asset)" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.it_return }">
-                <input type="checkbox" v-model="asset.it_return" @change="updateReturnedAsset(asset)" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.mail_return }">
-                <input type="checkbox" v-model="asset.mail_return" @change="updateReturnedAsset(asset)" />
-              </td>
-              <td class="center" :class="{ 'status-checked': asset.actual_return }">
-                <input type="checkbox" v-model="asset.actual_return" @change="updateReturnedAsset(asset)" />
-              </td>
-              <td>
-                <input type="text" v-model="asset.remarks" @change="updateReturnedAsset(asset)" class="inline-input" placeholder="비고" />
-              </td>
-              <td>{{ formatDateTime(asset.created_at) }}</td>
               <td class="action-cell">
                 <div class="action-buttons">
                   <button @click="openActionChoiceModal(asset)" class="btn-action btn-process" :disabled="asset.processing" title="처리 선택">
@@ -151,7 +144,7 @@
               </td>
             </tr>
             <tr v-if="filteredReturnedAssets.length === 0">
-                <td colspan="19" class="empty-state">반납된 자산이 없습니다.</td>
+                <td :colspan="visibleColumns.length + 2" class="empty-state">반납된 자산이 없습니다.</td>
             </tr>
           </tbody>
         </table>
@@ -437,7 +430,8 @@ import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import TradeActionModal from '../components/TradeActionModal.vue';
 import { getTimestampFilename, formatDateTime, formatDate } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
-import { copyToClipboard as copyAssetNumberToClipboard, copyRichToClipboard } from '../utils/clipboardUtils';
+import settingsApi from '../api/settings';
+import { mergeTableColumns } from '../utils/tableColumns';
 import { 
   isCjIdDisabled, 
   getFixedCjId, 
@@ -450,6 +444,25 @@ const router = useRouter();
 const returnedAssets = ref([]);
 const loading = ref(false);
 const error = ref(null);
+
+const customColumns = ref(mergeTableColumns('returns', []));
+
+const loadTableColumns = async () => {
+  try {
+    const saved = await settingsApi.getSetting('table_headers_returns');
+    if (saved) {
+      customColumns.value = mergeTableColumns('returns', saved);
+    }
+  } catch (err) {
+    console.error('Failed to load returns table headers config:', err);
+  }
+};
+
+const visibleColumns = computed(() => customColumns.value.filter(c => c.visible));
+
+const isVerticalHeader = (key) => {
+  return ['release_status', 'it_room_stock', 'low_format', 'it_return', 'mail_return', 'actual_return'].includes(key);
+};
 
 const handleSearchPaste = (e) => {
   const pasteData = e.clipboardData || window.clipboardData;
@@ -1128,6 +1141,7 @@ const handleUserMenuAction = (action) => {
 
 onMounted(() => {
   fetchReturnedAssets();
+  loadTableColumns();
   window.addEventListener('keydown', handleKeyDown);
 });
 

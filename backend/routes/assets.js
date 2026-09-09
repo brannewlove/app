@@ -51,7 +51,7 @@ router.put('/:id', [
     if (updated) {
       success(res, { id: req.params.id, ...req.body });
     } else {
-      error(res, '자산을 찾을 수 없거나 수정 실패');
+      error(res, '자산을 찾을 수 없거나 수정 실패', 404);
     }
   } catch (err) {
     error(res, err.message);

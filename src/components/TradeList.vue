@@ -107,10 +107,21 @@ const nextPage = () => goToPage(props.currentPage + 1);
 
 
 // 테이블 컬럼 순서 및 라벨 정의
-const columnOrder = [
-  'trade_id', 'timestamp', 'work_type', 'asset_number', 'model',
-  'ex_user_info', 'new_user_info'
-];
+const customColumns = ref(mergeTableColumns('trades', []));
+
+const loadTableColumns = async () => {
+  try {
+    const saved = await settingsApi.getSetting('table_headers_trades');
+    if (saved) {
+      customColumns.value = mergeTableColumns('trades', saved);
+    }
+  } catch (err) {
+    console.error('Failed to load trade table headers config:', err);
+  }
+};
+
+loadTableColumns();
+
 const columnLabels = {
   'trade_id': '순번', 'timestamp': '작업시간', 'work_type': '작업유형',
   'asset_number': '자산번호', 'model': '모델명', 'ex_user_info': '이전 사용자 정보',
@@ -119,25 +130,25 @@ const columnLabels = {
   'cj_id': '사용자ID', 'name': '이름', 'part': '부서', 'memo': '거래메모'
 };
 
+const hiddenColumns = [
+  'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
+  'cj_id', 'name', 'part', 'category', 'state',
+  'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
+  'created_at', 'updated_at', 'is_cancelled', 'cancelled_at', 'is_latest', 'asset_snapshot'
+];
+
 const orderedColumns = computed(() => {
+  const visibleConfigured = customColumns.value
+    .filter(c => c.visible && !hiddenColumns.includes(c.key))
+    .map(c => c.key);
+
   if (!props.trades || props.trades.length === 0) {
-    return columnOrder;
+    return visibleConfigured;
   }
   
-  // 기본 컬럼들 유지 (순서 보장)
-  const ordered = columnOrder.filter(h => h in props.trades[0] || h === 'ex_user_info' || h === 'new_user_info');
-  
-  const hiddenColumns = [
-    'asset_id', 'ex_user', 'ex_user_name', 'ex_user_part', 
-    'cj_id', 'name', 'part', 'category', 'state',
-    'asset_state', 'asset_on_user', 'asset_in_user', 'asset_onn_user', 'asset_memo',
-    'created_at', 'updated_at', 'is_cancelled', 'cancelled_at', 'is_latest'
-  ];
-  
   const allHeaders = Object.keys(props.trades[0]);
-  const remaining = allHeaders.filter(h => !columnOrder.includes(h) && !hiddenColumns.includes(h));
-  
-  return [...ordered, ...remaining];
+  const remaining = allHeaders.filter(h => !visibleConfigured.includes(h) && !hiddenColumns.includes(h));
+  return [...visibleConfigured, ...remaining];
 });
 
 const download = () => {
