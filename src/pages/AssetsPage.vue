@@ -1057,15 +1057,13 @@ onMounted(() => {
       
       <div class="filter-summary-area">
         <span class="total-count">검색 결과 <strong>{{ filteredAssets.length }}</strong>건</span>
-        <template v-if="searchQuery || activeSavedFilter || activeFilter">
-          <div class="category-divider"></div>
-          <div class="category-chips">
-            <div v-for="item in categoryBreakdown" :key="item.category" class="chip">
-              <span class="chip-label">{{ item.category }}</span>
-              <span class="chip-value">{{ item.count }}</span>
-            </div>
+        <div class="category-divider"></div>
+        <div class="category-chips">
+          <div v-for="item in categoryBreakdown" :key="item.category" class="chip">
+            <span class="chip-label">{{ item.category }}</span>
+            <span class="chip-value">{{ item.count }}</span>
           </div>
-        </template>
+        </div>
         <div class="summary-actions-group" style="margin-left: auto; display: flex; align-items: center;">
           <label class="toggle-label" style="margin-bottom: 0;">
             <input type="checkbox" v-model="isGroupedView" class="toggle-input" />

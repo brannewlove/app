@@ -50,6 +50,13 @@ const displayedUsers = computed(() => {
   return users.value;
 });
 
+const usersFilterFn = (user) => {
+  if (!searchQuery.value && String(user.state || '').trim().toLowerCase() === 'out') {
+    return false;
+  }
+  return true;
+};
+
 const {
   currentPage,
   searchQuery,
@@ -66,7 +73,8 @@ const {
   sortDirection,
   isManualSort
 } = useTable(displayedUsers, {
-  itemsPerPage: 20
+  itemsPerPage: 20,
+  filterFn: (user) => usersFilterFn(user)
 });
 
 const router = useRouter();

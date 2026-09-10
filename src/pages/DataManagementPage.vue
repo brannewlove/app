@@ -216,10 +216,44 @@ const moveFilter = (index, direction) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= newFilters.length) return;
     
-    // 시스템 필터끼리 혹은 사용자 필터끼리만 이동하게 하거나, 자유롭게 섞게 할 수 있음
-    // 여기서는 모든 필터간 이동 허용하되 시스템 필터는 API 호출 시 제외됨
     [newFilters[index], newFilters[targetIndex]] = [newFilters[targetIndex], newFilters[index]];
     savedFilters.value = newFilters;
+};
+
+// 저장된 필터 드래그 앤 드롭 상태 및 핸들러
+const draggedFilterIndex = ref(null);
+const dragOverFilterIndex = ref(null);
+
+const onFilterDragStart = (index, event) => {
+    draggedFilterIndex.value = index;
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+    }
+};
+
+const onFilterDragOver = (index, event) => {
+    event.preventDefault();
+    if (draggedFilterIndex.value === null || draggedFilterIndex.value === index) return;
+    dragOverFilterIndex.value = index;
+};
+
+const onFilterDrop = (targetIndex) => {
+    const fromIndex = draggedFilterIndex.value;
+    if (fromIndex === null || fromIndex === targetIndex) return;
+
+    const list = [...savedFilters.value];
+    const [movedItem] = list.splice(fromIndex, 1);
+    list.splice(targetIndex, 0, movedItem);
+    savedFilters.value = list;
+
+    draggedFilterIndex.value = null;
+    dragOverFilterIndex.value = null;
+};
+
+const onFilterDragEnd = () => {
+    draggedFilterIndex.value = null;
+    dragOverFilterIndex.value = null;
 };
 
 const deleteFilter = async (id) => {
@@ -316,6 +350,42 @@ const moveColumn = (tableKey, index, direction) => {
     if (targetIndex < 0 || targetIndex >= list.length) return;
     [list[index], list[targetIndex]] = [list[targetIndex], list[index]];
     tableColumnsConfig.value[tableKey] = list;
+};
+
+// 테이블 헤더 컬럼 드래그 앤 드롭 상태 및 핸들러
+const draggedColumnIndex = ref(null);
+const dragOverColumnIndex = ref(null);
+
+const onColumnDragStart = (index, event) => {
+    draggedColumnIndex.value = index;
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+    }
+};
+
+const onColumnDragOver = (index, event) => {
+    event.preventDefault();
+    if (draggedColumnIndex.value === null || draggedColumnIndex.value === index) return;
+    dragOverColumnIndex.value = index;
+};
+
+const onColumnDrop = (tableKey, targetIndex) => {
+    const fromIndex = draggedColumnIndex.value;
+    if (fromIndex === null || fromIndex === targetIndex) return;
+
+    const list = [...tableColumnsConfig.value[tableKey]];
+    const [movedItem] = list.splice(fromIndex, 1);
+    list.splice(targetIndex, 0, movedItem);
+    tableColumnsConfig.value[tableKey] = list;
+
+    draggedColumnIndex.value = null;
+    dragOverColumnIndex.value = null;
+};
+
+const onColumnDragEnd = () => {
+    draggedColumnIndex.value = null;
+    dragOverColumnIndex.value = null;
 };
 
 const resetHeaderConfig = (tableKey) => {
@@ -575,7 +645,21 @@ const handleManualBackup = async () => {
                 <div class="card-body">
                     <p>검색 필터의 순서와 이름을 관리합니다.</p>
                     <div class="filter-list">
-                        <div v-for="(filter, index) in savedFilters" :key="filter.id" class="filter-item">
+                        <div 
+                            v-for="(filter, index) in savedFilters" 
+                            :key="filter.id" 
+                            class="filter-item"
+                            :class="{ 
+                                'is-dragging': draggedFilterIndex === index, 
+                                'drag-over': dragOverFilterIndex === index 
+                            }"
+                            draggable="true"
+                            @dragstart="onFilterDragStart(index, $event)"
+                            @dragover="onFilterDragOver(index, $event)"
+                            @drop="onFilterDrop(index)"
+                            @dragend="onFilterDragEnd"
+                        >
+                            <div class="drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
                             <div class="filter-order-btns">
                                 <button @click="moveFilter(index, -1)" :disabled="index === 0" class="btn-order">▲</button>
                                 <button @click="moveFilter(index, 1)" :disabled="index === savedFilters.length - 1" class="btn-order">▼</button>
@@ -638,8 +722,18 @@ const handleManualBackup = async () => {
                             v-for="(col, idx) in tableColumnsConfig[headerTab]" 
                             :key="col.key" 
                             class="column-config-item"
-                            :class="{ 'item-hidden': !col.visible }"
+                            :class="{ 
+                                'item-hidden': !col.visible,
+                                'is-dragging': draggedColumnIndex === idx,
+                                'drag-over': dragOverColumnIndex === idx
+                            }"
+                            draggable="true"
+                            @dragstart="onColumnDragStart(idx, $event)"
+                            @dragover="onColumnDragOver(idx, $event)"
+                            @drop="onColumnDrop(headerTab, idx)"
+                            @dragend="onColumnDragEnd"
                         >
+                            <div class="drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
                             <div class="col-order-btns">
                                 <button @click="moveColumn(headerTab, idx, -1)" :disabled="idx === 0" class="btn-order">▲</button>
                                 <button @click="moveColumn(headerTab, idx, 1)" :disabled="idx === tableColumnsConfig[headerTab].length - 1" class="btn-order">▼</button>
@@ -974,6 +1068,44 @@ input:checked + .slider:before { transform: translateX(22px); }
     background: white;
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
+}
+
+.drag-handle {
+    cursor: grab;
+    padding: 0 4px;
+    font-size: 16px;
+    color: var(--text-muted);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease;
+}
+
+.drag-handle:hover {
+    color: var(--brand-blue);
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.filter-item,
+.column-config-item {
+    transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.filter-item.is-dragging,
+.column-config-item.is-dragging {
+    opacity: 0.35;
+    border: 1.5px dashed var(--brand-blue);
+    background: #eff6ff;
+}
+
+.filter-item.drag-over,
+.column-config-item.drag-over {
+    border-top: 2.5px solid var(--brand-blue);
+    background: #f0f7ff;
 }
 
 .btn-order {
