@@ -1242,7 +1242,7 @@ onUnmounted(() => {
 
 .export-data-table { border-collapse: collapse; border: 1px solid var(--text-main); font-size: 12px; }
 .export-data-table th, .export-data-table td { border: 1px solid var(--text-main); padding: 8px; }
-.export-data-table th { background: var(--bg-muted); color: var(--text-main); }
+.export-data-table th { background: var(--primary-color, #4a4a4a); color: #ffffff; }
 
 input[type="checkbox"] {
   width: 18px;

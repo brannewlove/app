@@ -1021,8 +1021,8 @@ onMounted(() => {
 }
 
 .temp-user-table th {
-  background: #f8f9fa;
-  color: var(--text-muted);
+  background: var(--primary-color, #4a4a4a);
+  color: #ffffff;
   font-weight: 600;
   text-align: left;
   padding: 10px 12px;

@@ -51,7 +51,7 @@ git push origin main
 다른 PC의 터미널(PowerShell 또는 bash)에서 원하는 폴더로 이동 후 실행합니다.
 
 ```bash
-git clone https://github.com/brannewlove/app.git
+git clone -b 도커-적용 https://github.com/brannewlove/app.git
 cd app
 ```
 

@@ -51,7 +51,8 @@ const filterColumns = [
   { val: 'user_part', label: '부서' },
   { val: 'state', label: '상태' },
   { val: 'unit_price', label: '월단가' },
-  { val: 'contract_month', label: '계약월' }
+  { val: 'contract_month', label: '계약월' },
+  { val: 'memo', label: '자산메모' }
 ];
 
 const activeSavedFilter = ref(null);
@@ -244,7 +245,7 @@ const {
   searchFields: [
     'category', 'model', 'asset_number', 'serial_number',
     'in_user', 'user_name', 'user_part', 'state',
-    'day_of_start', 'day_of_end', 'contract_month'
+    'day_of_start', 'day_of_end', 'contract_month', 'memo'
   ]
 });
 

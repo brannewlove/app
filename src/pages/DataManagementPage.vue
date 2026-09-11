@@ -746,10 +746,7 @@ const handleManualBackup = async () => {
                         </div>
                     </div>
                 </div>
-                <div class="card-footer footer-between">
-                    <button class="btn btn-modal btn-cancel" :disabled="loading" @click="resetHeaderConfig(headerTab)">
-                        기본값 초기화
-                    </button>
+                <div class="card-footer">
                     <button class="btn btn-modal btn-save" :disabled="loading" @click="saveHeaderChanges(headerTab)">
                         {{ loading ? '저장 중...' : `${headerTabOptions.find(t => t.key === headerTab)?.label} 설정 저장` }}
                     </button>

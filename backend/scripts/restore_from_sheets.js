@@ -64,7 +64,7 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             process.exit(1);
         }
 
-        console.log(`\n🔄 [1/4] Google Sheets 연결 확인 중 (Sheet ID: ${spreadsheetId})...`);
+        console.log(`\n🔄 [1/5] Google Sheets 연결 확인 중 (Sheet ID: ${spreadsheetId})...`);
 
         const clientId = process.env.GOOGLE_CLIENT_ID;
         const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -90,8 +90,30 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
 
         connection = await pool.getConnection();
 
-        // 1. 복원 대상 테이블 목록
-        const targetTables = [
+        // 1. 복원 대상 테이블 목록 동적 조회
+        console.log('\n📋 [2/5] 복원 대상 테이블 목록 동적 조회 중...');
+
+        let sheetTitles = [];
+        if (useOAuth) {
+            try {
+                const spreadsheetMeta = await sheets.spreadsheets.get({
+                    spreadsheetId,
+                    fields: 'sheets.properties.title'
+                });
+                if (spreadsheetMeta.data && spreadsheetMeta.data.sheets) {
+                    sheetTitles = spreadsheetMeta.data.sheets.map(s => s.properties.title);
+                    console.log(`✅ 구글 시트 탭(${sheetTitles.length}개) 감지 완료: ${sheetTitles.join(', ')}`);
+                }
+            } catch (e) {
+                console.log(`⚠️ 구글 시트 탭 목록 조회 실패 (DB 및 기본 테이블 목록으로 진행): ${e.message}`);
+            }
+        }
+
+        // 현재 DB에 존재하는 모든 테이블 목록 조회
+        const [dbTableRows] = await connection.query('SHOW TABLES');
+        const dbTables = dbTableRows.map(r => Object.values(r)[0]);
+
+        const defaultTables = [
             'users',
             'assets',
             'confirmed_assets',
@@ -103,11 +125,16 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
             'settings'
         ];
 
+        // 시트 탭, DB 테이블, 기본 테이블 목록을 통합하여 중복 없는 복원 대상 생성
+        const targetTables = Array.from(new Set([...sheetTitles, ...dbTables, ...defaultTables]));
+
+        console.log(`💡 동적 복원 대상 테이블 목록 (${targetTables.length}개): ${targetTables.join(', ')}`);
+
         // 2. 외래키 제약조건 일시 해제
-        console.log('\n🔒 [2/4] 외래키 체크 일시 비활성화...');
+        console.log('\n🔒 [3/5] 외래키 체크 일시 비활성화...');
         await connection.query('SET FOREIGN_KEY_CHECKS = 0;');
 
-        console.log('\n📥 [3/4] 시트 데이터 다운로드 및 DB 복원 시작...');
+        console.log('\n📥 [4/5] 시트 데이터 다운로드 및 DB 복원 시작...');
 
         for (const tableName of targetTables) {
             const [tableCheck] = await connection.query(`SHOW TABLES LIKE ?`, [tableName]);
@@ -272,7 +299,7 @@ async function restoreFromGoogleSheets(spreadsheetIdInput) {
         }
 
         // 3. 외래키 체크 다시 활성화
-        console.log('\n🔓 [4/4] 외래키 체크 재활성화...');
+        console.log('\n🔓 [5/5] 외래키 체크 재활성화...');
         await connection.query('SET FOREIGN_KEY_CHECKS = 1;');
 
         console.log('\n🎉 구글 시트 백업 데이터가 DB로 성공적으로 복원되었습니다!\n');

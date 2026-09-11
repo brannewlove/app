@@ -660,12 +660,12 @@ onMounted(() => {
 }
 
 .activity-table th {
-    background: var(--bg-muted);
+    background: var(--primary-color, #4a4a4a);
     padding: 12px;
     border-bottom: 2px solid var(--border-light);
     text-align: left;
     font-size: 13px;
-    color: var(--text-muted);
+    color: #ffffff;
 }
 
 .activity-table td {

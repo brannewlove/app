@@ -151,7 +151,7 @@ const navigateTo = (path) => {
       <div class="navbar-container">
         <div class="navbar-brand">
           <a href="/" class="brand-link" @click.prevent="navigateTo('/')">
-            <h1>관리 시스템</h1>
+            <h1>자산 관리 시스템</h1>
           </a>
         </div>
 
