@@ -44,16 +44,83 @@ const updateAuthState = () => {
   currentUser.value = getSafeUser();
 };
 
+const DEFAULT_PAGE_PERMISSIONS = {
+  '/': 1,
+  '/assets': 1,
+  '/trades': 1,
+  '/return-processing': 1,
+  '/users': 1,
+  '/data-management': 100
+};
+
+const pagePermissions = ref({ ...DEFAULT_PAGE_PERMISSIONS });
+
+const updatePagePermissions = async () => {
+  try {
+    const savedLocal = localStorage.getItem('page_access_permissions');
+    if (savedLocal) {
+      pagePermissions.value = { ...DEFAULT_PAGE_PERMISSIONS, ...JSON.parse(savedLocal) };
+    } else {
+      const response = await axios.get('/api/settings/page_access_permissions');
+      if (response.data && response.data.success && response.data.data) {
+        const data = response.data.data;
+        pagePermissions.value = { ...DEFAULT_PAGE_PERMISSIONS, ...(typeof data === 'string' ? JSON.parse(data) : data) };
+        localStorage.setItem('page_access_permissions', JSON.stringify(pagePermissions.value));
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load page permissions in App.vue:', err);
+  }
+};
+
+const canAccessRoute = (path) => {
+  if (!currentUser.value) return false;
+  const userLevel = Number(currentUser.value.sec_level || 1);
+  const reqLevel = pagePermissions.value[path] !== undefined ? Number(pagePermissions.value[path]) : 1;
+  return userLevel >= reqLevel;
+};
+
+const defaultMenuItems = [
+  { path: '/users', label: '사용자 관리' },
+  { path: '/assets', label: '자산 관리' },
+  { path: '/trades', label: '거래 관리' },
+  { path: '/return-processing', label: '반납처리' },
+  { path: '/data-management', label: '데이터관리' }
+];
+
+const orderedMenuItems = computed(() => {
+  const items = [...defaultMenuItems];
+  const order = pagePermissions.value._order;
+  if (order && Array.isArray(order)) {
+    const orderMap = new Map(order.map((path, idx) => [path, idx]));
+    items.sort((a, b) => {
+      const orderA = orderMap.has(a.path) ? orderMap.get(a.path) : 999;
+      const orderB = orderMap.has(b.path) ? orderMap.get(b.path) : 999;
+      return orderA - orderB;
+    });
+  }
+  return items.filter(item => canAccessRoute(item.path));
+});
+
+const handlePermissionsChange = () => {
+  updatePagePermissions();
+};
+
 // 컴포넌트 마운트 시 사용자 정보 로드 및 storage 이벤트 감시
 onMounted(() => {
   updateAuthState();
+  updatePagePermissions();
   checkBackupStatus(); // 백업 상태 확인
   
   // 다른 탭에서 localStorage 변경 감시
-  window.addEventListener('storage', updateAuthState);
+  window.addEventListener('storage', () => {
+    updateAuthState();
+    updatePagePermissions();
+  });
   
   // 동일 탭 내 상태 변경 감시 (커스텀 이벤트)
   window.addEventListener('auth-change', updateAuthState);
+  window.addEventListener('page-permissions-change', handlePermissionsChange);
   
   // 외부 클릭 시 알림 드롭다운 닫기
   document.addEventListener('click', handleOutsideClick);
@@ -65,6 +132,7 @@ onMounted(() => {
   return () => {
     window.removeEventListener('storage', updateAuthState);
     window.removeEventListener('auth-change', updateAuthState);
+    window.removeEventListener('page-permissions-change', handlePermissionsChange);
     document.removeEventListener('click', handleOutsideClick);
     clearInterval(intervalId);
   };
@@ -175,29 +243,9 @@ const navigateTo = (path) => {
         <!-- 네비게이션 메뉴 (데스크톱 및 모바일 반응형) -->
         <div class="navbar-collapse" :class="{ 'show-mobile': isMobileMenuOpen }">
           <ul class="navbar-menu">
-            <li>
-              <a href="/users" class="nav-link" :class="{ active: $route.path === '/users' }" @click.prevent="navigateTo('/users')">
-                 사용자 관리
-              </a>
-            </li>
-            <li>
-              <a href="/assets" class="nav-link" :class="{ active: $route.path === '/assets' }" @click.prevent="navigateTo('/assets')">
-                 자산 관리
-              </a>
-            </li>
-            <li>
-              <a href="/trades" class="nav-link" :class="{ active: $route.path === '/trades' }" @click.prevent="navigateTo('/trades')">
-                 거래 관리
-              </a>
-            </li>
-            <li>
-              <a href="/return-processing" class="nav-link" :class="{ active: $route.path === '/return-processing' }" @click.prevent="navigateTo('/return-processing')">
-                 반납처리
-              </a>
-            </li>
-            <li v-if="currentUser && Number(currentUser.sec_level) === 100">
-              <a href="/data-management" class="nav-link" :class="{ active: $route.path === '/data-management' }" @click.prevent="navigateTo('/data-management')">
-                 데이터관리
+            <li v-for="item in orderedMenuItems" :key="item.path">
+              <a :href="item.path" class="nav-link" :class="{ active: $route.path === item.path }" @click.prevent="navigateTo(item.path)">
+                 {{ item.label }}
               </a>
             </li>
           </ul>

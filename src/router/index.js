@@ -48,7 +48,26 @@ const router = createRouter({
   ],
 })
 
-// 라우터 가드 - 로그인 검증
+const DEFAULT_PAGE_PERMISSIONS = {
+  '/': 1,
+  '/assets': 1,
+  '/trades': 1,
+  '/return-processing': 1,
+  '/users': 1,
+  '/data-management': 100
+};
+
+const getPagePermissions = () => {
+  try {
+    const saved = localStorage.getItem('page_access_permissions');
+    if (saved) {
+      return { ...DEFAULT_PAGE_PERMISSIONS, ...JSON.parse(saved) };
+    }
+  } catch (e) {}
+  return DEFAULT_PAGE_PERMISSIONS;
+};
+
+// 라우터 가드 - 로그인 검증 및 동적 보안등급 권한 검사
 router.beforeEach((to, from, next) => {
   const isAuthenticated = !!localStorage.getItem('authToken');
   const requiresAuth = to.meta.requiresAuth !== false;
@@ -59,14 +78,18 @@ router.beforeEach((to, from, next) => {
   } else if (to.path === '/login' && isAuthenticated) {
     // 이미 로그인되어 있으면 대시보드로
     next('/');
-  } else if (to.name === 'DataManagement') {
-    // 데이터 관리 페이지는 sec_level 100 필수
+  } else if (requiresAuth && isAuthenticated) {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.sec_level === 100) {
+    const userLevel = Number(user.sec_level || 1);
+    const permissions = getPagePermissions();
+    const requiredLevel = permissions[to.path] !== undefined ? Number(permissions[to.path]) : 1;
+
+    if (userLevel >= requiredLevel) {
       next();
     } else {
-      alert('접근 권한이 없습니다.');
-      next(from.path || '/');
+      alert(`접근 권한이 없습니다. (필요 보안등급: ${requiredLevel}, 현재 보안등급: ${userLevel})`);
+      const targetFallback = (from.path && from.path !== to.path) ? from.path : '/';
+      next(targetFallback);
     }
   } else {
     next();

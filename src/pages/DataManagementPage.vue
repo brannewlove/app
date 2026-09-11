@@ -344,6 +344,116 @@ const fetchHeaderConfigs = async () => {
     }
 };
 
+const pageAccessResult = ref(null);
+const pageAccessError = ref(null);
+
+const DEFAULT_PAGE_PERMISSIONS = {
+    '/': 1,
+    '/assets': 1,
+    '/trades': 1,
+    '/return-processing': 1,
+    '/users': 1,
+    '/data-management': 100
+};
+
+const pagePermissions = ref({ ...DEFAULT_PAGE_PERMISSIONS });
+
+const pageRouteOptions = ref([
+    { path: '/', label: '대시보드' },
+    { path: '/assets', label: '자산 관리' },
+    { path: '/trades', label: '거래 관리' },
+    { path: '/return-processing', label: '반납 처리' },
+    { path: '/users', label: '사용자 관리' },
+    { path: '/data-management', label: '데이터 관리' }
+]);
+
+const draggedPageIndex = ref(null);
+const dragOverPageIndex = ref(null);
+
+const movePagePermission = (index, direction) => {
+    const list = [...pageRouteOptions.value];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    [list[index], list[targetIndex]] = [list[targetIndex], list[index]];
+    pageRouteOptions.value = list;
+};
+
+const onPageDragStart = (index, event) => {
+    draggedPageIndex.value = index;
+    if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+    }
+};
+
+const onPageDragOver = (index, event) => {
+    event.preventDefault();
+    if (draggedPageIndex.value === null || draggedPageIndex.value === index) return;
+    dragOverPageIndex.value = index;
+};
+
+const onPageDrop = (targetIndex) => {
+    const fromIndex = draggedPageIndex.value;
+    if (fromIndex === null || fromIndex === targetIndex) return;
+
+    const list = [...pageRouteOptions.value];
+    const [movedItem] = list.splice(fromIndex, 1);
+    list.splice(targetIndex, 0, movedItem);
+    pageRouteOptions.value = list;
+
+    draggedPageIndex.value = null;
+    dragOverPageIndex.value = null;
+};
+
+const onPageDragEnd = () => {
+    draggedPageIndex.value = null;
+    dragOverPageIndex.value = null;
+};
+
+const fetchPagePermissions = async () => {
+    try {
+        const saved = await settingsApi.getSetting('page_access_permissions');
+        if (saved && typeof saved === 'object') {
+            pagePermissions.value = { ...DEFAULT_PAGE_PERMISSIONS, ...saved };
+            if (saved._order && Array.isArray(saved._order)) {
+                const orderMap = new Map(saved._order.map((path, idx) => [path, idx]));
+                pageRouteOptions.value.sort((a, b) => {
+                    const orderA = orderMap.has(a.path) ? orderMap.get(a.path) : 999;
+                    const orderB = orderMap.has(b.path) ? orderMap.get(b.path) : 999;
+                    return orderA - orderB;
+                });
+            }
+        }
+        localStorage.setItem('page_access_permissions', JSON.stringify(pagePermissions.value));
+    } catch (err) {
+        console.error('Failed to load page access permissions:', err);
+    }
+};
+
+const savePagePermissions = async () => {
+    try {
+        loading.value = true;
+        pageAccessError.value = null;
+        pageAccessResult.value = null;
+
+        const dataToSave = {
+            ...pagePermissions.value,
+            _order: pageRouteOptions.value.map(p => p.path)
+        };
+
+        await settingsApi.saveSetting('page_access_permissions', dataToSave);
+        localStorage.setItem('page_access_permissions', JSON.stringify(dataToSave));
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('page-permissions-change', { detail: dataToSave }));
+
+        pageAccessResult.value = { message: '보안등급별 페이지 접근 권한 설정이 성공적으로 저장되었습니다.' };
+    } catch (err) {
+        pageAccessError.value = '접근 권한 설정 저장 실패: ' + err.message;
+    } finally {
+        loading.value = false;
+    }
+};
+
 const moveColumn = (tableKey, index, direction) => {
     const list = [...tableColumnsConfig.value[tableKey]];
     const targetIndex = index + direction;
@@ -417,6 +527,7 @@ onMounted(() => {
     fetchBackupConfig();
     fetchFilters();
     fetchHeaderConfigs();
+    fetchPagePermissions();
 });
 
 const handleManualBackup = async () => {
@@ -752,6 +863,68 @@ const handleManualBackup = async () => {
                     </button>
                 </div>
             </div>
+
+            <!-- 보안등급별 페이지 접근 권한 관리 섹션 -->
+            <div class="import-card page-access-management-card">
+                <div v-if="pageAccessResult" class="alert alert-success mb-15">
+                    <img src="/images/checkmark.png" alt="success" class="checkmark-icon" /> {{ pageAccessResult.message }}
+                </div>
+                <div v-if="pageAccessError" class="alert alert-error mb-15">
+                    ❌ {{ pageAccessError }}
+                </div>
+                <div class="card-header">
+                    <span class="icon">
+                        <img src="/images/setting.png" alt="permissions" class="header-icon-img" />
+                    </span>
+                    <h2>보안등급별 페이지 접근 권한 설정</h2>
+                </div>
+                <div class="card-body">
+                    <p>각 페이지에 접근하기 위해 필요한 최소 보안등급(sec_level)을 설정합니다.</p>
+                    
+                    <div class="page-access-list">
+                        <div 
+                            v-for="(page, idx) in pageRouteOptions" 
+                            :key="page.path" 
+                            class="page-access-item"
+                            :class="{ 
+                                'is-dragging': draggedPageIndex === idx, 
+                                'drag-over': dragOverPageIndex === idx 
+                            }"
+                            draggable="true"
+                            @dragstart="onPageDragStart(idx, $event)"
+                            @dragover="onPageDragOver(idx, $event)"
+                            @drop="onPageDrop(idx)"
+                            @dragend="onPageDragEnd"
+                        >
+                            <div class="drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
+                            <div class="page-order-btns">
+                                <button @click="movePagePermission(idx, -1)" :disabled="idx === 0" class="btn-order">▲</button>
+                                <button @click="movePagePermission(idx, 1)" :disabled="idx === pageRouteOptions.length - 1" class="btn-order">▼</button>
+                            </div>
+                            <div class="page-info">
+                                <span class="page-name">{{ page.label }}</span>
+                                <span class="page-path">({{ page.path }})</span>
+                            </div>
+                            <div class="page-level-input-group">
+                                <label :for="`perm-${page.path}`" class="level-label">최소 보안등급:</label>
+                                <input 
+                                    :id="`perm-${page.path}`"
+                                    type="number" 
+                                    min="1" 
+                                    max="100"
+                                    v-model.number="pagePermissions[page.path]" 
+                                    class="level-input"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-modal btn-save" :disabled="loading" @click="savePagePermissions">
+                        {{ loading ? '저장 중...' : '접근 권한 설정 저장' }}
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div class="notice-section">
@@ -784,9 +957,15 @@ const handleManualBackup = async () => {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-light);
+    border-top: 4px solid var(--brand-blue);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.import-card:hover {
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
 }
 
 .card-header {
@@ -796,6 +975,19 @@ const handleManualBackup = async () => {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.card-header .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: #ffffff;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
 }
 
 .header-icon-img {
@@ -966,9 +1158,7 @@ const handleManualBackup = async () => {
     font-weight: bold;
 }
 
-.backup-card {
-    border-left: 5px solid var(--brand-blue);
-}
+
 
 .backup-info ul {
     list-style: none;
@@ -1088,19 +1278,22 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .filter-item,
-.column-config-item {
+.column-config-item,
+.page-access-item {
     transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
 .filter-item.is-dragging,
-.column-config-item.is-dragging {
+.column-config-item.is-dragging,
+.page-access-item.is-dragging {
     opacity: 0.35;
     border: 1.5px dashed var(--brand-blue);
     background: #eff6ff;
 }
 
 .filter-item.drag-over,
-.column-config-item.drag-over {
+.column-config-item.drag-over,
+.page-access-item.drag-over {
     border-top: 2.5px solid var(--brand-blue);
     background: #f0f7ff;
 }
@@ -1288,5 +1481,67 @@ input:checked + .slider:before { transform: translateX(22px); }
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.page-access-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.page-access-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #f8f9fa;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+}
+
+.page-order-btns {
+    display: flex;
+    gap: 3px;
+}
+
+.page-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.page-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.page-path {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono, monospace);
+}
+
+.page-level-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.level-label {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.level-input {
+    width: 80px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
 }
 </style>
