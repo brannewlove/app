@@ -1,7 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { runBackup, checkAuthStatus } = require('../utils/googleSheets');
+const { runBackup, checkAuthStatus, getAuthUrl, getTokensFromCode } = require('../utils/googleSheets');
 const { success, error } = require('../utils/response');
+
+/**
+ * GET /api/backup/auth-url
+ * 구글 OAuth 재인증 URL 발급
+ */
+router.get('/auth-url', (req, res) => {
+    try {
+        const url = getAuthUrl();
+        success(res, { url });
+    } catch (err) {
+        console.error('Get OAuth auth URL error:', err);
+        error(res, err.message || 'OAuth URL 생성 중 오류가 발생했습니다.');
+    }
+});
 
 /**
  * GET /api/backup/status

@@ -21,7 +21,7 @@ var filtersRouter = require('./routes/filters');
 var dashboardRouter = require('./routes/dashboard');
 var clientErrorsRouter = require('./routes/clientErrors');
 var settingsRouter = require('./routes/settings');
-const { runBackup, checkAndRunMissingBackup } = require('./utils/googleSheets');
+const { runBackup, checkAndRunMissingBackup, getTokensFromCode } = require('./utils/googleSheets');
 const { initDbSchema } = require('./utils/dbInit');
 const cron = require('node-cron');
 
@@ -71,8 +71,43 @@ app.use('/api/backup', backupRouter);
 app.use('/api/saved-filters', filtersRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/system-report', clientErrorsRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/db-test', dbTestRouter);
+
+// OAuth2 Callback 처리
+app.get('/oauth2callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send('<h2>인증 코드가 누락되었습니다.</h2>');
+  }
+
+  try {
+    const tokens = await getTokensFromCode(code);
+    const refreshToken = tokens.refresh_token;
+
+    if (!refreshToken) {
+      return res.send(`
+        <div style="font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+          <h2 style="color: #e53e3e;">⚠️ Refresh Token이 발급되지 않았습니다.</h2>
+          <p>구글 계정 연결 설정에서 기존 동의를 취소하거나, 재인증 링크를 다시 실행해 보세요.</p>
+          <p><strong>Access Token:</strong> <code>${tokens.access_token}</code></p>
+        </div>
+      `);
+    }
+
+    res.send(`
+      <div style="font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 24px; border: 1px solid #48bb78; border-radius: 8px; background: #f0fff4;">
+        <h2 style="color: #2f855a; margin-top: 0;">🎉 새로운 Google Refresh Token 발급 성공!</h2>
+        <p>아래 <strong>GOOGLE_REFRESH_TOKEN</strong> 값을 사복하여 <code>.env</code> 파일의 해당 항목에 붙여넣어 주세요:</p>
+        <div style="background: #2d3748; color: #68d391; padding: 12px; border-radius: 6px; font-family: monospace; word-break: break-all; font-size: 14px;">
+          ${refreshToken}
+        </div>
+        <p style="margin-top: 16px; color: #4a5568; font-size: 13px;">.env 파일 수정 후 <code>docker compose restart app</code> 명령어로 컨테이너를 재시작하면 백업 기능이 즉시 정상 작동합니다.</p>
+      </div>
+    `);
+  } catch (err) {
+    console.error('OAuth Callback error:', err);
+    res.status(500).send(`<h2>토큰 교환 실패</h2><p>${err.message}</p>`);
+  }
+});
 
 const pool = require('./utils/db');
 

@@ -553,6 +553,20 @@ const handleManualBackup = async () => {
         loading.value = false;
     }
 };
+
+const handleReauthGoogle = async () => {
+    try {
+        const response = await fetch('/api/backup/auth-url');
+        const data = await response.json();
+        if (data.success && data.data.url) {
+            window.open(data.data.url, '_blank');
+        } else {
+            alert('OAuth URL 생성 실패: ' + (data.error || '알 수 없는 오류'));
+        }
+    } catch (err) {
+        alert('OAuth URL 요청 실패: ' + err.message);
+    }
+};
 </script>
 
 <template>
@@ -702,6 +716,11 @@ const handleManualBackup = async () => {
                 </div>
                 <div v-if="backupError" class="alert alert-error mb-15">
                     ❌ {{ backupError }}
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-sm btn-outline-warning" @click="handleReauthGoogle">
+                            🔑 구글 토큰 새로 발급받기
+                        </button>
+                    </div>
                 </div>
                 <div class="card-header">
                     <span class="icon">
@@ -728,13 +747,21 @@ const handleManualBackup = async () => {
                         </label>
                     </div>
                 </div>
-                <div class="card-footer">
+                <div class="card-footer" style="display: flex; gap: 10px;">
                     <button 
                         class="btn btn-modal btn-backup" 
                         :disabled="loading" 
                         @click="handleManualBackup"
                     >
                         {{ loading ? '백업 중...' : '지금 즉시 백업하기' }}
+                    </button>
+                    <button 
+                        class="btn btn-modal" 
+                        style="background: #edf2f7; color: #2d3748; border: 1px solid #cbd5e0;"
+                        @click="handleReauthGoogle"
+                        title="토큰 만료 시 구글 인증 창을 열어 토큰을 갱신합니다."
+                    >
+                        🔑 토큰 갱신
                     </button>
                 </div>
             </div>
