@@ -47,7 +47,8 @@ class GoogleSheetsBackupService {
         try {
             await oauth2Client.getAccessToken();
         } catch (err) {
-            const error = new Error('구글 인증 토큰이 만료되었습니다. 관리자에게 토큰 갱신을 요청하세요.');
+            console.error('[Google OAuth Error Detail]:', err.response?.data || err.message);
+            const error = new Error(`구글 인증 토큰이 만료되었습니다 (${err.message}). 관리자에게 토큰 갱신을 요청하세요.`);
             error.code = 'AUTH_EXPIRED';
             throw error;
         }
@@ -68,13 +69,17 @@ class GoogleSheetsBackupService {
                 return { valid: false, error: 'AUTH_CONFIG_MISSING', message: 'OAuth 설정이 누락되었습니다.' };
             }
 
-            const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+            const oauth2Client = new google.auth.OAuth2(
+                clientId,
+                clientSecret,
+                process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/oauth2callback'
+            );
             oauth2Client.setCredentials({ refresh_token: refreshToken });
 
             await oauth2Client.getAccessToken();
             return { valid: true, message: '인증 상태 정상' };
         } catch (err) {
-            return { valid: false, error: 'AUTH_EXPIRED', message: '토큰이 만료되었습니다. 갱신이 필요합니다.' };
+            return { valid: false, error: 'AUTH_EXPIRED', message: `토큰이 만료되었습니다 (${err.message}). 갱신이 필요합니다.` };
         }
     }
 
