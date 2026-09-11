@@ -76,26 +76,27 @@ app.use('/db-test', dbTestRouter);
 
 const pool = require('./utils/db');
 
-// 매일 13:00, 18:00 자동 백업 스케줄 등록
+// 매일 13:00, 18:00 (KST 기준) 자동 백업 스케줄 등록
 cron.schedule('0 13,18 * * *', async () => {
   try {
-    const now = new Date();
-    const currentHour = now.getHours();
+    const offset = 9 * 60 * 60 * 1000;
+    const kstNow = new Date(new Date().getTime() + offset);
+    const currentHour = kstNow.getUTCHours();
 
     // DB에서 자동 백업 활성화 여부 확인
     const [rows] = await pool.query("SELECT s_value FROM settings WHERE s_key = 'auto_backup_enabled'");
     const isEnabled = rows.length > 0 ? rows[0].s_value === 'true' : true;
 
     if (isEnabled) {
-      console.log(`Scheduled Backup: ${currentHour}:00 (Enabled)`);
+      console.log(`Scheduled Backup: ${currentHour}:00 KST (Enabled)`);
       await runBackup();
     } else {
-      console.log(`Scheduled Backup: ${currentHour}:00 (Skipped - Disabled in settings)`);
+      console.log(`Scheduled Backup: ${currentHour}:00 KST (Skipped - Disabled in settings)`);
     }
   } catch (err) {
     console.error('Scheduled backup failed:', err);
   }
-});
+}, { timezone: 'Asia/Seoul' });
 
 // 서버 기동 후 5초 뒤 최초 1회 즉시 누락 백업 검증 실행
 setTimeout(async () => {
@@ -115,7 +116,7 @@ cron.schedule('*/30 * * * *', async () => {
   } catch (err) {
     console.error('[Scheduler] 주기적 누락 백업 검사 중 오류:', err);
   }
-});
+}, { timezone: 'Asia/Seoul' });
 
 // 개발 환경에서만 Express 기본 라우터 사용
 if (process.env.NODE_ENV !== 'production') {

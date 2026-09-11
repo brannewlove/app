@@ -5,6 +5,7 @@ services:
     container_name: assetdb-mysql
     restart: always
     environment:
+      TZ: Asia/Seoul
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root1234}
       MYSQL_DATABASE: ${DB_NAME:-assetdb}
     ports:
@@ -36,6 +37,7 @@ services:
     ports:
       - "80:3000"
     environment:
+      TZ: Asia/Seoul
       NODE_ENV: production
       SERVER_PORT: 3000
       DB_HOST: db

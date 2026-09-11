@@ -10,6 +10,15 @@ class GoogleSheetsBackupService {
         this.rotateBackups = this.rotateBackups.bind(this);
         this.hasBackupForToday = this.hasBackupForToday.bind(this);
         this.checkAndRunMissingBackup = this.checkAndRunMissingBackup.bind(this);
+        this.getKstDate = this.getKstDate.bind(this);
+    }
+
+    /**
+     * KST(한국 표준시) Date 객체 생성 유틸리티
+     */
+    getKstDate(d = new Date()) {
+        const offset = 9 * 60 * 60 * 1000;
+        return new Date(d.getTime() + offset);
     }
 
     /**
@@ -126,15 +135,16 @@ class GoogleSheetsBackupService {
             const [tableRows] = await pool.query('SHOW TABLES');
             const tableNames = tableRows.map(row => Object.values(row)[0]);
 
-            // 2. 구글 시트 파일 생성 준비
-            const now = new Date();
-            const timestamp = now.getFullYear() +
-                String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0') + '_' +
-                String(now.getHours()).padStart(2, '0') +
-                String(now.getMinutes()).padStart(2, '0') +
-                String(now.getSeconds()).padStart(2, '0');
+            // 2. 구글 시트 파일 생성 준비 (KST 기준 날짜/시간 적용)
+            const kstNow = this.getKstDate();
+            const year = kstNow.getUTCFullYear();
+            const month = String(kstNow.getUTCMonth() + 1).padStart(2, '0');
+            const date = String(kstNow.getUTCDate()).padStart(2, '0');
+            const hours = String(kstNow.getUTCHours()).padStart(2, '0');
+            const minutes = String(kstNow.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(kstNow.getUTCSeconds()).padStart(2, '0');
 
+            const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
             const fileName = `ASDB_FULL_${timestamp}`;
 
             const fileMetadata = {
@@ -310,9 +320,7 @@ class GoogleSheetsBackupService {
             const drive = google.drive({ version: 'v3', auth });
 
             // 오늘 날짜 포맷 구하기 (KST 기준 YYYYMMDD)
-            const now = new Date();
-            const offset = 9 * 60 * 60 * 1000; // 9 hours
-            const kstDate = new Date(now.getTime() + offset);
+            const kstDate = this.getKstDate();
             const year = kstDate.getUTCFullYear();
             const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
             const date = String(kstDate.getUTCDate()).padStart(2, '0');
