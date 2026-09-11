@@ -71,6 +71,7 @@ app.use('/api/backup', backupRouter);
 app.use('/api/saved-filters', filtersRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/system-report', clientErrorsRouter);
+app.use('/api/settings', settingsRouter);
 
 // OAuth2 Callback 처리
 app.get('/oauth2callback', async (req, res) => {
