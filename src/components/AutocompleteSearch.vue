@@ -26,13 +26,13 @@
     <Teleport to="body">
       <div
         v-if="isOpen && !disabled"
+        ref="dropdownRef"
         class="dropdown-overlay"
         :style="{
           top: dropdownStyle.top + 'px',
           left: dropdownStyle.left + 'px',
           width: dropdownStyle.width + 'px',
           maxHeight: dropdownStyle.maxHeight + 'px',
-          overflowY: filteredData.length > 5 ? 'auto' : 'visible',
         }"
         @mouseenter="isDropdownHover = true"
         @mouseleave="isDropdownHover = false"
@@ -50,9 +50,10 @@
         >
           <div v-if="apiColumn && item[apiColumn]" class="item-primary-row">
             <span v-if="item['name']" class="item-bold">{{ item['name'] }}</span>
+            <span v-else-if="item['cj_name']" class="item-bold">{{ item['cj_name'] }}</span>
             <span v-else class="item-bold">{{ String(item[apiColumn]) }}</span>
             
-            <span v-if="item['name']" class="item-dimmed">{{ String(item[apiColumn]) }}</span>
+            <span v-if="item['name'] || item['cj_name']" class="item-dimmed">{{ String(item[apiColumn]) }}</span>
             <span v-else-if="item['category']" class="item-dimmed">{{ item['category'] }}</span>
           </div>
 
@@ -94,6 +95,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'select']);
 
 const inputRef = ref(null);
+const dropdownRef = ref(null);
 const inputValue = ref(props.initialValue);
 const filteredData = ref([]);
 const loading = ref(false);
@@ -121,22 +123,24 @@ const updateDropdownPosition = () => {
   const viewportHeight = window.innerHeight;
   const bottomSpace = viewportHeight - rect.bottom;
   const topSpace = rect.top;
-  const itemHeight = 52;
-  const maxVisibleItems = 6;
-  const maxDropdownHeight = itemHeight * maxVisibleItems;
+  const maxDropdownHeight = 320;
 
-  let contentHeight = 0;
-  if (loading.value) contentHeight = itemHeight;
-  else if (filteredData.value.length > 0) contentHeight = Math.min(itemHeight * filteredData.value.length, maxDropdownHeight);
-  else contentHeight = itemHeight;
+  let contentHeight = maxDropdownHeight;
+  if (dropdownRef.value) {
+    contentHeight = Math.min(dropdownRef.value.scrollHeight, maxDropdownHeight);
+  } else {
+    const estimatedItemHeight = 65;
+    const count = filteredData.value.length || 1;
+    contentHeight = Math.min(count * estimatedItemHeight, maxDropdownHeight);
+  }
 
-  const shouldShowAbove = bottomSpace < contentHeight && topSpace >= contentHeight;
+  const shouldShowAbove = bottomSpace < (contentHeight + 10) && topSpace >= contentHeight;
   const top = shouldShowAbove ? rect.top - contentHeight - 4 : rect.bottom + 4;
 
   dropdownStyle.top = Math.max(10, top);
   dropdownStyle.left = Math.max(10, rect.left);
   dropdownStyle.width = Math.max(100, rect.width);
-  dropdownStyle.maxHeight = Math.min(maxDropdownHeight, Math.max(itemHeight, contentHeight));
+  dropdownStyle.maxHeight = maxDropdownHeight;
 };
 
 watch(highlightedIndex, (newIndex) => {
@@ -160,6 +164,7 @@ const selectValue = (value, focusDirection = 0) => {
   
   if (value && typeof value === 'object') {
     if (value['name']) selectedDisplayValue = String(value['name']);
+    else if (value['cj_name']) selectedDisplayValue = String(value['cj_name']);
     else if (props.apiColumn && value[props.apiColumn]) selectedDisplayValue = String(value[props.apiColumn]);
     else selectedDisplayValue = String(Object.values(value)[0] || '');
     
@@ -371,10 +376,12 @@ onUnmounted(() => {
 .dropdown-overlay {
   position: fixed;
   background: white;
-  border: 1px solid var(--border-color);
+  border: 1px solid #ced4da;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
   z-index: 10000;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .dropdown-status {

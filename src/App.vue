@@ -140,8 +140,9 @@ onMounted(() => {
 
 // 외부 클릭 처리
 const handleOutsideClick = (event) => {
-  const wrapper = document.querySelector('.notification-wrapper');
-  if (wrapper && !wrapper.contains(event.target)) {
+  const isClickInsideBtn = event.target.closest('.notification-btn');
+  const isClickInsideDropdown = event.target.closest('.notification-dropdown');
+  if (!isClickInsideBtn && !isClickInsideDropdown) {
     showNotifications.value = false;
   }
 };
@@ -162,7 +163,7 @@ const checkBackupStatus = async () => {
         id: Date.now(),
         type: 'backup',
         title: '구글 인증 만료',
-        message: status.message,
+        message: status.message || '구글 스프레드시트 자동 백업 인증이 만료되었습니다. 데이터관리 페이지에서 재인증을 진행해주세요.',
         read: false,
         timestamp: new Date()
       });
@@ -173,7 +174,8 @@ const checkBackupStatus = async () => {
 };
 
 // 알림 토글
-const toggleNotifications = () => {
+const toggleNotifications = (e) => {
+  if (e) e.stopPropagation();
   showNotifications.value = !showNotifications.value;
   if (showNotifications.value) {
     // 알림 읽음 처리
@@ -204,6 +206,7 @@ watch(() => router.currentRoute.value.path, () => {
 
 const navigateTo = (path) => {
   closeMobileMenu();
+  showNotifications.value = false;
   if (router.currentRoute.value.path === path) {
     window.location.href = path; // 혹은 window.location.reload()
   } else {
@@ -227,7 +230,7 @@ const navigateTo = (path) => {
         <div class="mobile-header-actions">
           <!-- 모바일 알림 버튼 -->
           <div class="notification-wrapper mobile-only" v-if="currentUser && Number(currentUser.sec_level) === 100">
-            <button @click="toggleNotifications" class="notification-btn" aria-label="알림">
+            <button @click.stop="toggleNotifications" class="notification-btn" aria-label="알림">
               <img src="/images/alram.png" alt="Notification" class="notification-icon" />
               <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
             </button>
@@ -255,7 +258,7 @@ const navigateTo = (path) => {
             
             <!-- 데스크톱 알림 버튼 -->
             <div class="notification-wrapper desktop-only" v-if="currentUser && Number(currentUser.sec_level) === 100">
-              <button @click="toggleNotifications" class="notification-btn" aria-label="알림">
+              <button @click.stop="toggleNotifications" class="notification-btn" aria-label="알림">
                 <img src="/images/alram.png" alt="Notification" class="notification-icon" />
                 <span v-if="hasUnreadNotifications" class="notification-badge">{{ notifications.filter(n => !n.read).length }}</span>
               </button>
@@ -267,7 +270,10 @@ const navigateTo = (path) => {
 
         <!-- 알림 드롭다운 (공통) -->
         <div v-if="showNotifications" class="notification-dropdown" @click.stop>
-          <div class="notification-header">시스템 알림</div>
+          <div class="notification-header">
+            <span>시스템 알림</span>
+            <button class="notification-close-btn" @click="showNotifications = false" title="닫기">✕</button>
+          </div>
           <div v-if="notifications.length === 0" class="notification-empty">
             알림이 없습니다.
           </div>
@@ -275,6 +281,9 @@ const navigateTo = (path) => {
             <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ unread: !n.read }">
               <div class="notification-title"><img src="/images/warning.png" alt="warning" class="warning-icon" /> {{ n.title }}</div>
               <div class="notification-message">{{ n.message }}</div>
+              <div v-if="n.type === 'backup' && canAccessRoute('/data-management')" class="notification-action">
+                <button @click="navigateTo('/data-management')" class="btn-action-link">데이터관리로 이동 →</button>
+              </div>
             </div>
           </div>
         </div>
@@ -654,15 +663,20 @@ const navigateTo = (path) => {
 
 .notification-dropdown {
   position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 10px;
+  top: 65px;
+  right: 20px;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  width: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  width: 320px;
   z-index: 1000;
   overflow: hidden;
+  animation: dropdownFadeIn 0.2s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .notification-header {
@@ -671,6 +685,23 @@ const navigateTo = (path) => {
   padding: 12px 15px;
   font-weight: 600;
   font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notification-close-btn {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+
+.notification-close-btn:hover {
+  color: white;
 }
 
 .notification-empty {
@@ -714,5 +745,24 @@ const navigateTo = (path) => {
   font-size: 12px;
   color: #666;
   line-height: 1.4;
+}
+
+.notification-action {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.btn-action-link {
+  background: transparent;
+  border: none;
+  color: var(--brand-blue, #4682B4);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.btn-action-link:hover {
+  text-decoration: underline;
 }
 </style>

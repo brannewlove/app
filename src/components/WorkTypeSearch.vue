@@ -30,13 +30,13 @@
     <Teleport to="body">
       <div
         v-if="isOpen && !disabled"
+        ref="dropdownRef"
         class="dropdown-overlay"
         :style="{
           top: dropdownStyle.top + 'px',
           left: dropdownStyle.left + 'px',
           width: dropdownStyle.width + 'px',
           maxHeight: dropdownStyle.maxHeight + 'px',
-          overflowY: filteredData.length > 5 ? 'auto' : 'visible',
         }"
         @mouseenter="isDropdownHover = true"
         @mouseleave="isDropdownHover = false"
@@ -83,6 +83,7 @@ const allTypes = getAllWorkTypes ? getAllWorkTypes() : [];
 const workTypes = allTypes.filter(wt => wt.category !== '신규');
 
 const inputRef = ref(null);
+const dropdownRef = ref(null);
 const inputValue = ref(props.initialValue);
 const filteredData = ref([]);
 const isOpen = ref(false);
@@ -105,18 +106,24 @@ const updateDropdownPosition = () => {
   const viewportHeight = window.innerHeight;
   const bottomSpace = viewportHeight - rect.bottom;
   const topSpace = rect.top;
-  const itemHeight = 52;
-  const maxVisibleItems = 6;
-  const maxDropdownHeight = itemHeight * maxVisibleItems;
+  const maxDropdownHeight = 320;
 
-  let contentHeight = filteredData.value.length > 0 ? Math.min(itemHeight * filteredData.value.length, maxDropdownHeight) : itemHeight;
-  const shouldShowAbove = bottomSpace < contentHeight && topSpace >= contentHeight;
+  let contentHeight = maxDropdownHeight;
+  if (dropdownRef.value) {
+    contentHeight = Math.min(dropdownRef.value.scrollHeight, maxDropdownHeight);
+  } else {
+    const estimatedItemHeight = 55;
+    const count = filteredData.value.length || 1;
+    contentHeight = Math.min(count * estimatedItemHeight, maxDropdownHeight);
+  }
+
+  const shouldShowAbove = bottomSpace < (contentHeight + 10) && topSpace >= contentHeight;
   const top = shouldShowAbove ? rect.top - contentHeight - 4 : rect.bottom + 4;
 
   dropdownStyle.top = Math.max(10, top);
   dropdownStyle.left = Math.max(10, rect.left);
   dropdownStyle.width = Math.max(280, rect.width);
-  dropdownStyle.maxHeight = Math.min(maxDropdownHeight, Math.max(itemHeight, contentHeight));
+  dropdownStyle.maxHeight = maxDropdownHeight;
 };
 
 watch(highlightedIndex, (newIndex) => {
@@ -252,8 +259,6 @@ const filterData = (query) => {
 
 const handleFocus = (e) => {
   filterData('');
-  // 포커싱 시 자동 오픈 제거 (브라우저 가상 포커스로 인한 드롭다운 오작동 방지)
-  // isOpen.value = true;
   nextTick(updateDropdownPosition);
 };
 
@@ -276,7 +281,6 @@ const handleBlur = (e) => {
 const handleKeyDown = (e) => {
   if (document.activeElement !== inputRef.value) return;
   
-  // 드롭다운이 닫혀있는 상태에서 키 입력 시 오픈 유도
   if (!isOpen.value && ['ArrowDown', 'ArrowUp', ' ', 'Enter'].includes(e.key)) {
     e.preventDefault();
     isOpen.value = true;
@@ -376,10 +380,12 @@ onUnmounted(() => {
 .dropdown-overlay {
   position: fixed;
   background: white;
-  border: 1px solid var(--border-color);
+  border: 1px solid #ced4da;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
   z-index: 10000;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .dropdown-status {
