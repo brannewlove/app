@@ -11,7 +11,6 @@ var assetsRouter = require('./routes/assets');
 var tradesRouter = require('./routes/trades');
 var selectBarRouter = require('./routes/selectBar');
 var assetLogsRouter = require('./routes/assetLogs');
-var dbTestRouter = require('./routes/db-test');
 var confirmedAssetsRouter = require('./routes/confirmedAssets');
 var confirmedReplacementsRouter = require('./routes/confirmedReplacements');
 var returnedAssetsRouter = require('./routes/returnedAssets');
@@ -30,11 +29,22 @@ initDbSchema();
 
 var app = express();
 
-// CORS 설정
+// 기본 보안 헤더 및 CORS 설정
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('X-Content-Type-Options', 'nosniff');
+  res.header('X-Frame-Options', 'SAMEORIGIN');
+  res.header('X-XSS-Protection', '1; mode=block');
+
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -47,8 +57,8 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
 app.use(logger('dev'));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: false }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 

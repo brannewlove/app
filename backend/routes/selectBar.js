@@ -15,13 +15,28 @@ router.get('/', async (req, res) => {
   try {
     const { query = '', table = 'users', column = 'user_id', state, exclude_state, in_user, not_in_user } = req.query;
 
-    // 테이블 검증
+    // 테이블 및 컬럼 화이트리스트 검증 (SQL Injection 방어)
     const allowedTables = ['users', 'assets', 'trade'];
     if (!allowedTables.includes(table)) {
       return error(res, '유효하지 않은 테이블명', 400);
     }
 
-    let sqlQuery = `SELECT * FROM \`${table}\` WHERE 1=1`;
+    const allowedColumns = {
+      users: ['user_id', 'name', 'part', 'cj_id', 'state', 'sec_level'],
+      assets: ['asset_id', 'category', 'model', 'serial_number', 'asset_number', 'day_of_start', 'day_of_end', 'unit_price', 'in_user', 'state', 'replacement', 'memo'],
+      trade: ['trade_id', 'asset_number', 'work_type', 'cj_id', 'asset_state', 'asset_in_user', 'memo', 'timestamp', 'ex_user', 'is_cancelled']
+    };
+
+    if (!allowedColumns[table] || !allowedColumns[table].includes(column)) {
+      return error(res, '유효하지 않은 검색 컬럼명입니다.', 400);
+    }
+
+    // users 테이블 조회 시 비밀번호(password) 제외하여 정보 유출 방지
+    const selectFields = table === 'users'
+      ? '`user_id`, `name`, `part`, `cj_id`, `state`, `sec_level`, `is_temporary`'
+      : '*';
+
+    let sqlQuery = `SELECT ${selectFields} FROM \`${table}\` WHERE 1=1`;
     let params = [];
 
     // 필터 조건 추가

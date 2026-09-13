@@ -121,16 +121,32 @@ class TradeService extends BaseService {
                     }
                 }
 
-                // 3. 거래 내역 삽입
-                const columns = Object.keys(insertData);
-                const values = Object.values(insertData);
+                // 3. 거래 내역 삽입 (허용된 컬럼만 엄격히 필터링하여 SQLi 및 Mass Assignment 방지)
+                const ALLOWED_TRADE_COLUMNS = [
+                    'asset_number', 'work_type', 'cj_id', 'asset_state',
+                    'asset_in_user', 'asset_memo', 'memo', 'timestamp',
+                    'ex_user', 'is_cancelled', 'cancelled_at', 'asset_snapshot'
+                ];
+
+                const validInsertData = {};
+                for (const col of ALLOWED_TRADE_COLUMNS) {
+                    if (insertData[col] !== undefined) {
+                        validInsertData[col] = insertData[col];
+                    }
+                }
+
+                const columns = Object.keys(validInsertData);
+                if (columns.length === 0) {
+                    throw new Error('등록할 유효한 거래 컬럼이 없습니다.');
+                }
+                const values = Object.values(validInsertData);
                 const placeholders = columns.map(() => '?').join(', ');
                 const [result] = await connection.query(
                     `INSERT INTO trade (${columns.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`,
                     values
                 );
 
-                results.push({ trade_id: result.insertId, ...insertData });
+                results.push({ trade_id: result.insertId, ...validInsertData });
             }
 
             await connection.commit();

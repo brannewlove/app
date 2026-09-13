@@ -2,12 +2,22 @@ const express = require('express');
 const router = express.Router();
 const userService = require('../services/UserService');
 const { success, error } = require('../utils/response');
+const RateLimiter = require('../utils/RateLimiter');
+
+// 로그인 무차별 대입(Brute-Force) 방어: 1분당 최대 5회 시도 제한
+const loginLimiter = new RateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 5,
+  message: '로그인 시도가 너무 많습니다. 1분 후 다시 시도해 주세요.'
+});
 
 /* POST 로그인 */
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter.middleware(), async (req, res) => {
   try {
     const { cj_id, password } = req.body;
     const result = await userService.login(cj_id, password);
+    // 로그인 성공 시 해당 IP 제한 카운트 리셋
+    loginLimiter.reset(loginLimiter.getKey(req));
     success(res, {
       message: '로그인 성공',
       ...result
@@ -60,7 +70,8 @@ router.get('/:id', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, ...dataToUpdate } = req.body;
+    // password 및 sec_level은 일반 프로필 수정에서 직접 변경 불가하도록 차단 (Mass Assignment 방지)
+    const { user_id, password, sec_level, ...dataToUpdate } = req.body;
     const updated = await userService.update(id, dataToUpdate, 'user_id');
     if (updated) {
       success(res, { id, ...dataToUpdate });

@@ -9,8 +9,19 @@ const response = require('../utils/response');
  * @param {string} pkColumn 기본키 컬럼명 (Update에서 제외됨)
  * @param {Array} data JSON 데이터 배열
  */
+const ALLOWED_IMPORT_COLUMNS = {
+    assets: [
+        'asset_number', 'category', 'model', 'serial_number',
+        'day_of_start', 'day_of_end', 'unit_price', 'in_user',
+        'state', 'replacement', 'memo'
+    ],
+    users: [
+        'cj_id', 'name', 'part', 'state'
+    ]
+};
+
 /**
- * 범용 Upsert 함수 (청크 처리 지원)
+ * 범용 Upsert 함수 (청크 처리 및 화이트리스트 검증 지원)
  * @param {string} table 테이블명
  * @param {string} pkColumn 기본키 컬럼명 (Update에서 제외됨)
  * @param {Array} data JSON 데이터 배열
@@ -20,14 +31,22 @@ async function performUpsert(table, pkColumn, data) {
         throw new Error('처리할 데이터가 없습니다.');
     }
 
+    const allowed = ALLOWED_IMPORT_COLUMNS[table];
+    if (!allowed) {
+        throw new Error(`지원되지 않는 임포트 대상 테이블입니다: ${table}`);
+    }
+
+    const rawColumns = Object.keys(data[0]);
+    // 허용된 컬럼 및 영문/숫자/언더스코어 식별자만 엄격하게 필터링 (SQL Injection & Mass Assignment 방지)
+    const columns = rawColumns.filter(col => allowed.includes(col) && /^[a-zA-Z0-9_]+$/.test(col));
+
+    if (!columns.includes(pkColumn)) {
+        throw new Error(`필수 컬럼(${pkColumn})이 누락되었거나 허용되지 않았습니다.`);
+    }
+
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
-
-        const columns = Object.keys(data[0]);
-        if (!columns.includes(pkColumn)) {
-            throw new Error(`필수 컬럼(${pkColumn})이 누락되었습니다.`);
-        }
 
         const updateColumns = columns.filter(col => col !== pkColumn);
         const updateClause = updateColumns.map(col => `\`${col}\`=VALUES(\`${col}\`)`).join(', ');
@@ -111,8 +130,8 @@ router.post('/assets', async (req, res) => {
         const validData = Array.from(uniqueMap.values());
         const duplicateInInputCount = duplicateInInput.length;
 
-        // 4. 기존 데이터 가져오기 (변경사항 확인용)
-        const columnsToCompare = Object.keys(validData[0]);
+        // 4. 기존 데이터 가져오기 (변경사항 확인용, 허용 컬럼만 필터링)
+        const columnsToCompare = Object.keys(validData[0]).filter(c => ALLOWED_IMPORT_COLUMNS.assets.includes(c));
         const assetNumbers = validData.map(row => String(row.asset_number).trim());
         const [existingRows] = await pool.query(
             `SELECT ${columnsToCompare.filter(c => c !== 'contract_month').map(c => `\`${c}\``).join(', ')} FROM assets WHERE asset_number IN (?)`,
@@ -210,8 +229,8 @@ router.post('/users', async (req, res) => {
         const validData = Array.from(uniqueMap.values());
         const duplicateInInputCount = duplicateInInput.length;
 
-        // 3. 기존 데이터 가져오기 (변경사항 확인용)
-        const columnsToCompare = Object.keys(validData[0]);
+        // 3. 기존 데이터 가져오기 (변경사항 확인용, 허용 컬럼만 필터링)
+        const columnsToCompare = Object.keys(validData[0]).filter(c => ALLOWED_IMPORT_COLUMNS.users.includes(c));
         const cjIds = validData.map(row => String(row.cj_id).trim());
 
         // 데이터가 많을 경우를 대비해 IN 절 파라미터 개수 제한 처리 (필요시)

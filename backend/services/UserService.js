@@ -39,11 +39,19 @@ class UserService extends BaseService {
         };
     }
 
+    async findAll() {
+        const [rows] = await this.pool.query(
+            'SELECT user_id, name, part, cj_id, google_id, state, sec_level, is_temporary FROM users'
+        );
+        return rows;
+    }
+
     async getUserByIdWithAssets(id) {
         const user = await this.findById(id, 'user_id');
         if (!user) {
             return null;
         }
+        delete user.password;
 
         const [assetCounts] = await this.pool.query(
             'SELECT category, COUNT(*) as count FROM assets WHERE in_user = ? GROUP BY category',
@@ -61,6 +69,7 @@ class UserService extends BaseService {
         if (!user) {
             return null;
         }
+        delete user.password;
 
         const [assetCounts] = await this.pool.query(
             'SELECT category, COUNT(*) as count FROM assets WHERE in_user = ? GROUP BY category',
