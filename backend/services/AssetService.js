@@ -83,6 +83,15 @@ class AssetService extends BaseService {
             ...dataToUpdate
         } = updateData;
 
+        // 단가 음수 방지 검증
+        if (dataToUpdate.unit_price !== undefined && dataToUpdate.unit_price !== null && dataToUpdate.unit_price !== '') {
+            const price = Number(dataToUpdate.unit_price);
+            if (isNaN(price) || price < 0) {
+                throw new Error('단가는 0 이상이어야 합니다.');
+            }
+            dataToUpdate.unit_price = Math.floor(price);
+        }
+
         // 날짜 형식 변환
         if (dataToUpdate.day_of_start && typeof dataToUpdate.day_of_start === 'string') {
             dataToUpdate.day_of_start = dataToUpdate.day_of_start.split('T')[0];
@@ -116,6 +125,17 @@ class AssetService extends BaseService {
                 throw new Error(`존재하지 않는 사용자 ID가 포함되어 있습니다: ${missingUsers.join(', ')}`);
             }
 
+            // 전체 입력 자산번호 일괄 조회하여 캐싱 (루프 내 N+1 SELECT 쿼리 방지 및 초고속 처리)
+            const inputAssetNumbers = Array.from(new Set(items.map(i => i.asset_number ? String(i.asset_number).trim() : '').filter(Boolean)));
+            const existingAssetMap = new Map();
+            if (inputAssetNumbers.length > 0) {
+                const [existingAssets] = await connection.query(
+                    'SELECT * FROM assets WHERE asset_number IN (?)',
+                    [inputAssetNumbers]
+                );
+                existingAssets.forEach(a => existingAssetMap.set(String(a.asset_number).trim(), a));
+            }
+
             await connection.beginTransaction();
 
             const results = [];
@@ -133,9 +153,10 @@ class AssetService extends BaseService {
                     continue;
                 }
 
+                const assetNum = String(item.asset_number).trim();
                 const workType = (item.work_type || defaultWorkType || '신규-계약').trim();
-                const [existing] = await connection.query('SELECT * FROM assets WHERE asset_number = ?', [item.asset_number]);
-                const assetExists = existing.length > 0;
+                const oldAsset = existingAssetMap.get(assetNum);
+                const assetExists = !!oldAsset;
 
                 if (assetExists && workType !== '신규-재계약') {
                     errors.push(`이미 존재하는 자산번호: ${item.asset_number}`);
@@ -143,8 +164,12 @@ class AssetService extends BaseService {
                 }
 
                 const normalizedInUser = (item.in_user || 'cjenc_inno').trim();
+                const parsedUnitPrice = item.unit_price !== undefined && item.unit_price !== null && item.unit_price !== ''
+                    ? Math.max(0, parseInt(item.unit_price, 10) || 0)
+                    : 0;
+
                 const assetData = {
-                    asset_number: item.asset_number ? String(item.asset_number).trim() : '',
+                    asset_number: assetNum,
                     category: item.category,
                     model: item.model,
                     serial_number: item.serial_number || '',
@@ -154,7 +179,7 @@ class AssetService extends BaseService {
                     in_user: normalizedInUser,
                     day_of_start: formatDate(item.day_of_start),
                     day_of_end: formatDate(item.day_of_end),
-                    unit_price: item.unit_price || 0,
+                    unit_price: parsedUnitPrice,
                     memo: item.memo || null
                 };
 

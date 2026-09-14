@@ -172,6 +172,8 @@ const submitBulk = async () => {
     const response = await axios.post('/api/assets/bulk', {
       items: previewData.value,
       default_work_type: workType.value
+    }, {
+      timeout: 60000
     });
 
     if (response.data.success) {

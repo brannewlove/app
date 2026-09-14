@@ -30,6 +30,7 @@ const loading = ref(false);
 const error = ref(null);
 const successMessage = ref(null);
 const registeredTrades = ref([]);
+const progressStatus = ref('');
 
 const isUserDetailOpen = ref(false);
 const userDetailCjId = ref('');
@@ -46,6 +47,7 @@ const initializeForm = () => {
   error.value = null;
   successMessage.value = null;
   registeredTrades.value = [];
+  progressStatus.value = '';
   
   // 단일 자산 번호가 있을때 기본 템플릿 제공
   if (props.initialAssetNumber) {
@@ -57,6 +59,7 @@ const initializeForm = () => {
 const parseTsvData = () => {
   error.value = null;
   successMessage.value = null;
+  progressStatus.value = '';
   if (!rawTsvData.value.trim()) {
     parsedTrades.value = [];
     return;
@@ -130,14 +133,60 @@ const validateAllTrades = async () => {
   error.value = null;
   loading.value = true;
   successMessage.value = null;
+  progressStatus.value = '데이터 분석 및 준비 중...';
 
   try {
+    // 1. 유효성 검사에 필요한 자산 번호 목록 및 CJ ID 목록 추출 (중복 제거)
+    const assetNumbersToFetch = new Set();
+    const cjIdsToFetch = new Set();
+
+    parsedTrades.value.forEach(t => {
+      if (t.asset_number) assetNumbersToFetch.add(t.asset_number.trim());
+      const config = getWorkTypeConfig(t.work_type);
+      if (t.cj_id && config?.fixedCjId !== 'no-change' && t.cj_id !== 'cjenc_inno') {
+        cjIdsToFetch.add(t.cj_id.trim());
+      }
+    });
+
+    const assetMap = new Map();
+    const userMap = new Map();
+
+    // 2. 자산 정보 병렬 청크 조회 (동시 20개씩 병렬 조회)
+    const assetList = Array.from(assetNumbersToFetch);
+    const CHUNK_SIZE = 20;
+    for (let i = 0; i < assetList.length; i += CHUNK_SIZE) {
+      const chunk = assetList.slice(i, i + CHUNK_SIZE);
+      progressStatus.value = `자산 정보 조회 중... (${Math.min(i + CHUNK_SIZE, assetList.length)}/${assetList.length})`;
+      const results = await Promise.allSettled(chunk.map(num => assetApi.getAssetByNumber(num)));
+      results.forEach((res, idx) => {
+        if (res.status === 'fulfilled' && res.value) {
+          assetMap.set(chunk[idx], res.value);
+        }
+      });
+    }
+
+    // 3. 사용자 정보 병렬 청크 조회 (동시 20개씩 병렬 조회)
+    const userList = Array.from(cjIdsToFetch);
+    for (let i = 0; i < userList.length; i += CHUNK_SIZE) {
+      const chunk = userList.slice(i, i + CHUNK_SIZE);
+      progressStatus.value = `사용자 정보 확인 중... (${Math.min(i + CHUNK_SIZE, userList.length)}/${userList.length})`;
+      const results = await Promise.allSettled(chunk.map(id => getUserByCjId(id)));
+      results.forEach((res, idx) => {
+        if (res.status === 'fulfilled' && res.value) {
+          userMap.set(chunk[idx], res.value);
+        }
+      });
+    }
+
+    progressStatus.value = '규칙 및 유효성 검사 적용 중...';
+
+    // 4. 캐시된 맵을 바탕으로 O(1) 초고속 검증
     for (let i = 0; i < parsedTrades.value.length; i++) {
       const trade = parsedTrades.value[i];
       let rowValid = true;
       let rowMsg = '유효';
 
-      // 1. 필수값 체크
+      // 필수값 체크
       if (!trade.work_type) {
         rowValid = false;
         rowMsg = '작업유형 누락';
@@ -153,47 +202,38 @@ const validateAllTrades = async () => {
         rowMsg = '존재하지 않는 작업유형';
       }
 
-      // 2. 외부 데이터 조회 (자산 조회)
-      let assetData = null;
+      // 자산 정보 매핑
+      const assetData = trade.asset_number ? assetMap.get(trade.asset_number.trim()) : null;
       if (rowValid && trade.asset_number) {
-        try {
-          assetData = await assetApi.getAssetByNumber(trade.asset_number);
-          if (!assetData) {
-            rowValid = false;
-            rowMsg = '존재하지 않는 자산번호';
-          } else {
-            trade.asset_state = assetData.state;
-            trade.asset_in_user = assetData.in_user;
-            trade.ex_user = assetData.in_user;
-            
-            if (config?.fixedCjId === 'no-change') {
-               // 보유자가 그대로 유지되는 경우 기본 할당
-               trade.cj_id = trade.asset_in_user;
-            }
+        if (!assetData) {
+          rowValid = false;
+          rowMsg = '존재하지 않는 자산번호';
+        } else {
+          trade.asset_state = assetData.state;
+          trade.asset_in_user = assetData.in_user;
+          trade.ex_user = assetData.in_user;
+          
+          if (config?.fixedCjId === 'no-change') {
+            trade.cj_id = trade.asset_in_user;
           }
-        } catch(e) {
-             rowValid = false;
-             rowMsg = '자산 정보 조회 실패';
         }
       }
 
-      // 3. CJ ID 검증 (필요한 경우)
+      // CJ ID 검증 (필요한 경우)
       if (rowValid && trade.cj_id && config?.fixedCjId !== 'no-change' && trade.cj_id !== 'cjenc_inno') {
-         try {
-             // 임직원 정보 조회
-             const userResponse = await getUserByCjId(trade.cj_id);
-             trade.cj_name = userResponse.name || trade.cj_id;
-         } catch(e) {
-             // 404 등 사용자가 없으면 실패
-             rowValid = false;
-             rowMsg = '사용자 정보 없음(CJ ID 확인)';
-         }
+        const userData = userMap.get(trade.cj_id.trim());
+        if (userData) {
+          trade.cj_name = userData.name || trade.cj_id;
+        } else {
+          rowValid = false;
+          rowMsg = '사용자 정보 없음(CJ ID 확인)';
+        }
       }
 
       // cjenc_inno 등 고정일때는 이름 처리
-      if(trade.cj_id === 'cjenc_inno') trade.cj_name = '재고';
+      if (trade.cj_id === 'cjenc_inno') trade.cj_name = '재고';
 
-      // 4. 모의 검사 (validateTradeStrict)
+      // 모의 검사 (validateTradeStrict)
       if (rowValid) {
         const assetCtx = {
           state: trade.asset_state,
@@ -214,8 +254,8 @@ const validateAllTrades = async () => {
       // 재계약 등 날짜 검토
       if (rowValid && config?.requiresDates) {
         if (!trade.new_day_of_start || !trade.new_day_of_end) {
-           rowValid = false;
-           rowMsg = '시작/종료일 누락';
+          rowValid = false;
+          rowMsg = '시작/종료일 누락';
         }
       }
 
@@ -227,6 +267,7 @@ const validateAllTrades = async () => {
     error.value = '유효성 검사 중 시스템 오류: ' + err.message;
   } finally {
     loading.value = false;
+    progressStatus.value = '';
   }
 };
 
@@ -257,6 +298,9 @@ const submitValidTrades = async () => {
       return data;
   });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
   try {
     loading.value = true;
     error.value = null;
@@ -264,9 +308,11 @@ const submitValidTrades = async () => {
     const response = await fetch('/api/trades', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
     const result = await response.json();
     if (result.success) {
       successMessage.value = `${payload.length}건의 거래가 성공적으로 등록되었습니다.`;
@@ -328,7 +374,7 @@ onMounted(() => {
         </div>
         <div v-if="loading" class="alert alert-info">
           <img src="/images/hour-glass.png" alt="loading" class="loading-icon" /> 
-          작업을 진행 중입니다...
+          {{ progressStatus || '작업을 진행 중입니다...' }}
         </div>
 
         <!-- 텍스트 입력 영역 -->

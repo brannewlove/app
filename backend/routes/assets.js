@@ -44,6 +44,10 @@ router.get('/number/:asset_number', async (req, res) => {
 /* PUT asset - 자산 정보 수정 */
 router.put('/:id', [
   body('asset_number').notEmpty().withMessage('Asset Number is required'),
+  body('unit_price')
+    .optional({ nullable: true, checkFalsy: true })
+    .isInt({ min: 0 })
+    .withMessage('단가는 0 이상이어야 합니다.'),
   validate
 ], async (req, res) => {
   try {

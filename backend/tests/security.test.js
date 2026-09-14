@@ -177,4 +177,33 @@ describe('Security Patches Verification', () => {
             expect(updateDataParam.name).toBe('Updated Name');
         });
     });
+
+    describe('Assets API - unit_price Non-negative Validation', () => {
+        it('should return 400 when negative unit_price is submitted on PUT /:id', async () => {
+            const res = await request(app)
+                .put('/api/assets/1')
+                .send({
+                    asset_number: 'TEST-001',
+                    unit_price: -5000
+                });
+
+            expect(res.statusCode).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.error).toContain('단가는 0 이상이어야 합니다');
+        });
+
+        it('should accept valid non-negative unit_price on PUT /:id', async () => {
+            pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+            const res = await request(app)
+                .put('/api/assets/1')
+                .send({
+                    asset_number: 'TEST-001',
+                    unit_price: 15000
+                });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.body.success).toBe(true);
+        });
+    });
 });

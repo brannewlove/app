@@ -64,8 +64,13 @@ async function performUpsert(table, pkColumn, data) {
             `;
 
             const flatData = chunk.flatMap(row => columns.map(col => {
-                const val = row[col];
-                return val === '' || val === undefined ? null : val;
+                let val = row[col];
+                if (val === '' || val === undefined) return null;
+                if (col === 'unit_price') {
+                    const parsed = parseInt(val, 10);
+                    return isNaN(parsed) ? null : Math.max(0, parsed);
+                }
+                return val;
             }));
 
             try {

@@ -25,9 +25,12 @@ class TradeService extends BaseService {
                 );
                 break;
             case '신규-재계약':
+                const sanitizedUnitPrice = new_unit_price !== undefined && new_unit_price !== null && new_unit_price !== ''
+                    ? Math.max(0, parseInt(new_unit_price, 10) || 0)
+                    : 0;
                 await connection.query(
                     `UPDATE assets SET in_user = ?, state = ?, day_of_start = ?, day_of_end = ?, unit_price = ? WHERE asset_number = ?`,
-                    ['cjenc_inno', 'useable', new_day_of_start, new_day_of_end, new_unit_price, asset_number]
+                    ['cjenc_inno', 'useable', new_day_of_start, new_day_of_end, sanitizedUnitPrice, asset_number]
                 );
                 break;
             case '출고-사용자변경':

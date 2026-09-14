@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+axios.defaults.timeout = 10000;
 
 const router = useRouter();
 const authToken = ref(localStorage.getItem('authToken'));
