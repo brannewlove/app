@@ -132,7 +132,7 @@ const visibleAssets = computed(() => {
   return exportAssets.value.filter(asset => !excludedAssets.value[asset.asset_number]?.checked);
 });
 
-const handleClipboardCopy = () => {
+const handleClipboardCopy = async () => {
   // 현재 가시성 상태에 관계없이 '보이는' 자산만 포함 (사용자 최신 요청 반영)
   const dataToCopy = visibleAssets.value;
   
@@ -173,16 +173,17 @@ const handleClipboardCopy = () => {
     })
   ].join('\n');
 
-  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+  try {
+    const success = await copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText });
     if (success) {
       isCopied.value = true;
       setTimeout(() => {
         isCopied.value = false;
       }, 2000);
     }
-  }).catch(err => {
+  } catch (err) {
     console.error('클립보드 복사 실패:', err);
-  });
+  }
 };
 
 const downloadCSV = () => {

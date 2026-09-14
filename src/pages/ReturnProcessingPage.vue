@@ -430,6 +430,7 @@ import AssetTrackingModal from '../components/AssetTrackingModal.vue';
 import TradeActionModal from '../components/TradeActionModal.vue';
 import { getTimestampFilename, formatDateTime, formatDate } from '../utils/dateUtils';
 import { downloadCSVFile } from '../utils/exportUtils';
+import { copyRichToClipboard, copyToClipboard as copyToClipboardUtil } from '../utils/clipboardUtils';
 import settingsApi from '../api/settings';
 import { mergeTableColumns } from '../utils/tableColumns';
 import { 
@@ -887,7 +888,7 @@ const closeExportModal = () => {
   isCopied.value = false; // 모달 닫을 때 상태 초기화
 };
 
-const copyToClipboard = () => {
+const copyToClipboard = async () => {
   const dataToCopy = exportAssets.value;
   if (dataToCopy.length === 0) return;
 
@@ -925,16 +926,32 @@ const copyToClipboard = () => {
     ].join('\t'))
   ].join('\n');
 
-  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+  try {
+    const success = await copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText });
     if (success) {
       isCopied.value = true;
       setTimeout(() => {
         isCopied.value = false;
       }, 2000);
+    } else {
+      await copyToClipboardUtil(plainText);
+      isCopied.value = true;
+      setTimeout(() => {
+        isCopied.value = false;
+      }, 2000);
     }
-  }).catch(err => {
+  } catch (err) {
     console.error('클립보드 복사 실패:', err);
-  });
+    try {
+      await copyToClipboardUtil(plainText);
+      isCopied.value = true;
+      setTimeout(() => {
+        isCopied.value = false;
+      }, 2000);
+    } catch (fallbackErr) {
+      console.error('클립보드 2차 복사 실패:', fallbackErr);
+    }
+  }
 };
 
 const handleReleaseStatusChange = (asset) => {
@@ -1237,12 +1254,15 @@ onUnmounted(() => {
 .vertical-header { height: 100px; padding: 10px 5px !important; text-align: center !important; }
 .vertical-header div { writing-mode: vertical-rl; white-space: nowrap; margin: 0 auto; }
 
-.export-modal { max-width: 700px; }
-.export-desc { color: var(--text-muted); margin-bottom: 15px; }
+.export-modal { max-width: 800px; width: 90%; }
+.export-desc { color: var(--text-muted); margin-bottom: 15px; font-size: 14px; }
 
-.export-data-table { border-collapse: collapse; border: 1px solid var(--text-main); font-size: 12px; }
-.export-data-table th, .export-data-table td { border: 1px solid var(--text-main); padding: 8px; }
-.export-data-table th { background: var(--primary-color, #4a4a4a); color: #ffffff; }
+.export-table-container { width: 100%; overflow-x: auto; }
+.export-data-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 14px; }
+.export-data-table th { background: var(--primary-color, #4a4a4a); padding: 12px; text-align: left; border-bottom: 2px solid #333; font-weight: bold; color: white !important; }
+.export-data-table td { padding: 12px; border-bottom: 1px solid #eee; color: var(--text-main, #333); }
+.export-data-table tbody tr:hover { background: #f9f9f9; }
+.empty-export { text-align: center; padding: 30px; color: #999; }
 
 input[type="checkbox"] {
   width: 18px;
@@ -1297,6 +1317,21 @@ input[type="checkbox"] {
 
 .header-copy-btn:hover:not(:disabled) {
   background: var(--bg-muted);
+  transform: scale(1.1);
+  opacity: 0.8;
+}
+
+.header-copy-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.copy-icon,
+.checkmark-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: block;
 }
 
 .clickable-user-name {

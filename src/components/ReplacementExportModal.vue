@@ -125,7 +125,7 @@ const visibleAssets = computed(() => {
   return replacementAssets.value.filter(asset => !excludedReplacements.value[asset.asset_number]?.checked);
 });
 
-const handleClipboardCopy = () => {
+const handleClipboardCopy = async () => {
   const dataToCopy = visibleAssets.value;
   if (dataToCopy.length === 0) return;
 
@@ -169,16 +169,17 @@ const handleClipboardCopy = () => {
     ].join('\t'))
   ].join('\n');
 
-  copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText }).then((success) => {
+  try {
+    const success = await copyRichToClipboard({ 'text/html': htmlTable, 'text/plain': plainText });
     if (success) {
       isCopied.value = true;
       setTimeout(() => {
         isCopied.value = false;
       }, 2000);
     }
-  }).catch(err => {
+  } catch (err) {
     console.error('클립보드 복사 실패:', err);
-  });
+  }
 };
 
 const downloadCSV = () => {
