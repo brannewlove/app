@@ -235,3 +235,42 @@ describe('TradeService - cancelTrade (신규 로그 생성 및 취소의 취소)
         );
     });
 });
+
+describe('TradeService - processAssetTransition', () => {
+    let mockConn;
+
+    beforeEach(async () => {
+        jest.clearAllMocks();
+        mockConn = await pool.getConnection();
+    });
+
+    it('출고-재고지급 시 wait 상태의 자산도 useable 상태로 변경되고 사용자가 할당되어야 한다', async () => {
+        const tradeData = {
+            work_type: '출고-재고지급',
+            asset_number: 'AST-2001',
+            cj_id: 'USER_B'
+        };
+
+        await tradeService.processAssetTransition(mockConn, tradeData);
+
+        expect(mockConn.query).toHaveBeenCalledWith(
+            'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = ? OR state = "hold")',
+            ['USER_B', 'useable', 'AST-2001', 'useable', 'wait']
+        );
+    });
+
+    it('출고-재고교체 시 wait 상태의 자산도 useable 상태로 변경되고 사용자가 할당되어야 한다', async () => {
+        const tradeData = {
+            work_type: '출고-재고교체',
+            asset_number: 'AST-2002',
+            cj_id: 'USER_C'
+        };
+
+        await tradeService.processAssetTransition(mockConn, tradeData);
+
+        expect(mockConn.query).toHaveBeenCalledWith(
+            'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = ? OR state = "hold")',
+            ['USER_C', 'useable', 'AST-2002', 'useable', 'wait']
+        );
+    });
+});

@@ -58,7 +58,7 @@ export const WORK_TYPES = [
         work_type: '출고-재고지급',
         description: '전산실재고를 사용자에게 지급',
         category: '출고',
-        allowedStates: ['useable'],
+        allowedStates: ['useable', 'wait'],
         sourceType: 'stock'
     },
     {
@@ -66,7 +66,7 @@ export const WORK_TYPES = [
         work_type: '출고-재고교체',
         description: '전산실재고를 교체요청자에게 출고',
         category: '출고',
-        allowedStates: ['useable'],
+        allowedStates: ['useable', 'wait'],
         sourceType: 'stock'
     },
     {
@@ -275,7 +275,7 @@ export const validateTradeStrict = (tradeData, assetData, options = {}) => {
     if (!config) return { valid: false, message: '유효하지 않은 작업 유형입니다.' };
 
     const { state, in_user } = assetData;
-    const isStock = in_user === 'cjenc_inno';
+    const isStock = in_user === 'cjenc_inno' || (!in_user && state === 'wait');
 
     // 1. Check Allowed States
     if (!isHold(state) && config.allowedStates && !config.allowedStates.includes(state)) {
@@ -325,7 +325,7 @@ export const getAvailableWorkTypesForAsset = (asset) => {
     // HOLD 상태면 모든 작업 유형 가능 (기존 정책 유지)
     if (isHold(state)) return WORK_TYPES;
 
-    const isStock = in_user === 'cjenc_inno';
+    const isStock = in_user === 'cjenc_inno' || (!in_user && state === 'wait');
 
     return WORK_TYPES.filter(wt => {
         // 1. Check Allowed States

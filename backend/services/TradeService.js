@@ -34,11 +34,16 @@ class TradeService extends BaseService {
                 );
                 break;
             case '출고-사용자변경':
-            case '출고-재고교체':
-            case '출고-재고지급':
                 await connection.query(
                     'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = "hold")',
                     [cj_id, 'useable', asset_number, 'useable']
+                );
+                break;
+            case '출고-재고교체':
+            case '출고-재고지급':
+                await connection.query(
+                    'UPDATE assets SET in_user = ?, state = ? WHERE asset_number = ? AND (state = ? OR state = ? OR state = "hold")',
+                    [cj_id, 'useable', asset_number, 'useable', 'wait']
                 );
                 break;
             case '출고-대여':

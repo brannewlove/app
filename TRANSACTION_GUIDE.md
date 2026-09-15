@@ -31,7 +31,7 @@
 stateDiagram-v2
     [*] --> wait: 신규 등록 (계약 / 고장교체 / 기타)
 
-    wait --> useable_user: 출고-신규지급 / 출고-신규교체
+    wait --> useable_user: 출고-신규지급 / 출고-신규교체 / 출고-재고지급 / 출고-재고교체
 
     state "useable (전산실 재고: cjenc_inno)" as useable_stock
     state "useable (사용자 보유)" as useable_user
@@ -80,8 +80,8 @@ stateDiagram-v2
 |---|---|---|---|---|
 | **출고-신규지급** | `wait` | `useable` | 지정 사용자 (`cj_id`) | 신규 입고 자산 최초 사용자 지급 |
 | **출고-신규교체** | `wait` | `useable` | 지정 사용자 (`cj_id`) | 교체 요청 사용자에게 신규 자산 출고 |
-| **출고-재고지급** | `useable` & 전산실 재고 (`cjenc_inno`) | `useable` | 지정 사용자 (`cj_id`) | 전산실 보유 재고를 사용자에게 지급 |
-| **출고-재고교체** | `useable` & 전산실 재고 (`cjenc_inno`) | `useable` | 지정 사용자 (`cj_id`) | 교체 대상자에게 전산실 재고 출고 |
+| **출고-재고지급** | `useable` 또는 `wait` & 전산실 재고 (`cjenc_inno`) | `useable` | 지정 사용자 (`cj_id`) | 전산실 보유 재고(또는 대기 자산)를 사용자에게 지급 |
+| **출고-재고교체** | `useable` 또는 `wait` & 전산실 재고 (`cjenc_inno`) | `useable` | 지정 사용자 (`cj_id`) | 교체 대상자에게 전산실 재고(또는 대기 자산) 출고 |
 | **출고-대여** | `useable` & 전산실 재고 (`cjenc_inno`) | `rent` | 지정 사용자 (`cj_id`) | 전산실 재고를 임시 대여 출고 |
 | **출고-사용자변경** | `useable` & 사용자 보유 | `useable` | 변경 대상 사용자 (`cj_id`) | 기존 사용자와 다른 사용자 선택 필수 |
 | **출고-수리완료** | `repair` | `useable` | 기존 소유자 유지 | 수리 완료 후 기존 보유자에게 복귀 (소유자 변경 없음) |
