@@ -187,7 +187,6 @@ class AssetService extends BaseService {
                 let snapshotUser = null;
 
                 if (assetExists) {
-                    const oldAsset = existing[0];
                     snapshotState = oldAsset.state;
                     snapshotUser = oldAsset.in_user;
 

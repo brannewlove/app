@@ -80,4 +80,63 @@ describe('Assets API', () => {
             expect(res.body.error).toBe('자산을 찾을 수 없거나 수정 실패');
         });
     });
+
+    describe('POST /api/assets/bulk (신규-재계약 등 대량 등록)', () => {
+        it('신규-재계약 시 기존 자산이 존재할 때 정상적으로 업데이트 및 트레이드 기록이 되어야 한다', async () => {
+            const mockConn = {
+                beginTransaction: jest.fn(),
+                commit: jest.fn(),
+                rollback: jest.fn(),
+                query: jest.fn(),
+                release: jest.fn()
+            };
+            pool.getConnection = jest.fn().mockResolvedValue(mockConn);
+
+            const items = [{
+                asset_number: 'AST-RENEW-01',
+                category: '노트북',
+                model: 'ThinkPad',
+                serial_number: 'SN123',
+                in_user: 'USER_RENEW',
+                work_type: '신규-재계약',
+                day_of_start: '2026-01-01',
+                day_of_end: '2027-01-01',
+                unit_price: 1500000,
+                memo: '재계약 메모'
+            }];
+
+            const existingAsset = {
+                asset_number: 'AST-RENEW-01',
+                category: '노트북',
+                model: 'ThinkPad',
+                state: 'useable',
+                in_user: 'USER_OLD'
+            };
+
+            mockConn.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('SELECT cj_id FROM users WHERE cj_id IN')) {
+                    return [[{ cj_id: 'USER_RENEW' }, { cj_id: 'cjenc_inno' }]];
+                }
+                if (sql.includes('SELECT * FROM assets WHERE asset_number IN')) {
+                    return [[existingAsset]];
+                }
+                if (sql.includes('UPDATE assets SET')) {
+                    return [{ affectedRows: 1 }];
+                }
+                if (sql.includes('INSERT INTO trade')) {
+                    return [{ insertId: 101 }];
+                }
+                return [[]];
+            });
+
+            const res = await request(app)
+                .post('/api/assets/bulk')
+                .send({ items, default_work_type: '신규-재계약' });
+
+            expect(res.statusCode).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.results).toContain('AST-RENEW-01');
+            expect(mockConn.commit).toHaveBeenCalledTimes(1);
+        });
+    });
 });
