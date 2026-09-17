@@ -612,10 +612,30 @@ const downloadCSV = () => {
 };
 
 
+const resetAndRefresh = async () => {
+  searchQuery.value = '';
+  selectedUser.value = null;
+  currentPage.value = 1;
+  isModalOpen.value = false;
+  isTempUserModalOpen.value = false;
+  isTempUserListModalOpen.value = false;
+  isConfirmModalOpen.value = false;
+  await fetchUsers();
+  await loadTableColumns();
+};
+
 // 컴포넌트 마운트 시 사용자 목록 조회
 onMounted(() => {
   fetchUsers();
   loadTableColumns();
+
+  const handlePageRefresh = (event) => {
+    if (!event.detail || event.detail.path === '/users') {
+      resetAndRefresh();
+    }
+  };
+  window.addEventListener('page-refresh', handlePageRefresh);
+
   // ESC 키로 모달 닫기
   const handleKeyDown = (event) => {
     if (event.key === 'Escape') {
@@ -630,6 +650,7 @@ onMounted(() => {
   // cleanup
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('page-refresh', handlePageRefresh);
   });
 });
 </script>

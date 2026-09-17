@@ -322,14 +322,32 @@ const handleKeyDown = (e) => {
   }
 };
 
+const resetAndRefresh = async () => {
+  currentPage.value = 1;
+  initialSearch.value = '';
+  isReplacementExportOpen.value = false;
+  isUserDetailOpen.value = false;
+  isAssetInfoOpen.value = false;
+  await fetchTrades();
+  await fetchExportCounts();
+};
+
 onMounted(() => {
   fetchTrades();
   fetchExportCounts();
   window.addEventListener('keydown', handleKeyDown);
-});
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
+  const handlePageRefresh = (event) => {
+    if (!event.detail || event.detail.path === '/trades') {
+      resetAndRefresh();
+    }
+  };
+  window.addEventListener('page-refresh', handlePageRefresh);
+
+  onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('page-refresh', handlePageRefresh);
+  });
 });
 </script>
 

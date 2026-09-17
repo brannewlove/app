@@ -208,8 +208,20 @@ watch(() => router.currentRoute.value.path, () => {
 const navigateTo = (path) => {
   closeMobileMenu();
   showNotifications.value = false;
-  if (router.currentRoute.value.path === path) {
-    window.location.href = path; // 혹은 window.location.reload()
+  
+  const currentRoutePath = (router.currentRoute.value?.path || '').replace(/\/+$/, '') || '/';
+  const currentPathname = (window.location.pathname || '').replace(/\/+$/, '') || '/';
+  const targetPath = (path || '').replace(/\/+$/, '') || '/';
+  
+  const isSameRoute = (currentRoutePath === targetPath) || (currentPathname === targetPath);
+  
+  if (isSameRoute) {
+    if (!window.location.search && !window.location.hash) {
+      window.location.reload();
+    } else {
+      window.location.href = targetPath;
+      window.location.reload();
+    }
   } else {
     router.push(path);
   }

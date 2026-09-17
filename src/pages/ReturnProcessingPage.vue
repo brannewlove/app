@@ -1156,14 +1156,32 @@ const handleUserMenuAction = (action) => {
   userMenuVisible.value = false;
 };
 
+const resetAndRefresh = async () => {
+  searchQuery.value = '';
+  isBatchMode.value = false;
+  isActionChoiceModalOpen.value = false;
+  isReplacementModalOpen.value = false;
+  isUserDetailOpen.value = false;
+  await fetchReturnedAssets();
+  await loadTableColumns();
+};
+
 onMounted(() => {
   fetchReturnedAssets();
   loadTableColumns();
   window.addEventListener('keydown', handleKeyDown);
-});
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
+  const handlePageRefresh = (event) => {
+    if (!event.detail || event.detail.path === '/return-processing') {
+      resetAndRefresh();
+    }
+  };
+  window.addEventListener('page-refresh', handlePageRefresh);
+
+  onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('page-refresh', handlePageRefresh);
+  });
 });
 </script>
 

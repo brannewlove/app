@@ -841,10 +841,50 @@ const getExpirationClass = (asset) => {
 };
 
 
+const resetAndRefresh = async () => {
+  searchQuery.value = '';
+  activeFilter.value = null;
+  activeSavedFilter.value = null;
+  selectedAsset.value = null;
+  currentPage.value = 1;
+  sortColumn.value = 'asset_id';
+  sortDirection.value = 'asc';
+  isManualSort.value = false;
+
+  isAssetInfoOpen.value = false;
+  isTrackingOpen.value = false;
+  isUserDetailOpen.value = false;
+  isBulkRegisterOpen.value = false;
+  isReturnModalOpen.value = false;
+  isQuickTradeOpen.value = false;
+  isBulkTradeOpen.value = false;
+  isSaveModalOpen.value = false;
+  isFilterDropdownOpen.value = false;
+  isBuilderOpen.value = false;
+  filterGuideOpen.value = false;
+  menuVisible.value = false;
+  userMenuVisible.value = false;
+
+  if (route.query && Object.keys(route.query).length > 0) {
+    router.replace({ path: '/assets', query: {} });
+  }
+
+  await fetchAssets();
+  await fetchSavedFilters();
+  await loadTableColumns();
+};
+
 onMounted(() => {
   fetchAssets();
   fetchSavedFilters();
   loadTableColumns();
+
+  const handlePageRefresh = (event) => {
+    if (!event.detail || event.detail.path === '/assets') {
+      resetAndRefresh();
+    }
+  };
+  window.addEventListener('page-refresh', handlePageRefresh);
 
   // 1. URL 쿼리(q) -> 검색어 동기화 (단일 소모성)
   // '자산 보기' 클릭 등으로 전달된 q를 검색창에 넣고 URL에서는 즉시 지웁니다.
@@ -896,6 +936,7 @@ onMounted(() => {
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('click', handleClickOutside);
+    window.removeEventListener('page-refresh', handlePageRefresh);
   });
 });
 </script>
